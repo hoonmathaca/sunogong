@@ -24,6 +24,14 @@
     min-height: 100dvh;
     display: flex;
     flex-direction: column;
+    /* 잔상 방지용 미세 이동(2~6px)이 가로 스크롤을 만들지 않게 */
+    overflow-x: hidden;
+  }
+
+  /* 전체화면에서 남는 여백이 흰색으로 보이게 */
+  html:fullscreen,
+  html:-webkit-full-screen {
+    background: #ffffff;
   }
 
   /* 숫자는 자리폭을 고정해 타이머가 흔들리지 않게 */

@@ -3,6 +3,15 @@ import { addDays, formatHMS, formatMinutes, kstDateString, monthRange, rangeDate
 import { buildStats, indexLogs, longestStreakAllTime, longestStreakInRange, rankEntries } from '../src/lib/stats'
 import { computeElapsedSeconds, isHeartbeatStale } from '../src/lib/session'
 import { normalizeKind, pausesOnLeave } from '../src/lib/kinds'
+import {
+  detectPlatform,
+  fullscreenHint,
+  isFullscreenActive,
+  isStandaloneApp,
+  PIXEL_SHIFT_INTERVAL_MS,
+  pixelShift,
+  supportsFullscreen,
+} from '../src/lib/fullscreen'
 import type { Student, StudyLog } from '../src/lib/types'
 
 let failed = 0
@@ -138,5 +147,38 @@ eq(
   ),
   600,
 )
+
+/* 전체화면·잔상 방지 */
+eq('기기(아이폰)', detectPlatform('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)'), 'ios')
+eq('기기(아이패드는 맥처럼 보임)', detectPlatform('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 5), 'ios')
+eq('기기(안드로이드)', detectPlatform('Mozilla/5.0 (Linux; Android 14; SM-S911N) AppleWebKit/537.36'), 'android')
+eq('기기(PC)', detectPlatform('Mozilla/5.0 (Windows NT 10.0; Win64; x64)'), 'other')
+eq('기기(값 없음)', detectPlatform(undefined), 'other')
+
+eq('잔상 이동(처음엔 그대로)', pixelShift(0), { x: 0, y: 0 })
+eq('잔상 이동(1분)', PIXEL_SHIFT_INTERVAL_MS, 60000)
+eq('잔상 이동(음수·소수 안전)', [pixelShift(-3), pixelShift(2.7)], [pixelShift(3), pixelShift(2)])
+let shiftCycle = 1
+while (shiftCycle < 32 && JSON.stringify(pixelShift(shiftCycle)) !== JSON.stringify(pixelShift(0))) shiftCycle += 1
+eq('잔상 이동(한 바퀴 돌면 처음으로)', shiftCycle < 32, true)
+const shifts = Array.from({ length: shiftCycle }, (_, index) => pixelShift(index))
+const shiftInRange = shifts.slice(1).every(({ x, y }) => {
+  const distance = Math.max(Math.abs(x), Math.abs(y))
+  return distance >= 2 && distance <= 6
+})
+eq('잔상 이동(2~6px 안, 0으로 돌아오지 않음)', shiftInRange, true)
+eq('잔상 이동(이웃 칸이 서로 다름)', shifts.every((point, index) => index === 0 || point.x !== shifts[index - 1].x || point.y !== shifts[index - 1].y), true)
+
+eq('아이폰 안내', fullscreenHint({ platform: 'ios', supported: false, standalone: false }), '아이폰은 ‘홈 화면에 추가’로 열면 주소창 없이 전체화면으로 쓸 수 있어요')
+eq(
+  '홈 화면 앱이면 안내가 다름',
+  fullscreenHint({ platform: 'ios', supported: false, standalone: true }),
+  '이미 홈 화면 앱으로 열려 있어서 주소창 없이 쓸 수 있어요',
+)
+eq('지원하면 안내 없음', fullscreenHint({ platform: 'android', supported: true, standalone: false }), null)
+eq('한 번 실패했을 때', fullscreenHint({ platform: 'android', supported: true, standalone: false, failed: true }), '전체화면을 켜지 못했어요. 한 번 더 눌러주세요')
+eq('SSR: 전체화면 미지원으로 처리', supportsFullscreen(undefined), false)
+eq('SSR: 전체화면 아님', isFullscreenActive(undefined), false)
+eq('SSR: 홈 화면 앱 아님', isStandaloneApp(), false)
 
 console.log(failed === 0 ? 'ALL LIB TESTS PASSED' : `${failed} FAILED`)

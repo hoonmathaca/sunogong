@@ -124,6 +124,9 @@ const academyHtml = rendered['TimerScreen(학원)'] ?? ''
 const checks: [string, boolean][] = [
   ['숙제: 화면 끄면 멈춘다는 안내', homeworkHtml.includes('숙제 공부는 화면을 끄거나 나가면 멈춰요')],
   ['숙제: 화면보호 모드 버튼', homeworkHtml.includes('화면보호 모드')],
+  ['숙제: 전체화면 버튼', homeworkHtml.includes('⛶ 전체화면')],
+  ['학원: 전체화면 버튼', academyHtml.includes('⛶ 전체화면')],
+  ['기본 화면에는 전체화면 안내 없음', !homeworkHtml.includes('홈 화면에 추가')],
   ['숙제: 저조도 기본은 꺼짐(밝은 화면)', !homeworkHtml.includes('bg-[#07090F]')],
   ['학원: 화면 꺼져도 계속 간다는 안내', academyHtml.includes('학원 공부는 화면이 꺼져도 계속 가요')],
   ['학원: 화면보호 모드 버튼 없음', !academyHtml.includes('화면보호 모드')],
