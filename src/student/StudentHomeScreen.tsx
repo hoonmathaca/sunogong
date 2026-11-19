@@ -2,12 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { BrandFooter, Mascot } from '../components/Brand'
 import { Spinner } from '../components/Keypad'
 import * as api from '../lib/api'
+import { KIND_EMOJI, KIND_LABEL, type SessionKind } from '../lib/kinds'
 import { addDays, formatDateKo, formatMinutes, todayKst, weekdayOf } from '../lib/time'
 import type { Student, StudyLog } from '../lib/types'
 
 interface StudentHomeScreenProps {
   student: Student
-  onStart: () => void
+  onStart: (kind: SessionKind) => void
   onExit: () => void
   busy?: boolean
 }
@@ -78,6 +79,12 @@ export function StudentHomeScreen({ student, onStart, onExit, busy = false }: St
           <p className="mt-1 text-[34px] font-extrabold leading-tight tabular">
             {todayLog ? formatMinutes(todayLog.minutes) : '0분'}
           </p>
+          {todayLog && ((todayLog.academy_minutes ?? 0) > 0 || (todayLog.homework_minutes ?? 0) > 0) ? (
+            <p className="mt-1 text-[12px] font-semibold text-white/60">
+              {KIND_EMOJI.academy} {KIND_LABEL.academy} {formatMinutes(todayLog.academy_minutes ?? 0)} · {KIND_EMOJI.homework}{' '}
+              {KIND_LABEL.homework} {formatMinutes(todayLog.homework_minutes ?? 0)}
+            </p>
+          ) : null}
           <div className="mt-3 flex items-center gap-2 text-[13px] text-white/70">
             <span className="rounded-full bg-white/10 px-2.5 py-1">푼 문제 {todayLog?.problems ?? 0}개</span>
             <span className="rounded-full bg-white/10 px-2.5 py-1">이번 주 {formatMinutes(weekMinutes)}</span>
@@ -138,9 +145,24 @@ export function StudentHomeScreen({ student, onStart, onExit, busy = false }: St
       </div>
 
       <div className="px-5 pb-1">
-        <button type="button" onClick={onStart} disabled={busy} className="btn-navy h-[54px] w-full text-lg">
-          {busy ? <Spinner className="h-5 w-5 border-white/40 border-t-white" /> : '공부 시작'}
-        </button>
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={() => onStart('academy')}
+            disabled={busy}
+            className="btn-navy h-[54px] w-full text-lg"
+          >
+            {busy ? <Spinner className="h-5 w-5 border-white/40 border-t-white" /> : `${KIND_EMOJI.academy} ${KIND_LABEL.academy} 시작`}
+          </button>
+          <button
+            type="button"
+            onClick={() => onStart('homework')}
+            disabled={busy}
+            className="h-[54px] w-full rounded-2xl bg-[#6D3BD6] text-lg font-bold text-white shadow-soft transition active:opacity-90 disabled:opacity-60"
+          >
+            {busy ? <Spinner className="h-5 w-5 border-white/40 border-t-white" /> : `${KIND_EMOJI.homework} ${KIND_LABEL.homework} 시작`}
+          </button>
+        </div>
       </div>
 
       <BrandFooter />

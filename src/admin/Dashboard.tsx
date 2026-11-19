@@ -288,7 +288,14 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                           <button
                             type="button"
                             onClick={() => setEditingCell({ student: stat.student, date, log: log ?? null })}
-                            title={`${stat.student.name} ${date}${log ? ` · ${formatMinutes(log.minutes)} · ${log.problems}문제` : ' · 기록 없음'}`}
+                            title={`${stat.student.name} ${date}${
+                              log
+                                ? ` · ${formatMinutes(log.minutes)} · ${log.problems}문제` +
+                                  ((log.academy_minutes ?? 0) > 0 || (log.homework_minutes ?? 0) > 0
+                                    ? ` (🏫 ${log.academy_minutes ?? 0}분 · 🏠 ${log.homework_minutes ?? 0}분)`
+                                    : '')
+                                : ' · 기록 없음'
+                            }`}
                             className={`flex h-[42px] w-[46px] flex-col items-center justify-center transition hover:outline hover:outline-1 hover:outline-blue-brand ${
                               log ? 'text-white' : 'text-navy/25'
                             }`}

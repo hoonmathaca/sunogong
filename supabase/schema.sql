@@ -31,6 +31,7 @@ create table if not exists public.study_sessions (
   id                  uuid primary key default gen_random_uuid(),
   student_id          uuid not null references public.students (id) on delete cascade,
   status              text not null default 'running' check (status in ('running', 'paused', 'finished')),
+  kind                text not null default 'academy' check (kind in ('academy', 'homework')),
   started_at          timestamptz not null default now(),
   paused_at           timestamptz,
   ended_at            timestamptz,
@@ -54,12 +55,16 @@ create unique index if not exists study_sessions_one_active_idx
   where status <> 'finished';
 
 create table if not exists public.study_logs (
-  id         uuid primary key default gen_random_uuid(),
-  student_id uuid not null references public.students (id) on delete cascade,
-  date       date not null,
-  minutes    integer not null default 0 check (minutes >= 0),
-  problems   integer not null default 0 check (problems >= 0),
-  updated_at timestamptz not null default now(),
+  id                uuid primary key default gen_random_uuid(),
+  student_id        uuid not null references public.students (id) on delete cascade,
+  date              date not null,
+  minutes           integer not null default 0 check (minutes >= 0),
+  problems          integer not null default 0 check (problems >= 0),
+  academy_minutes   integer not null default 0 check (academy_minutes >= 0),
+  academy_problems  integer not null default 0 check (academy_problems >= 0),
+  homework_minutes  integer not null default 0 check (homework_minutes >= 0),
+  homework_problems integer not null default 0 check (homework_problems >= 0),
+  updated_at        timestamptz not null default now(),
   unique (student_id, date)
 );
 
@@ -71,6 +76,29 @@ alter table public.study_sessions add column if not exists last_pause_auto boole
 alter table public.study_sessions add column if not exists minutes integer;
 alter table public.study_sessions add column if not exists problems integer;
 alter table public.study_logs add column if not exists updated_at timestamptz not null default now();
+
+-- 공부 종류(학원/숙제) — 기존 기록은 'academy' 로 두고 데이터는 그대로 둔다
+alter table public.study_sessions add column if not exists kind text not null default 'academy';
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'study_sessions_kind_check') then
+    alter table public.study_sessions
+      add constraint study_sessions_kind_check check (kind in ('academy', 'homework'));
+  end if;
+end $$;
+
+alter table public.study_logs add column if not exists academy_minutes  integer not null default 0;
+alter table public.study_logs add column if not exists academy_problems integer not null default 0;
+alter table public.study_logs add column if not exists homework_minutes integer not null default 0;
+alter table public.study_logs add column if not exists homework_problems integer not null default 0;
+
+-- 기존 기록(종류를 모르는 날)은 학원 공부로 한 번만 옮겨 둔다. 여러 번 실행해도 안전하다.
+update public.study_logs
+   set academy_minutes  = minutes,
+       academy_problems = problems
+ where academy_minutes = 0 and homework_minutes = 0 and homework_problems = 0
+   and (minutes > 0 or problems > 0);
 
 -- ---------------------------------------------------------------------
 -- 2. 서버 시각 · 날짜 도우미
@@ -210,14 +238,18 @@ end;
 $$;
 
 -- 공부 시작 (이미 진행 중이면 그 세션을 그대로 돌려줌 → 타이머 화면 복귀)
-create or replace function public.start_session(p_student_id uuid)
+-- p_kind: 'academy'(학원 공부) 또는 'homework'(숙제 공부)
+drop function if exists public.start_session(uuid);
+
+create or replace function public.start_session(p_student_id uuid, p_kind text default 'academy')
 returns public.study_sessions
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
-  s public.study_sessions;
+  s      public.study_sessions;
+  v_kind text := case when p_kind = 'homework' then 'homework' else 'academy' end;
 begin
   if not exists (select 1 from public.students where id = p_student_id) then
     raise exception 'student_not_found' using errcode = 'P0002';
@@ -238,8 +270,8 @@ begin
     end if;
   end if;
 
-  insert into public.study_sessions (student_id, status, started_at, last_heartbeat_at, date)
-  values (p_student_id, 'running', now(), now(), public.kst_today())
+  insert into public.study_sessions (student_id, status, kind, started_at, last_heartbeat_at, date)
+  values (p_student_id, 'running', v_kind, now(), now(), public.kst_today())
   returning * into s;
 
   return s;
@@ -368,6 +400,7 @@ declare
   v_secs     integer;
   v_mins     integer;
   v_problems integer;
+  v_kind     text;
   v_log      public.study_logs;
 begin
   select * into s from public.study_sessions where id = p_session_id for update;
@@ -389,7 +422,8 @@ begin
       'problems',       coalesce(s.problems, 0),
       'total_minutes',  coalesce(v_log.minutes, 0),
       'total_problems', coalesce(v_log.problems, 0),
-      'date',           s.date
+      'date',           s.date,
+      'kind',           s.kind
     );
   end if;
 
@@ -413,6 +447,7 @@ begin
       'total_minutes',  coalesce(v_log.minutes, 0),
       'total_problems', coalesce(v_log.problems, 0),
       'date',           s.date,
+      'kind',           s.kind,
       'discarded',      true
     );
   end if;
@@ -424,6 +459,7 @@ begin
   v_mins := (v_secs / 60)::integer;
 
   v_problems := greatest(0, coalesce(p_problems, s.problems, 0));
+  v_kind     := case when s.kind = 'homework' then 'homework' else 'academy' end;
 
   update public.study_sessions
      set status          = 'finished',
@@ -435,12 +471,26 @@ begin
    where id = s.id
    returning * into s;
 
-  insert into public.study_logs as l (student_id, date, minutes, problems, updated_at)
-  values (s.student_id, s.date, v_mins, v_problems, now())
+  insert into public.study_logs as l (
+    student_id, date, minutes, problems,
+    academy_minutes, academy_problems, homework_minutes, homework_problems, updated_at
+  )
+  values (
+    s.student_id, s.date, v_mins, v_problems,
+    case when v_kind = 'academy'  then v_mins     else 0 end,
+    case when v_kind = 'academy'  then v_problems else 0 end,
+    case when v_kind = 'homework' then v_mins     else 0 end,
+    case when v_kind = 'homework' then v_problems else 0 end,
+    now()
+  )
   on conflict (student_id, date) do update
-    set minutes    = l.minutes + excluded.minutes,
-        problems   = l.problems + excluded.problems,
-        updated_at = now()
+    set minutes           = l.minutes + excluded.minutes,
+        problems          = l.problems + excluded.problems,
+        academy_minutes   = l.academy_minutes + excluded.academy_minutes,
+        academy_problems  = l.academy_problems + excluded.academy_problems,
+        homework_minutes  = l.homework_minutes + excluded.homework_minutes,
+        homework_problems = l.homework_problems + excluded.homework_problems,
+        updated_at        = now()
   returning * into v_log;
 
   return jsonb_build_object(
@@ -451,7 +501,8 @@ begin
     'problems',       v_problems,
     'total_minutes',  coalesce(v_log.minutes, 0),
     'total_problems', coalesce(v_log.problems, 0),
-    'date',           s.date
+    'date',           s.date,
+    'kind',           v_kind
   );
 end;
 $$;
@@ -504,7 +555,7 @@ grant execute on function public.session_elapsed_seconds(timestamptz, timestampt
 grant execute on function public.find_students_by_code(text) to anon, authenticated;
 grant execute on function public.reconcile_session(uuid) to anon, authenticated;
 grant execute on function public.active_session(uuid) to anon, authenticated;
-grant execute on function public.start_session(uuid) to anon, authenticated;
+grant execute on function public.start_session(uuid, text) to anon, authenticated;
 grant execute on function public.pause_session(uuid, boolean) to anon, authenticated;
 grant execute on function public.resume_session(uuid) to anon, authenticated;
 grant execute on function public.heartbeat(uuid) to anon, authenticated;

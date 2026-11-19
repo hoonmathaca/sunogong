@@ -39,9 +39,14 @@ select count(*) from public.students;   -- 51
 select count(*) from public.study_logs; -- 2
 ```
 
-> **자정 규칙을 바꿨습니다 (2026-11-19).** 앱은 이 규칙을 클라이언트에서도 지키지만,
-> 데이터베이스까지 같은 규칙으로 맞추려면 `supabase/schema.sql` 을 SQL Editor에서 **한 번 다시 실행**해 주세요.
-> (자정을 넘긴 세션을 종료하지 않고 버리기 + 하트비트가 끊겨도 임의로 일시정지하지 않기)
+> **2026-11-19 변경분은 SQL Editor에서 한 번 실행해야 DB에 반영됩니다.**
+> `supabase/migrate-2026-11-19-study-kind.sql` (권장, 기존 데이터를 건드리지 않는 추가 마이그레이션) 또는
+> `supabase/schema.sql` (전체 스키마, 여러 번 실행해도 안전) 중 하나를 실행하세요.
+> - 공부 종류(학원/숙제) 열 추가 — 기존 기록은 '학원 공부'로 한 번만 채워집니다
+> - 자정을 넘긴 세션을 종료하지 않고 버리기
+> - 하트비트가 끊겨도 서버가 임의로 일시정지하지 않기
+>
+> 이 SQL을 실행하기 전에도 앱은 그대로 동작합니다(종류 구분만 저장되지 않음).
 
 ## 3. 실행 / 빌드
 
@@ -80,7 +85,7 @@ npm run preview    # 빌드 결과 확인
 1. **코드 입력** — 4자리 숫자 키패드. 코드는 문자열이라 `0575`처럼 앞자리 0이 유지됩니다.
    같은 코드를 쓰는 학생이 여럿이면 `누구세요?` 이름 선택 화면이 뜹니다.
 2. **홈** — 오늘 누적 공부시간·푼 문제 수, 최근 7일 기록, `공부 시작`
-3. **타이머** — `HH:MM:SS`, `일시정지` / `종료` (일시정지 중에는 `계속` / `종료`)
+3. **타이머** — `🏫 학원 공부 시작` / `🏠 숙제 공부 시작` 두 가지로 시작하고, `HH:MM:SS` · 종류 배지 · `일시정지` / `종료`(일시정지 중에는 `계속` / `종료`)
 4. **종료** — `공부를 마칠까요?` → `오늘 푼 문제 수` 키패드(0 가능) → 저장
 5. **결과** — `오늘 ○시간 ○분 공부했어요` + 오늘 합계
 
@@ -106,6 +111,7 @@ npm run preview    # 빌드 결과 확인
 | 시작/일시정지/계속/종료 시각 저장 | `start_session`, `pause_session`, `resume_session`, `finish_session` |
 | 진행 중인 세션이 있으면 코드 입력 시 타이머로 복귀 | `active_session` → `start_session` |
 | 하루 여러 번 → `study_logs`(학생+날짜 unique)에 누적 합산 | `finish_session` 의 `on conflict do update` |
+| 학원/숙제 구분 저장 (`study_sessions.kind`) 과 종류별 집계 (`study_logs.academy_*`, `homework_*`) | `start_session(p_kind)`, `finish_session` |
 | **화면을 꺼도 시간은 계속 간다** (공부 시간으로 인정) | `visibilitychange` 로는 멈추지 않음 |
 | 페이지를 떠날 때는 그 시각만 남긴다 (아이폰은 화면 잠금에도 pagehide 가 와서 멈추지 않음) | `heartbeatBeacon` (keepalive) |
 | 앱을 닫았다가 다시 열면 마지막 신호 시각까지로 일시정지 | 클라이언트 `isHeartbeatStale` + `pause_session` |

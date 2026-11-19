@@ -99,8 +99,13 @@ export function StudentDetailModal({ open, student, endDate, onClose, onChanged 
                 {recent.map((log) => (
                   <li key={log.id} className="flex items-center justify-between gap-2 py-2 text-[12px]">
                     <span className="font-semibold text-navy/70">{formatDateKo(log.date)}</span>
-                    <span className="tabular text-navy/60">
+                    <span className="text-right tabular text-navy/60">
                       {formatMinutes(log.minutes)} · {log.problems}문제
+                      {(log.academy_minutes ?? 0) > 0 || (log.homework_minutes ?? 0) > 0 ? (
+                        <span className="block text-[11px] text-navy/40">
+                          🏫 {log.academy_minutes ?? 0}분 · 🏠 {log.homework_minutes ?? 0}분
+                        </span>
+                      ) : null}
                     </span>
                     <button
                       type="button"

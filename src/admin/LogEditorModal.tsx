@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Modal } from '../components/Modal'
 import { Spinner } from '../components/Keypad'
 import * as api from '../lib/api'
-import { formatDateKo } from '../lib/time'
+import { formatDateKo, formatMinutes } from '../lib/time'
 import type { Student, StudyLog } from '../lib/types'
 
 interface LogEditorModalProps {
@@ -97,6 +97,16 @@ export function LogEditorModal({ open, student, date, log, onClose, onSaved }: L
         </>
       }
     >
+      {log && ((log.academy_minutes ?? 0) > 0 || (log.homework_minutes ?? 0) > 0) ? (
+        <p className="mb-3 rounded-xl bg-blue-soft px-3 py-2 text-[12px] font-semibold text-navy/60">
+          앱 기록 · 🏫 학원 {formatMinutes(log.academy_minutes ?? 0)} / {log.academy_problems ?? 0}문제 · 🏠 숙제{' '}
+          {formatMinutes(log.homework_minutes ?? 0)} / {log.homework_problems ?? 0}문제
+          <span className="mt-0.5 block text-[11px] font-medium text-navy/40">
+            아래에서 고치면 합계만 바뀌어요.
+          </span>
+        </p>
+      ) : null}
+
       <div className="grid grid-cols-2 gap-3">
         <label className="text-[12px] font-semibold text-navy/60">
           공부시간(분)

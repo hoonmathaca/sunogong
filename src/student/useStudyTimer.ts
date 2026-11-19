@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as api from '../lib/api'
+import { normalizeKind, type SessionKind } from '../lib/kinds'
 import { computeElapsedSeconds, isHeartbeatStale } from '../lib/session'
 import { HEARTBEAT_INTERVAL_MS, MAX_SESSION_SECONDS, kstMidnightMs, parseMs, todayKst } from '../lib/time'
 import type { FinishResult, StudySession } from '../lib/types'
@@ -29,6 +30,7 @@ export interface UseStudyTimerOptions {
 export interface StudyTimer {
   session: StudySession | null
   status: 'loading' | 'idle' | 'running' | 'paused' | 'finished'
+  kind: SessionKind
   elapsedSeconds: number
   loading: boolean
   busy: boolean
@@ -36,7 +38,7 @@ export interface StudyTimer {
   notice: string | null
   limitReached: boolean
   wakeLockOk: boolean
-  start: () => Promise<void>
+  start: (kind?: SessionKind) => Promise<void>
   pause: (auto?: boolean, message?: string) => Promise<void>
   resume: () => Promise<void>
   finish: (problems: number, reason?: FinishReason) => Promise<FinishResult | null>
@@ -62,12 +64,14 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
   const [elapsed, setElapsed] = useState(0)
   const [limitReached, setLimitReached] = useState(false)
   const [wakeLockOk, setWakeLockOk] = useState(true)
+  const [kind, setKind] = useState<SessionKind>(normalizeKind(initialSession?.kind))
 
   const sessionRef = useRef<StudySession | null>(initialSession)
   const offsetRef = useRef(0)
   const busyRef = useRef(false)
   const finishingRef = useRef(false)
   const wakeLockRef = useRef<WakeLockSentinelLike | null>(null)
+  const kindRef = useRef<SessionKind>(normalizeKind(initialSession?.kind))
   const onFinishedRef = useRef(onFinished)
   const onDiscardedRef = useRef(onDiscarded)
   onFinishedRef.current = onFinished
@@ -76,6 +80,10 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
   const applySession = useCallback((next: StudySession | null) => {
     sessionRef.current = next
     setSession(next)
+    if (next?.kind) {
+      kindRef.current = normalizeKind(next.kind)
+      setKind(kindRef.current)
+    }
   }, [])
 
   const syncServerTime = useCallback((iso: string | null | undefined) => {
@@ -170,14 +178,16 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId])
 
-  /* 시작 */
-  const start = useCallback(async () => {
+  /* 시작 — 학원 공부 / 숙제 공부 */
+  const start = useCallback(async (nextKind: SessionKind = 'academy') => {
     if (busyRef.current) return
     busyRef.current = true
     setBusy(true)
     setError(null)
     setLimitReached(false)
-    const res = await api.startSession(studentId)
+    kindRef.current = nextKind
+    setKind(nextKind)
+    const res = await api.startSession(studentId, nextKind)
     if (res.ok) {
       syncServerTime(res.data.last_heartbeat_at)
       await settleLoaded(res.data)
@@ -270,7 +280,7 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
         applySession(res.data.session)
         setElapsed(computeElapsed(res.data.session))
         try {
-          onFinishedRef.current?.(res.data, reason)
+          onFinishedRef.current?.({ ...res.data, kind: normalizeKind(res.data.kind ?? kindRef.current) }, reason)
         } catch (callbackError) {
           console.error('[sunogong] 종료 처리 중 오류:', callbackError)
         }
@@ -421,6 +431,7 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
 
   return {
     session,
+    kind,
     status: loading ? 'loading' : !session ? 'idle' : session.status,
     elapsedSeconds: elapsed,
     loading,

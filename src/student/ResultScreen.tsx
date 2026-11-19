@@ -1,4 +1,5 @@
 import { BrandFooter, Mascot } from '../components/Brand'
+import { KIND_EMOJI, KIND_LABEL, normalizeKind } from '../lib/kinds'
 import { formatMinutes } from '../lib/time'
 import type { FinishResult, Student } from '../lib/types'
 import type { FinishReason } from './useStudyTimer'
@@ -15,16 +16,19 @@ interface ResultScreenProps {
 /** 공부 종료 결과 */
 export function ResultScreen({ student, result, reason, onHome, onAgain, busy = false }: ResultScreenProps): JSX.Element {
   const sessionMinutes = Math.max(0, Math.round(result.seconds / 60))
+  const kind = normalizeKind(result.kind)
 
   return (
     <div className="screen bg-gradient-to-b from-navy to-blue-brand text-white">
       <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
-        <Mascot variant="full" className="h-[clamp(96px,20dvh,150px)] w-auto drop-shadow-lg" />
+        <div className="flex h-[clamp(96px,20dvh,150px)] w-[clamp(96px,20dvh,150px)] items-center justify-center rounded-full bg-white p-3 shadow-lg">
+          <Mascot variant="full" className="h-full w-full" />
+        </div>
 
         <p className="mt-4 text-[13px] font-bold tracking-wide text-white/60">{student.name} · 수고했어요!</p>
 
         <h1 className="mt-2 text-[26px] font-extrabold leading-snug">
-          오늘 <span className="text-white">{formatMinutes(sessionMinutes)}</span> 공부했어요
+          {KIND_EMOJI[kind]} {KIND_LABEL[kind]} <span className="text-white">{formatMinutes(sessionMinutes)}</span> 했어요
         </h1>
 
         <div className="mt-5 w-full max-w-xs rounded-3xl bg-white/10 px-5 py-4 backdrop-blur-sm">

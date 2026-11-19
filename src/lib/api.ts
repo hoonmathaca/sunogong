@@ -1,4 +1,5 @@
 import { isSupabaseConfigured, SUPABASE_ANON_KEY, SUPABASE_URL, supabase } from './supabase'
+import type { SessionKind } from './kinds'
 import { todayKst } from './time'
 import type { FinishResult, Student, StudyLog, StudySession } from './types'
 
@@ -144,8 +145,14 @@ export function heartbeatBeacon(sessionId: string, atIso: string): void {
 }
 
 /** 세션 시작 (이미 진행 중이면 그 세션을 돌려준다). 지난 날 세션은 먼저 버린다. */
-export const startSession = async (studentId: string): Promise<ApiResult<StudySession>> => {
+export const startSession = async (
+  studentId: string,
+  kind: SessionKind = 'academy',
+): Promise<ApiResult<StudySession>> => {
   await getActiveSession(studentId)
+  const res = await rpc<StudySession>('start_session', { p_student_id: studentId, p_kind: kind })
+  if (res.ok) return res
+  // DB에 공부 종류(kind)가 아직 없으면 예전 방식으로 시작한다 (앱이 멈추지 않게)
   return rpc<StudySession>('start_session', { p_student_id: studentId })
 }
 
@@ -219,7 +226,7 @@ async function listLogsFiltered(
     for (let page = 0; page < 60; page += 1) {
       let query = supabase
         .from('study_logs')
-        .select('id,student_id,date,minutes,problems,updated_at')
+        .select('*')
         .gte('date', start)
         .lte('date', end)
       if (studentId) query = query.eq('student_id', studentId)
@@ -256,7 +263,7 @@ export const upsertLog = (input: { student_id: string; date: string; minutes: nu
         },
         { onConflict: 'student_id,date' },
       )
-      .select('id,student_id,date,minutes,problems,updated_at')
+      .select('*')
       .single(),
   )
 

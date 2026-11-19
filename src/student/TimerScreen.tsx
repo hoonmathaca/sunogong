@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { BrandFooter, Mascot } from '../components/Brand'
 import { Keypad, Spinner } from '../components/Keypad'
 import { Modal } from '../components/Modal'
+import { KIND_EMOJI, KIND_LABEL } from '../lib/kinds'
 import { formatHMS, formatMinutes, MAX_SESSION_SECONDS } from '../lib/time'
 import type { FinishResult, Student, StudySession } from '../lib/types'
 import { useStudyTimer, type DiscardReason, type FinishReason } from './useStudyTimer'
@@ -23,7 +24,7 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
   const [pendingReason, setPendingReason] = useState<FinishReason>('manual')
   const limitModalShown = useRef(false)
 
-  const { session, status, elapsedSeconds, busy, error, notice, limitReached, wakeLockOk } = timer
+  const { session, status, elapsedSeconds, busy, error, notice, limitReached, wakeLockOk, kind } = timer
 
   /* 5시간이 되면 자동으로 종료 안내 (문제 수는 그대로 입력) */
   useEffect(() => {
@@ -87,9 +88,16 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
   return (
     <div className="screen bg-gradient-to-b from-blue-soft/60 to-white">
       <div className="flex items-center justify-between px-5 pt-[max(1rem,env(safe-area-inset-top))]">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           <span className="rounded-full bg-white px-3 py-1 text-[12px] font-bold text-navy shadow-sm">
             {student.name} · {student.grade}
+          </span>
+          <span
+            className={`rounded-full px-3 py-1 text-[12px] font-bold shadow-sm ${
+              kind === 'homework' ? 'bg-[#EDE4FF] text-[#5B2FC0]' : 'bg-white text-navy'
+            }`}
+          >
+            {KIND_EMOJI[kind]} {KIND_LABEL[kind]}
           </span>
         </div>
         <span className="text-[11px] font-semibold text-navy/40">10초마다 자동 저장</span>
@@ -150,7 +158,7 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
           </button>
         </div>
         <p className="mt-2 text-center text-[11px] text-navy/35">
-          화면을 꺼도 시간은 계속 가요 · 앱을 닫으면 그 시점까지만 인정돼요
+          화면이 꺼져도 계속돼요 · 앱을 나가면 그 시점에서 멈춰요
         </p>
       </div>
 

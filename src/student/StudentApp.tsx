@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import * as api from '../lib/api'
+import type { SessionKind } from '../lib/kinds'
 import type { FinishResult, Student, StudySession } from '../lib/types'
 import { ChooseStudentScreen } from './ChooseStudentScreen'
 import { CodeEntryScreen } from './CodeEntryScreen'
@@ -136,12 +137,12 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
     [enterWithStudent],
   )
 
-  const startStudy = useCallback(async () => {
+  const startStudy = useCallback(async (kind: SessionKind = 'academy') => {
     if (!student) return
     setBusy(true)
     setStartError(null)
     try {
-      const res = await api.startSession(student.id)
+      const res = await api.startSession(student.id, kind)
       if (res.ok) {
         setInitialSession(res.data)
         setPhase('timer')
@@ -185,7 +186,7 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
       ) : null}
 
       {phase === 'home' && student ? (
-        <StudentHomeScreen student={student} onStart={() => void startStudy()} onExit={exitToCode} busy={busy} />
+        <StudentHomeScreen student={student} onStart={(kind) => void startStudy(kind)} onExit={exitToCode} busy={busy} />
       ) : null}
 
       {phase === 'timer' && student ? (
@@ -213,7 +214,7 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
             setInitialSession(null)
             setPhase('home')
           }}
-          onAgain={() => void startStudy()}
+          onAgain={() => void startStudy('academy')}
         />
       ) : null}
 
