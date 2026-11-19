@@ -92,8 +92,8 @@ npm run preview    # 빌드 결과 확인
 
 ### 홈 화면 설치(PWA)
 `public/manifest.webmanifest` — `display: standalone`, `theme_color #12296B`, `background_color #ffffff`.
-**Service Worker / 오프라인 캐시는 넣지 않았습니다.** 학생 첫 화면 아래에 iOS Safari / Android Chrome 설치 안내 배너가 뜨고,
-닫으면 `localStorage`에 기억해 다시 뜨지 않습니다.
+**Service Worker / 오프라인 캐시는 넣지 않았습니다.** 학생 첫 화면 아래에 **아이폰(Safari)·안드로이드(Chrome) 두 안내를 함께** 보여주는 설치 안내 배너가 뜨고,
+지금 쓰는 기기의 줄만 진하게 표시합니다. 닫으면 7일 동안 숨겼다가 다시 보여줍니다.
 
 ---
 
@@ -107,7 +107,7 @@ npm run preview    # 빌드 결과 확인
 | 진행 중인 세션이 있으면 코드 입력 시 타이머로 복귀 | `active_session` → `start_session` |
 | 하루 여러 번 → `study_logs`(학생+날짜 unique)에 누적 합산 | `finish_session` 의 `on conflict do update` |
 | **화면을 꺼도 시간은 계속 간다** (공부 시간으로 인정) | `visibilitychange` 로는 멈추지 않음 |
-| 페이지를 실제로 떠날 때(pagehide·beforeunload) 일시정지 | `pauseSessionBeacon` (keepalive) |
+| 페이지를 떠날 때는 그 시각만 남긴다 (아이폰은 화면 잠금에도 pagehide 가 와서 멈추지 않음) | `heartbeatBeacon` (keepalive) |
 | 앱을 닫았다가 다시 열면 마지막 신호 시각까지로 일시정지 | 클라이언트 `isHeartbeatStale` + `pause_session` |
 | 10초마다 마지막 신호 시각만 갱신 (서버가 임의로 멈추지 않게) | `study_sessions.last_heartbeat_at` 직접 갱신 |
 | 자동 일시정지 누적 시간·횟수 | `auto_paused_seconds`, `auto_pause_count` |

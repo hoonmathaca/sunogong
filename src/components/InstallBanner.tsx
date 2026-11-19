@@ -1,38 +1,25 @@
 import { useEffect, useState } from 'react'
+import { detectPlatform, isStandalone, type Platform } from '../lib/platform'
 
-const DISMISS_KEY = 'sunogong-install-guide-dismissed'
+/** 닫으면 이만큼은 다시 뜨지 않는다 (지나면 또 보여서 다시 보기 쉽게) */
+const HIDE_KEY = 'sunogong-install-guide-hidden-until'
+const HIDE_DAYS = 7
 
-type Platform = 'ios' | 'android' | 'other'
-
-function detectPlatform(): Platform {
-  if (typeof navigator === 'undefined') return 'other'
-  const ua = navigator.userAgent
-  if (/iphone|ipad|ipod/i.test(ua)) return 'ios'
-  if (/android/i.test(ua)) return 'android'
-  return 'other'
-}
-
-function isStandalone(): boolean {
+function hiddenUntil(): number {
   try {
-    if (window.matchMedia('(display-mode: standalone)').matches) return true
-    const iosStandalone = (window.navigator as Navigator & { standalone?: boolean }).standalone
-    return iosStandalone === true
+    const raw = localStorage.getItem(HIDE_KEY)
+    const until = raw ? Number(raw) : 0
+    return Number.isFinite(until) ? until : 0
   } catch {
-    return false
-  }
-}
-
-function isDismissed(): boolean {
-  try {
-    return localStorage.getItem(DISMISS_KEY) === '1'
-  } catch {
-    return false
+    return 0
   }
 }
 
 /**
  * 홈 화면 설치 안내 배너.
- * 닫으면 localStorage 에 기억해 두 번 다시 뜨지 않는다.
+ * 아이폰(Safari) 안내와 안드로이드(Chrome) 안내를 **둘 다** 보여주고,
+ * 지금 쓰는 기기의 줄만 조금 진하게 표시한다.
+ * 닫으면 7일 동안 숨겼다가 다시 보여준다.
  */
 export function InstallBanner(): JSX.Element | null {
   const [hidden, setHidden] = useState(true)
@@ -41,7 +28,7 @@ export function InstallBanner(): JSX.Element | null {
   useEffect(() => {
     try {
       setPlatform(detectPlatform())
-      setHidden(isStandalone() || isDismissed())
+      setHidden(isStandalone() || Date.now() < hiddenUntil())
     } catch {
       setHidden(true)
     }
@@ -51,12 +38,21 @@ export function InstallBanner(): JSX.Element | null {
 
   const dismiss = () => {
     try {
-      localStorage.setItem(DISMISS_KEY, '1')
+      localStorage.setItem(HIDE_KEY, String(Date.now() + HIDE_DAYS * 86400_000))
     } catch {
       /* 저장 못 해도 이번 화면에서는 닫는다 */
     }
     setHidden(true)
   }
+
+  const line = (target: Platform, label: string, guide: string) => (
+    <li className={`flex gap-1.5 ${platform === target ? 'text-navy/80' : 'text-navy/55'}`}>
+      <span className="shrink-0">{platform === target ? '•' : '·'}</span>
+      <span>
+        <strong className={`font-semibold ${platform === target ? 'text-navy' : 'text-navy/70'}`}>{label}</strong> {guide}
+      </span>
+    </li>
+  )
 
   return (
     <aside
@@ -76,23 +72,10 @@ export function InstallBanner(): JSX.Element | null {
 
       <p className="text-[13px] font-bold leading-snug text-navy">홈 화면에 추가하면 앱처럼 쓸 수 있어요</p>
 
-      {platform === 'ios' ? (
-        <p className="mt-1 text-[12px] leading-relaxed text-navy/65">
-          <strong className="font-semibold text-navy/80">아이폰(Safari)</strong> · 공유 버튼 → 홈 화면에 추가
-        </p>
-      ) : null}
-
-      {platform === 'android' ? (
-        <p className="mt-1 text-[12px] leading-relaxed text-navy/65">
-          <strong className="font-semibold text-navy/80">안드로이드(Chrome)</strong> · 메뉴(⋮) → 홈 화면에 추가
-        </p>
-      ) : null}
-
-      {platform === 'other' ? (
-        <p className="mt-1 text-[12px] leading-relaxed text-navy/65">
-          크롬은 메뉴(⋮) → 홈 화면에 추가, 아이폰 사파리는 공유 → 홈 화면에 추가를 눌러주세요.
-        </p>
-      ) : null}
+      <ul className="mt-1 space-y-0.5 text-[12px] leading-relaxed">
+        {line('ios', '아이폰(Safari)', '· 공유 버튼 → 홈 화면에 추가')}
+        {line('android', '안드로이드(Chrome)', '· 메뉴(⋮) → 홈 화면에 추가')}
+      </ul>
     </aside>
   )
 }

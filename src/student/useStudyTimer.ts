@@ -49,8 +49,8 @@ export interface StudyTimer {
  * 공부 타이머.
  * - 시작·일시정지·계속·종료 시각은 Supabase 서버 시각(now())으로 저장하고,
  *   화면 숫자는 서버 시각과 기기 시각의 차이(offset)를 보정해 계산한다.
- * - 화면이 꺼지는 것만으로는 멈추지 않는다(공부는 계속). 앱을 벗어나 페이지를 떠날 때(pagehide),
- *   앱을 닫았다가 다시 열었을 때(마지막 신호 이후), 그리고 직접 누른 일시정지에만 멈춘다.
+ * - 화면이 꺼지는 것만으로는 멈추지 않는다(공부는 계속). 앱을 벗어났다가 다시 열었을 때(pagehide 뒤 재실행),
+ *   그리고 직접 누른 일시정지에만 멈춘다.
  * - 5시간(300분)을 넘으면 자동 종료 안내, 자정(00:00)을 넘기면 기록 없이 버린다.
  */
 export function useStudyTimer({ studentId, initialSession = null, onFinished, onDiscarded }: UseStudyTimerOptions): StudyTimer {
@@ -179,16 +179,15 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
     setLimitReached(false)
     const res = await api.startSession(studentId)
     if (res.ok) {
-      applySession(res.data)
       syncServerTime(res.data.last_heartbeat_at)
-      setElapsed(computeElapsed(res.data))
-      setNotice(null)
+      await settleLoaded(res.data)
+      if (res.data.status !== 'paused') setNotice(null)
     } else {
       setError(res.error)
     }
     busyRef.current = false
     setBusy(false)
-  }, [studentId, applySession, computeElapsed, syncServerTime])
+  }, [studentId, applySession, computeElapsed, settleLoaded, syncServerTime])
 
   /* 일시정지 */
   const pause = useCallback(
@@ -349,9 +348,9 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
   useEffect(() => () => releaseWakeLock(), [releaseWakeLock])
 
   /* 화면 꺼짐 vs 앱 이탈
-     - 화면이 꺼지거나 앱을 잠깐 벗어난 것(visibilitychange hidden / blur)만으로는 멈추지 않는다.
-       화면을 끄고 공부를 계속하는 경우가 있어서다.
-     - 페이지를 실제로 떠날 때(pagehide·beforeunload)만 멈춘다. */
+     - 화면이 꺼지거나 앱을 잠깐 벗어난 것(visibilitychange hidden / blur / pagehide)만으로는 멈추지 않는다.
+       화면을 끄고 공부를 계속하는 경우가 있고, 아이폰은 화면을 잠그면 pagehide 가 오기 때문이다.
+     - 대신 페이지를 떠나는 순간의 시각을 마지막 신호로 남겨 두고, 앱을 다시 열었을 때 그 시점까지로 정리한다. */
   useEffect(() => {
     if (!session || session.status === 'finished') return undefined
 
@@ -376,26 +375,24 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
       }
     }
 
-    const onPageHide = () => {
+    const onLeave = () => {
       const current = sessionRef.current
       if (!current || current.status !== 'running') return
-      api.pauseSessionBeacon(current.id)
+      api.heartbeatBeacon(current.id, new Date(Date.now() + offsetRef.current).toISOString())
     }
-
-    const onBeforeUnload = () => onPageHide()
 
     const onPageShow = (event: PageTransitionEvent) => {
       if (event.persisted) void load()
     }
 
     document.addEventListener('visibilitychange', onVisibility)
-    window.addEventListener('pagehide', onPageHide)
-    window.addEventListener('beforeunload', onBeforeUnload)
+    window.addEventListener('pagehide', onLeave)
+    window.addEventListener('beforeunload', onLeave)
     window.addEventListener('pageshow', onPageShow)
     return () => {
       document.removeEventListener('visibilitychange', onVisibility)
-      window.removeEventListener('pagehide', onPageHide)
-      window.removeEventListener('beforeunload', onBeforeUnload)
+      window.removeEventListener('pagehide', onLeave)
+      window.removeEventListener('beforeunload', onLeave)
       window.removeEventListener('pageshow', onPageShow)
     }
   }, [session?.id, session?.status, requestWakeLock, computeElapsed, load, discard])

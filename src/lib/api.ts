@@ -121,22 +121,25 @@ export const getActiveSession = async (studentId: string): Promise<ApiResult<Act
 export const touchHeartbeat = (sessionId: string, atIso: string) =>
   run<null>(() => supabase.from('study_sessions').update({ last_heartbeat_at: atIso }).eq('id', sessionId))
 
-/** 페이지를 떠나는 순간에도 살아남는 일시정지 요청 (keepalive) */
-export function pauseSessionBeacon(sessionId: string): void {
+/** 페이지를 떠나는 순간에도 살아남는 "마지막 신호" 기록 (keepalive).
+ *  여기서 일시정지시키지 않는 이유: 아이폰은 화면을 잠그면 pagehide 가 와서,
+ *  화면 꺼짐으로 타이머가 멈추는 것을 막기 위해서다. */
+export function heartbeatBeacon(sessionId: string, atIso: string): void {
   if (!isSupabaseConfigured) return
   try {
-    void fetch(`${SUPABASE_URL}/rest/v1/rpc/pause_session`, {
-      method: 'POST',
+    void fetch(`${SUPABASE_URL}/rest/v1/study_sessions?id=eq.${encodeURIComponent(sessionId)}`, {
+      method: 'PATCH',
       keepalive: true,
       headers: {
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
         'Content-Type': 'application/json',
+        Prefer: 'return=minimal',
       },
-      body: JSON.stringify({ p_session_id: sessionId, p_auto: true }),
+      body: JSON.stringify({ last_heartbeat_at: atIso }),
     }).catch(() => undefined)
   } catch {
-    /* 페이지를 떠나는 중이라 실패해도 된다 — 다음에 열 때 서버 시각으로 정리된다 */
+    /* 페이지를 떠나는 중이라 실패해도 된다 */
   }
 }
 
