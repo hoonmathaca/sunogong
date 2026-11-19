@@ -2,6 +2,7 @@
 import { addDays, formatHMS, formatMinutes, kstDateString, monthRange, rangeDates, weekRange, weekdayOf, kstDayEndMs, kstMidnightMs } from '../src/lib/time'
 import { buildStats, indexLogs, longestStreakAllTime, longestStreakInRange, rankEntries } from '../src/lib/stats'
 import { computeElapsedSeconds, isHeartbeatStale } from '../src/lib/session'
+import { normalizeKind, pausesOnLeave } from '../src/lib/kinds'
 import type { Student, StudyLog } from '../src/lib/types'
 
 let failed = 0
@@ -119,5 +120,23 @@ eq('경과(시작 전)', computeElapsedSeconds(baseSession, at('2026-11-19T00:50
 eq('하트비트 끊김(30초 초과)', isHeartbeatStale(baseSession, at('2026-11-19T01:10:31Z')), true)
 eq('하트비트 살아있음', isHeartbeatStale(baseSession, at('2026-11-19T01:10:10Z')), false)
 eq('하트비트(일시정지 중엔 해당 없음)', isHeartbeatStale({ ...baseSession, status: 'paused' }, at('2026-11-19T05:00:00Z')), false)
+
+/* 화면을 벗어날 때 멈추는 종류 (숙제 공부만) */
+eq('숙제 공부는 나가면 멈춤', pausesOnLeave('homework'), true)
+eq('학원 공부는 나가도 계속', pausesOnLeave('academy'), false)
+eq('종류가 없으면 학원 공부로 봄', pausesOnLeave(undefined), false)
+eq('모르는 값은 학원 공부로 봄', pausesOnLeave('something'), false)
+eq('종류 정규화(homework)', normalizeKind('homework'), 'homework')
+eq('종류 정규화(그 외)', normalizeKind(null), 'academy')
+
+/* 마지막 신호 시각에서 멈춘 세션 — 그 뒤로 흐른 시간은 공부 시간에 들어가지 않는다 */
+eq(
+  '경과(마지막 신호에서 멈춤)',
+  computeElapsedSeconds(
+    { ...baseSession, status: 'paused', paused_at: baseSession.last_heartbeat_at, paused_seconds: 0 },
+    at('2026-11-19T03:00:00Z'),
+  ),
+  600,
+)
 
 console.log(failed === 0 ? 'ALL LIB TESTS PASSED' : `${failed} FAILED`)

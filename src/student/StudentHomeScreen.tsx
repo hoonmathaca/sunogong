@@ -162,6 +162,9 @@ export function StudentHomeScreen({ student, onStart, onExit, busy = false }: St
           >
             {busy ? <Spinner className="h-5 w-5 border-white/40 border-t-white" /> : `${KIND_EMOJI.homework} ${KIND_LABEL.homework} 시작`}
           </button>
+          <p className="text-center text-[11px] font-semibold text-navy/40">
+            🏠 숙제 공부는 화면을 끄거나 나가면 멈춰요
+          </p>
         </div>
       </div>
 

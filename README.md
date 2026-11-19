@@ -39,14 +39,11 @@ select count(*) from public.students;   -- 51
 select count(*) from public.study_logs; -- 2
 ```
 
-> **2026-11-19 변경분은 SQL Editor에서 한 번 실행해야 DB에 반영됩니다.**
-> `supabase/migrate-2026-11-19-study-kind.sql` (권장, 기존 데이터를 건드리지 않는 추가 마이그레이션) 또는
-> `supabase/schema.sql` (전체 스키마, 여러 번 실행해도 안전) 중 하나를 실행하세요.
-> - 공부 종류(학원/숙제) 열 추가 — 기존 기록은 '학원 공부'로 한 번만 채워집니다
-> - 자정을 넘긴 세션을 종료하지 않고 버리기
-> - 하트비트가 끊겨도 서버가 임의로 일시정지하지 않기
->
-> 이 SQL을 실행하기 전에도 앱은 그대로 동작합니다(종류 구분만 저장되지 않음).
+> **2026-11-19 변경분은 이미 운영 DB(`sunogong`)에 반영되어 있습니다.**
+> 다른 프로젝트에 새로 올릴 때는 `supabase/schema.sql` 전체를 한 번 실행하면 됩니다(여러 번 실행해도 안전).
+> 변경 이력은 두 파일로 남겨 두었습니다.
+> - `supabase/migrate-2026-11-19-study-kind.sql` — 공부 종류(학원/숙제) 열 추가(기존 기록은 '학원 공부'로 1회 채움), 자정 넘긴 세션 버리기
+> - `supabase/migrate-2026-11-19-homework-pause.sql` — 숙제 공부 자동 일시정지, `pause_session` 시간 계산 보정
 
 ## 3. 실행 / 빌드
 
@@ -86,6 +83,8 @@ npm run preview    # 빌드 결과 확인
    같은 코드를 쓰는 학생이 여럿이면 `누구세요?` 이름 선택 화면이 뜹니다.
 2. **홈** — 오늘 누적 공부시간·푼 문제 수, 최근 7일 기록, `공부 시작`
 3. **타이머** — `🏫 학원 공부 시작` / `🏠 숙제 공부 시작` 두 가지로 시작하고, `HH:MM:SS` · 종류 배지 · `일시정지` / `종료`(일시정지 중에는 `계속` / `종료`)
+   - 숙제 공부: `📵 숙제 공부는 화면을 끄거나 나가면 멈춰요` 안내 + **`🌙 화면보호 모드`** 버튼(어두운 저조도 화면, 화면 아무 곳이나 누르면 `☀️ 밝게 보기`로 복귀)
+   - 학원 공부: `🏫 학원 공부는 화면이 꺼져도 계속 가요` 안내
 4. **종료** — `공부를 마칠까요?` → `오늘 푼 문제 수` 키패드(0 가능) → 저장
 5. **결과** — `오늘 ○시간 ○분 공부했어요` + 오늘 합계
 
@@ -112,17 +111,23 @@ npm run preview    # 빌드 결과 확인
 | 진행 중인 세션이 있으면 코드 입력 시 타이머로 복귀 | `active_session` → `start_session` |
 | 하루 여러 번 → `study_logs`(학생+날짜 unique)에 누적 합산 | `finish_session` 의 `on conflict do update` |
 | 학원/숙제 구분 저장 (`study_sessions.kind`) 과 종류별 집계 (`study_logs.academy_*`, `homework_*`) | `start_session(p_kind)`, `finish_session` |
-| **화면을 꺼도 시간은 계속 간다** (공부 시간으로 인정) | `visibilitychange` 로는 멈추지 않음 |
-| 페이지를 떠날 때는 그 시각만 남긴다 (아이폰은 화면 잠금에도 pagehide 가 와서 멈추지 않음) | `heartbeatBeacon` (keepalive) |
+| **학원 공부: 화면을 꺼도 시간은 계속 간다** (공부 시간으로 인정) | `visibilitychange`/`blur`/`pagehide` 로는 멈추지 않음 |
+| 학원 공부: 페이지를 떠날 때는 그 시각만 남긴다 (아이폰은 화면 잠금에도 pagehide 가 와서 멈추지 않음) | `heartbeatBeacon` (keepalive) |
+| **숙제 공부: 화면을 끄거나 다른 화면·앱으로 나가면 즉시 일시정지** | `visibilitychange hidden`/`blur`/`pagehide` → `pause_sessionBeacon`(keepalive) + 화면 즉시 반영 |
+| 숙제 공부: 요청이 닿지 못해도 서버가 30초 뒤 자동 일시정지 (멈춘 시각 = 마지막 신호) | `reconcile_session` (kind = homework) |
 | 앱을 닫았다가 다시 열면 마지막 신호 시각까지로 일시정지 | 클라이언트 `isHeartbeatStale` + `pause_session` |
 | 10초마다 마지막 신호 시각만 갱신 (서버가 임의로 멈추지 않게) | `study_sessions.last_heartbeat_at` 직접 갱신 |
-| 자동 일시정지 누적 시간·횟수 | `auto_paused_seconds`, `auto_pause_count` |
+| 일시정지 시간은 한 번만 뺀다 (멈춘 시각 = 마지막 신호면 그 뒤 시간은 이미 안 세므로 `paused_seconds` 를 또 더하지 않음) | `pause_session` |
 | 1회 최대 5시간(300분), 넘으면 자동 종료 | 클라이언트 안내 + 서버 18,000초 상한 |
 | **자정(00:00) 전에 종료를 누르지 않으면 기록하지 않고 버린다** | 클라이언트 자정 타이머 + `discard_session`, `reconcile_session` |
 | 같은 종료 요청이 두 번 와도 기록이 두 번 쌓이지 않음 | `finish_session` 이 `finished` 상태를 먼저 확인 |
 
 화면이 꺼지지 않도록 **Screen Wake Lock** 을 쓰고, 지원하지 않는 브라우저에서는
 `화면을 켜둔 채로 공부해주세요` 안내를 보여줍니다.
+
+> 웹 브라우저는 "화면 꺼짐"과 "다른 앱으로 전환"을 완전히 구분하지 못합니다. 그래서 숙제 공부는
+> 화면 꺼짐·앱 전환·창 포커스 이탈을 모두 "나갔다"로 보고 멈춥니다(요청하신 동작). 학원 공부는
+> 반대로 화면이 꺼져도 계속 흐릅니다.
 
 ---
 
@@ -176,7 +181,7 @@ npm run build       # tsc -b + vite build 통과 (타입 오류 0)
 추가로 개발용 점검 스크립트를 돌려 두었습니다.
 
 ```bash
-# 1) 날짜·집계·랭킹·타이머 계산 단위 테스트 (28개 항목)
+# 1) 날짜·집계·랭킹·타이머 계산 단위 테스트
 npx vite build --ssr tools/lib-test.ts --outDir .smoke && node .smoke/lib-test.js
 
 # 2) 모든 화면이 오류 없이 그려지는지 (서버 없이 첫 렌더 확인)

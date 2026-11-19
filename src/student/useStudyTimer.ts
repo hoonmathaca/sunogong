@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as api from '../lib/api'
-import { normalizeKind, type SessionKind } from '../lib/kinds'
+import { normalizeKind, pausesOnLeave, type SessionKind } from '../lib/kinds'
 import { computeElapsedSeconds, isHeartbeatStale } from '../lib/session'
 import { HEARTBEAT_INTERVAL_MS, MAX_SESSION_SECONDS, kstMidnightMs, parseMs, todayKst } from '../lib/time'
 import type { FinishResult, StudySession } from '../lib/types'
@@ -51,8 +51,10 @@ export interface StudyTimer {
  * 공부 타이머.
  * - 시작·일시정지·계속·종료 시각은 Supabase 서버 시각(now())으로 저장하고,
  *   화면 숫자는 서버 시각과 기기 시각의 차이(offset)를 보정해 계산한다.
- * - 화면이 꺼지는 것만으로는 멈추지 않는다(공부는 계속). 앱을 벗어났다가 다시 열었을 때(pagehide 뒤 재실행),
- *   그리고 직접 누른 일시정지에만 멈춘다.
+ * - 학원 공부(academy): 화면이 꺼지거나 앱을 잠깐 벗어난 것으로는 멈추지 않는다(공부는 계속).
+ *   앱을 벗어났다가 다시 열었을 때, 그리고 직접 누른 일시정지에만 멈춘다.
+ * - 숙제 공부(homework): 화면을 끄거나 다른 화면·앱으로 나가면 즉시 일시정지한다.
+ *   (요청이 화면 꺼짐에 끊기지 않도록 keepalive 로 보내고, 화면에는 바로 반영한다)
  * - 5시간(300분)을 넘으면 자동 종료 안내, 자정(00:00)을 넘기면 기록 없이 버린다.
  */
 export function useStudyTimer({ studentId, initialSession = null, onFinished, onDiscarded }: UseStudyTimerOptions): StudyTimer {
@@ -126,7 +128,11 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
         const paused = await api.pauseSession(next.id, true)
         if (paused.ok) {
           next = paused.data
-          setNotice('앱을 벗어나 있던 시간은 빼고 일시정지했어요')
+          setNotice(
+            pausesOnLeave(next.kind)
+              ? '화면을 벗어나서 멈췄어요'
+              : '앱을 벗어나 있던 시간은 빼고 일시정지했어요',
+          )
         }
       }
       applySession(next)
@@ -229,6 +235,18 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
     busyRef.current = true
     setBusy(true)
     setError(null)
+    // 숙제 공부: 화면을 벗어난 사이 일시정지가 서버에 닿지 못했을 수 있으니,
+    // 먼저 마지막 신호 시점에서 멈춘 것으로 확정한다(벗어나 있던 시간은 빼고).
+    if (pausesOnLeave(current.kind)) {
+      const guard = await api.pauseSession(current.id, true)
+      if (!guard.ok) {
+        setError(guard.error)
+        busyRef.current = false
+        setBusy(false)
+        return
+      }
+      applySession(guard.data)
+    }
     const res = await api.resumeSession(current.id)
     if (res.ok) {
       applySession(res.data)
@@ -273,6 +291,12 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
       finishingRef.current = true
       setBusy(true)
       setError(null)
+      // 숙제 공부: 화면을 벗어난 사이 일시정지가 서버에 닿지 못했을 수 있으니,
+      // 마지막 신호 시점에서 멈춘 것으로 먼저 확정한 뒤 종료한다(벗어나 있던 시간은 빼고).
+      if (pausesOnLeave(current.kind)) {
+        const guard = await api.pauseSession(current.id, true)
+        if (guard.ok) applySession(guard.data)
+      }
       const res = await api.finishSession(current.id, problems)
       finishingRef.current = false
       setBusy(false)
@@ -357,12 +381,52 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
 
   useEffect(() => () => releaseWakeLock(), [releaseWakeLock])
 
-  /* 화면 꺼짐 vs 앱 이탈
-     - 화면이 꺼지거나 앱을 잠깐 벗어난 것(visibilitychange hidden / blur / pagehide)만으로는 멈추지 않는다.
-       화면을 끄고 공부를 계속하는 경우가 있고, 아이폰은 화면을 잠그면 pagehide 가 오기 때문이다.
-     - 대신 페이지를 떠나는 순간의 시각을 마지막 신호로 남겨 두고, 앱을 다시 열었을 때 그 시점까지로 정리한다. */
+  /* 화면 꺼짐 vs 앱 이탈 — 공부 종류에 따라 다르게
+     - 숙제 공부(homework): 화면을 끄거나 다른 화면·앱으로 나가면 곧바로 일시정지한다.
+       화면에는 서버 응답을 기다리지 않고 바로 "일시정지"로 보여 주고, 요청은 keepalive 로 보낸다.
+     - 학원 공부(academy): 화면이 꺼지거나 앱을 잠깐 벗어난 것(visibilitychange hidden / blur / pagehide)만으로는
+       멈추지 않는다. 화면을 끄고 공부를 계속하는 경우가 있고, 아이폰은 화면을 잠그면 pagehide 가 오기 때문이다.
+       대신 페이지를 떠나는 순간의 시각을 마지막 신호로 남겨 두고, 앱을 다시 열었을 때 그 시점까지로 정리한다. */
   useEffect(() => {
     if (!session || session.status === 'finished') return undefined
+
+    const nowIso = () => new Date(Date.now() + offsetRef.current).toISOString()
+
+    /** 숙제 공부: 지금 이 순간 멈춘 것으로 화면에 먼저 반영하고 서버에도 알린다 */
+    const pauseForLeave = () => {
+      const current = sessionRef.current
+      if (!current || current.status !== 'running') return
+      if (finishingRef.current || busyRef.current) return
+      const at = nowIso()
+      const paused: StudySession = { ...current, status: 'paused', paused_at: at }
+      applySession(paused)
+      setElapsed(computeElapsed(paused))
+      setNotice('화면을 벗어나서 멈췄어요')
+      api.pauseSessionBeacon(current.id)
+    }
+
+    /** 숙제 공부: 화면을 벗어난 사이 일시정지가 닿지 못했다면 마지막 신호 시점에서 멈춘 것으로 확정 */
+    const stopLeftHomework = async () => {
+      const current = sessionRef.current
+      if (!current || current.status !== 'running') return
+      // 지금 시각으로 하트비트를 먼저 치면 벗어나 있던 시간이 공부 시간으로 들어가므로 치지 않는다
+      const res = await api.pauseSession(current.id, true)
+      if (res.ok) {
+        applySession(res.data)
+        setElapsed(computeElapsed(res.data))
+        setNotice((prev) => prev ?? '화면을 벗어나서 멈췄어요')
+      }
+    }
+
+    const onLeave = () => {
+      const current = sessionRef.current
+      if (!current || current.status !== 'running') return
+      if (pausesOnLeave(current.kind)) {
+        pauseForLeave()
+      } else {
+        api.heartbeatBeacon(current.id, nowIso())
+      }
+    }
 
     const onVisibility = () => {
       try {
@@ -373,22 +437,28 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
             void discard('midnight')
             return
           }
-          if (sessionRef.current?.status === 'running') {
+          if (current && current.status === 'running') {
             void requestWakeLock()
-            // 화면이 다시 켜지면 마지막 신호 시각을 먼저 현재로 맞춘다
-            if (current) void api.touchHeartbeat(current.id, new Date(Date.now() + offsetRef.current).toISOString())
-            setElapsed(computeElapsed())
+            if (pausesOnLeave(current.kind)) {
+              void stopLeftHomework()
+            } else {
+              // 화면이 다시 켜지면 마지막 신호 시각을 먼저 현재로 맞춘다
+              void api.touchHeartbeat(current.id, nowIso())
+              setElapsed(computeElapsed())
+            }
           }
+        } else {
+          onLeave()
         }
       } catch (visibilityError) {
         console.warn('[sunogong] visibility 처리 실패:', visibilityError)
       }
     }
 
-    const onLeave = () => {
-      const current = sessionRef.current
-      if (!current || current.status !== 'running') return
-      api.heartbeatBeacon(current.id, new Date(Date.now() + offsetRef.current).toISOString())
+    const onBlur = () => {
+      // 다른 앱·다른 창으로 넘어간 경우 (화면이 꺼지는 것은 visibilitychange 가 먼저 올 때가 많다)
+      if (document.visibilityState === 'visible' && document.hasFocus()) return
+      onLeave()
     }
 
     const onPageShow = (event: PageTransitionEvent) => {
@@ -396,16 +466,18 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
     }
 
     document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('blur', onBlur)
     window.addEventListener('pagehide', onLeave)
     window.addEventListener('beforeunload', onLeave)
     window.addEventListener('pageshow', onPageShow)
     return () => {
       document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('blur', onBlur)
       window.removeEventListener('pagehide', onLeave)
       window.removeEventListener('beforeunload', onLeave)
       window.removeEventListener('pageshow', onPageShow)
     }
-  }, [session?.id, session?.status, requestWakeLock, computeElapsed, load, discard])
+  }, [session?.id, session?.status, requestWakeLock, computeElapsed, load, discard, applySession])
 
   /* 한국 시간 자정(00:00)을 넘기면 기록 없이 버린다 */
   useEffect(() => {

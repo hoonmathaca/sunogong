@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import * as api from '../lib/api'
-import type { SessionKind } from '../lib/kinds'
+import { normalizeKind, type SessionKind } from '../lib/kinds'
 import type { FinishResult, Student, StudySession } from '../lib/types'
 import { ChooseStudentScreen } from './ChooseStudentScreen'
 import { CodeEntryScreen } from './CodeEntryScreen'
@@ -64,6 +64,8 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
   const [busy, setBusy] = useState(false)
   const [startError, setStartError] = useState<string | null>(null)
   const [flash, setFlash] = useState<string | null>(null)
+  /* 방금 한 공부 종류 — 결과 화면의 "공부 더 하기" 가 같은 종류로 이어진다 */
+  const [lastKind, setLastKind] = useState<SessionKind>('academy')
 
   const discardMessage = (reason: DiscardReason) =>
     reason === 'stale'
@@ -146,6 +148,7 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
       if (res.ok) {
         // DB 마이그레이션 전에는 세션에 종류가 없으므로, 방금 고른 종류를 붙여 넘긴다
         setInitialSession({ ...res.data, kind: res.data.kind ?? kind })
+        setLastKind(normalizeKind(res.data.kind ?? kind))
         setPhase('timer')
       } else {
         setStartError(res.error)
@@ -165,6 +168,7 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
   }, [])
 
   const handleFinished = useCallback((data: FinishResult, reason: FinishReason) => {
+    setLastKind(normalizeKind(data.kind))
     setResult({ data, reason })
     setPhase('result')
   }, [])
@@ -215,7 +219,7 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
             setInitialSession(null)
             setPhase('home')
           }}
-          onAgain={() => void startStudy('academy')}
+          onAgain={() => void startStudy(normalizeKind(result.data.kind ?? lastKind))}
         />
       ) : null}
 

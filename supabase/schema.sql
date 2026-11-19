@@ -8,7 +8,10 @@
 --    공부 시간 계산도 서버 함수가 합니다.
 --  · 하루의 공부는 그 날 자정(한국 시간 00:00) 전에 종료를 눌러야 기록됩니다.
 --    자정을 넘긴 세션은 study_logs 에 남기지 않고 버립니다(삭제).
---  · 화면을 끄거나 앱을 잠깐 벗어난 것으로는 타이머를 멈추지 않습니다(공부 시간으로 인정).
+--  · 화면 꺼짐은 공부 종류에 따라 다릅니다.
+--    · 학원 공부(academy): 화면을 끄거나 앱을 잠깐 벗어나도 타이머가 멈추지 않습니다(공부 시간으로 인정).
+--    · 숙제 공부(homework): 화면을 끄거나 나가면 즉시 일시정지합니다.
+--      (클라이언트가 pause_session 을 보내고, 신호가 끊기면 서버도 30초 뒤 일시정지)
 -- =====================================================================
 
 create extension if not exists pgcrypto;
@@ -169,7 +172,7 @@ as $$
   order by name;
 $$;
 
--- 진행 중 세션 정리: 자정 초과 / 5시간 초과
+-- 진행 중 세션 정리: 자정 초과 / 숙제 공부 자동 일시정지 / 5시간 초과
 create or replace function public.reconcile_session(p_session_id uuid)
 returns public.study_sessions
 language plpgsql
@@ -179,6 +182,7 @@ as $$
 declare
   s     public.study_sessions;
   v_now timestamptz := now();
+  v_gap integer;
 begin
   select * into s from public.study_sessions where id = p_session_id for update;
   if not found then
@@ -196,11 +200,28 @@ begin
     return null;
   end if;
 
-  -- (2) 하트비트가 끊겨도 임의로 일시정지하지 않는다.
+  -- (2) 숙제 공부는 화면을 끄거나 나가면 멈춘다.
+  --     클라이언트가 화면을 벗어나는 순간 pause_session 을 보내지만,
+  --     요청이 닿지 못한 경우를 대비해 하트비트가 30초 이상 끊기면 서버에서도 일시정지시킨다.
+  --     (멈춘 시각은 마지막 신호 시각 = 마지막으로 공부한 것이 확인된 시점)
+  if s.status = 'running' and s.kind = 'homework' then
+    v_gap := greatest(0, floor(extract(epoch from (v_now - s.last_heartbeat_at)))::integer);
+    if v_gap > 30 then
+      update public.study_sessions
+         set status           = 'paused',
+             paused_at        = s.last_heartbeat_at,
+             auto_pause_count = s.auto_pause_count + 1,
+             last_pause_auto  = true
+       where id = s.id
+       returning * into s;
+    end if;
+  end if;
+
+  -- (3) 학원 공부는 하트비트가 끊겨도 임의로 일시정지하지 않는다.
   --     화면을 끄고 공부를 계속하는 경우(페이지가 잠들어 하트비트가 끊김)를 공부 시간으로 인정한다.
   --     앱을 닫았다가 다시 연 경우는 클라이언트가 마지막 신호 시각까지로 일시정지시킨다.
 
-  -- (3) 5시간(300분)을 넘겼으면 자동 종료
+  -- (4) 5시간(300분)을 넘겼으면 자동 종료
   if public.session_elapsed_seconds(
        s.started_at, s.paused_at, s.ended_at, s.status, s.paused_seconds
      ) >= 18000 then
@@ -298,16 +319,16 @@ begin
     return s;
   end if;
 
-  -- 하트비트가 30초 이상 끊긴 채로 멈추면 마지막 신호 시각부터 일시정지로 본다
+  -- 하트비트가 30초 이상 끊긴 채로 멈추면 마지막 신호 시각을 멈춘 시각으로 본다.
+  -- 공부 시간은 (멈춘 시각 - 시작) - 일시정지 누적 이므로, 그 사이에 흐른 시간은
+  -- paused_seconds 에 또 더하지 않는다(멈춘 시각 이후는 어차피 세지 않는다).
   v_gap := greatest(0, floor(extract(epoch from (now() - s.last_heartbeat_at)))::integer);
 
   update public.study_sessions
-     set status              = 'paused',
-         paused_at           = case when v_gap > 30 then s.last_heartbeat_at else now() end,
-         paused_seconds      = s.paused_seconds + case when v_gap > 30 then v_gap else 0 end,
-         auto_pause_count    = s.auto_pause_count + case when p_auto or v_gap > 30 then 1 else 0 end,
-         auto_paused_seconds = s.auto_paused_seconds + case when v_gap > 30 then v_gap else 0 end,
-         last_pause_auto     = (p_auto or v_gap > 30)
+     set status           = 'paused',
+         paused_at        = case when v_gap > 30 then s.last_heartbeat_at else now() end,
+         auto_pause_count = s.auto_pause_count + case when p_auto or v_gap > 30 then 1 else 0 end,
+         last_pause_auto  = (p_auto or v_gap > 30)
    where id = s.id
    returning * into s;
 

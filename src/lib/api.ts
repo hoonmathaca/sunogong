@@ -144,6 +144,27 @@ export function heartbeatBeacon(sessionId: string, atIso: string): void {
   }
 }
 
+/** 숙제 공부를 화면에서 벗어나는 순간 바로 일시정지시키는 요청 (keepalive).
+ *  화면이 꺼지거나 앱이 백그라운드로 가면 페이지가 곧 잠들기 때문에,
+ *  일반 fetch 로는 요청이 취소될 수 있어 keepalive 로 보낸다. */
+export function pauseSessionBeacon(sessionId: string): void {
+  if (!isSupabaseConfigured) return
+  try {
+    void fetch(`${SUPABASE_URL}/rest/v1/rpc/pause_session`, {
+      method: 'POST',
+      keepalive: true,
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ p_session_id: sessionId, p_auto: true }),
+    }).catch(() => undefined)
+  } catch {
+    /* 페이지를 떠나는 중이라 실패해도 된다 */
+  }
+}
+
 /** 세션 시작 (이미 진행 중이면 그 세션을 돌려준다). 지난 날 세션은 먼저 버린다. */
 export const startSession = async (
   studentId: string,
