@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { BrandFooter, Mascot } from '../components/Brand'
 import { Keypad, Spinner } from '../components/Keypad'
 import { Modal } from '../components/Modal'
-import { detectPlatform } from '../lib/platform'
 import { formatHMS, formatMinutes, MAX_SESSION_SECONDS } from '../lib/time'
 import type { FinishResult, Student, StudySession } from '../lib/types'
 import { useStudyTimer, type DiscardReason, type FinishReason } from './useStudyTimer'
@@ -23,7 +22,6 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
   const [problems, setProblems] = useState('')
   const [pendingReason, setPendingReason] = useState<FinishReason>('manual')
   const limitModalShown = useRef(false)
-  const [platform] = useState(() => detectPlatform())
 
   const { session, status, elapsedSeconds, busy, error, notice, limitReached, wakeLockOk } = timer
 
@@ -154,11 +152,6 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
         <p className="mt-2 text-center text-[11px] text-navy/35">
           화면을 꺼도 시간은 계속 가요 · 앱을 닫으면 그 시점까지만 인정돼요
         </p>
-        {platform === 'ios' ? (
-          <p className="mt-1 text-center text-[11px] text-navy/30">
-            아이폰은 화면이 잠겨도 시간이 계속 가고, 다시 열면 한 번에 반영돼요
-          </p>
-        ) : null}
       </div>
 
       <BrandFooter className="pt-1" />

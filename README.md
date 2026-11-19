@@ -92,8 +92,8 @@ npm run preview    # 빌드 결과 확인
 
 ### 홈 화면 설치(PWA)
 `public/manifest.webmanifest` — `display: standalone`, `theme_color #12296B`, `background_color #ffffff`.
-**Service Worker / 오프라인 캐시는 넣지 않았습니다.** 학생 첫 화면 아래에 **아이폰(Safari)·안드로이드(Chrome) 두 안내를 함께** 보여주는 설치 안내 배너가 뜨고,
-지금 쓰는 기기의 줄만 진하게 표시합니다. 닫으면 7일 동안 숨겼다가 다시 보여줍니다.
+**Service Worker / 오프라인 캐시는 넣지 않았습니다.** 학생 첫 화면 아래에 iOS Safari / Android Chrome 설치 안내 배너가 뜨고,
+닫으면 `localStorage`에 기억해 다시 뜨지 않습니다.
 
 ---
 
