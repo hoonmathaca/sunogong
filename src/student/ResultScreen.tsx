@@ -42,9 +42,6 @@ export function ResultScreen({ student, result, reason, onHome, onAgain, busy = 
           </div>
         </div>
 
-        {reason === 'midnight' ? (
-          <p className="mt-3 text-[12px] text-white/60">자정이 지나 자동으로 마무리했어요.</p>
-        ) : null}
         {reason === 'limit' ? (
           <p className="mt-3 text-[12px] text-white/60">최대 공부시간(5시간)을 채워 자동으로 마무리했어요.</p>
         ) : null}

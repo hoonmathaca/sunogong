@@ -6,7 +6,7 @@ import { CodeEntryScreen } from './CodeEntryScreen'
 import { ResultScreen } from './ResultScreen'
 import { StudentHomeScreen } from './StudentHomeScreen'
 import { TimerScreen } from './TimerScreen'
-import type { FinishReason } from './useStudyTimer'
+import type { DiscardReason, FinishReason } from './useStudyTimer'
 
 type Phase = 'code' | 'choose' | 'home' | 'timer' | 'result'
 
@@ -62,6 +62,12 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
   const [result, setResult] = useState<{ data: FinishResult; reason: FinishReason } | null>(null)
   const [busy, setBusy] = useState(false)
   const [startError, setStartError] = useState<string | null>(null)
+  const [flash, setFlash] = useState<string | null>(null)
+
+  const discardMessage = (reason: DiscardReason) =>
+    reason === 'stale'
+      ? '자정 전에 끝내지 않은 공부라 기록하지 않았어요'
+      : '자정이 지나서 오늘 공부는 기록하지 않았어요'
 
   /* 진행 중인 공부가 있으면 앱을 다시 열었을 때 타이머로 바로 복귀 */
   useEffect(() => {
@@ -71,9 +77,15 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
     void (async () => {
       try {
         const active = await api.getActiveSession(saved.id)
-        if (!alive || !active.ok || !active.data || active.data.status === 'finished') return
+        if (!alive || !active.ok) return
+        if (active.data.discarded) {
+          setFlash(discardMessage('stale'))
+          return
+        }
+        const found = active.data.session
+        if (!found || found.status === 'finished') return
         setStudent({ ...saved, created_at: '' })
-        setInitialSession(active.data)
+        setInitialSession(found)
         setPhase('timer')
       } catch (error) {
         console.warn('[sunogong] 진행 중인 공부 확인 실패:', error)
@@ -91,8 +103,10 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
       saveStudent(target)
       setStudent(target)
       const active = await api.getActiveSession(target.id)
-      if (active.ok && active.data && active.data.status !== 'finished') {
-        setInitialSession(active.data)
+      if (active.ok && active.data.discarded) setFlash(discardMessage('stale'))
+      const found = active.ok ? active.data.session : null
+      if (found && found.status !== 'finished') {
+        setInitialSession(found)
         setPhase('timer')
       } else {
         setInitialSession(null)
@@ -179,6 +193,12 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
           student={student}
           initialSession={initialSession}
           onFinished={handleFinished}
+          onDiscarded={(reason: DiscardReason) => {
+            setInitialSession(null)
+            setResult(null)
+            setFlash(discardMessage(reason))
+            setPhase('home')
+          }}
           onExit={() => setPhase('home')}
         />
       ) : null}
@@ -201,6 +221,15 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
         <div className="fixed inset-x-3 bottom-4 z-40 mx-auto flex max-w-sm items-center gap-2 rounded-2xl bg-red-500 px-4 py-3 text-[12px] font-semibold text-white shadow-lg">
           <span className="flex-1 break-words">{startError}</span>
           <button type="button" className="shrink-0 underline" onClick={() => setStartError(null)}>
+            닫기
+          </button>
+        </div>
+      ) : null}
+
+      {flash ? (
+        <div className="fixed inset-x-3 bottom-4 z-40 mx-auto flex max-w-sm items-center gap-2 rounded-2xl bg-navy px-4 py-3 text-[12px] font-semibold text-white shadow-lg">
+          <span className="flex-1 break-words">{flash}</span>
+          <button type="button" className="shrink-0 underline" onClick={() => setFlash(null)}>
             닫기
           </button>
         </div>

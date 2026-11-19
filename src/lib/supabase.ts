@@ -9,6 +9,10 @@ export const isSupabaseConfigured = Boolean(rawUrl && rawKey)
 const url = /^https?:\/\/.+/.test(rawUrl) ? rawUrl : 'https://placeholder.supabase.co'
 const key = rawKey || 'placeholder-anon-key'
 
+/** 페이지를 떠나는 순간(keepalive 요청)에도 쓸 수 있게 그대로 내보낸다 */
+export const SUPABASE_URL = url.replace(/\/+$/, '')
+export const SUPABASE_ANON_KEY = key
+
 /**
  * Supabase 클라이언트.
  * 값이 비어 있어도 앱이 죽지 않도록 자리표시자로 만들고, 화면에서 안내 문구를 보여준다.

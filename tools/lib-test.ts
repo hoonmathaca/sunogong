@@ -1,7 +1,7 @@
 /** 순수 함수(날짜·집계·랭킹) 점검용 테스트 (개발용) */
-import { addDays, formatHMS, formatMinutes, kstDateString, monthRange, rangeDates, weekRange, weekdayOf, kstDayEndMs } from '../src/lib/time'
+import { addDays, formatHMS, formatMinutes, kstDateString, monthRange, rangeDates, weekRange, weekdayOf, kstDayEndMs, kstMidnightMs } from '../src/lib/time'
 import { buildStats, indexLogs, longestStreakAllTime, longestStreakInRange, rankEntries } from '../src/lib/stats'
-import { computeElapsedSeconds } from '../src/lib/session'
+import { computeElapsedSeconds, isHeartbeatStale } from '../src/lib/session'
 import type { Student, StudyLog } from '../src/lib/types'
 
 let failed = 0
@@ -26,6 +26,8 @@ eq('월 범위(2월)', monthRange('2026-02'), { start: '2026-02-01', end: '2026-
 eq('월 범위(12월)', monthRange('2026-12'), { start: '2026-12-01', end: '2026-12-31' })
 eq('날짜 배열', rangeDates('2026-11-17', '2026-11-19').length, 3)
 eq('자정(23:59 KST)', new Date(kstDayEndMs('2026-11-19')).toISOString(), '2026-11-19T14:59:00.000Z')
+eq('다음 자정(00:00 KST)', new Date(kstMidnightMs('2026-11-19')).toISOString(), '2026-11-19T15:00:00.000Z')
+eq('달 끝 다음 자정', new Date(kstMidnightMs('2026-11-30')).toISOString(), '2026-11-30T15:00:00.000Z')
 eq('KST 날짜 문자열', kstDateString(Date.parse('2026-11-19T15:30:00Z')), '2026-11-20')
 
 /* 표시 형식 */
@@ -114,5 +116,8 @@ eq(
 )
 eq('경과(최대 5시간)', computeElapsedSeconds(baseSession, at('2026-11-19T10:00:00Z')), 18000)
 eq('경과(시작 전)', computeElapsedSeconds(baseSession, at('2026-11-19T00:50:00Z')), 0)
+eq('하트비트 끊김(30초 초과)', isHeartbeatStale(baseSession, at('2026-11-19T01:10:31Z')), true)
+eq('하트비트 살아있음', isHeartbeatStale(baseSession, at('2026-11-19T01:10:10Z')), false)
+eq('하트비트(일시정지 중엔 해당 없음)', isHeartbeatStale({ ...baseSession, status: 'paused' }, at('2026-11-19T05:00:00Z')), false)
 
 console.log(failed === 0 ? 'ALL LIB TESTS PASSED' : `${failed} FAILED`)

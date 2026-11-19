@@ -6,6 +6,9 @@
 --  · 모든 날짜·시간은 한국 시간(Asia/Seoul) 기준으로 계산합니다.
 --  · 타이머의 시작/일시정지/계속/종료 시각은 모두 서버 now() 로 저장하고,
 --    공부 시간 계산도 서버 함수가 합니다.
+--  · 하루의 공부는 그 날 자정(한국 시간 00:00) 전에 종료를 눌러야 기록됩니다.
+--    자정을 넘긴 세션은 study_logs 에 남기지 않고 버립니다(삭제).
+--  · 화면을 끄거나 앱을 잠깐 벗어난 것으로는 타이머를 멈추지 않습니다(공부 시간으로 인정).
 -- =====================================================================
 
 create extension if not exists pgcrypto;
@@ -138,7 +141,7 @@ as $$
   order by name;
 $$;
 
--- 진행 중 세션 정리: 자정 초과 / 하트비트 30초 끊김 / 5시간 초과
+-- 진행 중 세션 정리: 자정 초과 / 5시간 초과
 create or replace function public.reconcile_session(p_session_id uuid)
 returns public.study_sessions
 language plpgsql
@@ -148,7 +151,6 @@ as $$
 declare
   s     public.study_sessions;
   v_now timestamptz := now();
-  v_gap integer;
 begin
   select * into s from public.study_sessions where id = p_session_id for update;
   if not found then
@@ -159,26 +161,16 @@ begin
     return s;
   end if;
 
-  -- (1) 한국 시간 자정을 넘겼으면 그 날 23:59 에 종료 처리
+  -- (1) 한국 시간 자정을 넘겼으면 기록하지 않고 세션을 버린다
+  --     (12시 전에 종료를 누르지 않은 공부는 study_logs 에 남기지 않는다)
   if (v_now at time zone 'Asia/Seoul')::date > s.date then
-    perform public.finish_session(s.id, coalesce(s.problems, 0));
-    select * into s from public.study_sessions where id = p_session_id;
-    return s;
+    delete from public.study_sessions where id = s.id;
+    return null;
   end if;
 
-  -- (2) 하트비트가 30초 이상 끊겼으면 마지막 신호 시각부터 일시정지
-  if s.status = 'running' and v_now - s.last_heartbeat_at > interval '30 seconds' then
-    v_gap := greatest(0, floor(extract(epoch from (v_now - s.last_heartbeat_at)))::integer);
-    update public.study_sessions
-       set status              = 'paused',
-           paused_at           = s.last_heartbeat_at,
-           paused_seconds      = s.paused_seconds + v_gap,
-           auto_pause_count    = s.auto_pause_count + 1,
-           auto_paused_seconds = s.auto_paused_seconds + v_gap,
-           last_pause_auto     = true
-     where id = s.id
-     returning * into s;
-  end if;
+  -- (2) 하트비트가 끊겨도 임의로 일시정지하지 않는다.
+  --     화면을 끄고 공부를 계속하는 경우(페이지가 잠들어 하트비트가 끊김)를 공부 시간으로 인정한다.
+  --     앱을 닫았다가 다시 연 경우는 클라이언트가 마지막 신호 시각까지로 일시정지시킨다.
 
   -- (3) 5시간(300분)을 넘겼으면 자동 종료
   if public.session_elapsed_seconds(
@@ -239,7 +231,11 @@ begin
    limit 1;
 
   if found then
-    return public.reconcile_session(s.id);
+    s := public.reconcile_session(s.id);
+    -- 자정을 넘겨 버려졌으면 새 세션을 연다
+    if s.id is not null then
+      return s;
+    end if;
   end if;
 
   insert into public.study_sessions (student_id, status, started_at, last_heartbeat_at, date)
@@ -369,7 +365,6 @@ declare
   v_now      timestamptz := now();
   v_end      timestamptz;
   v_cap      timestamptz;
-  v_crossed  boolean := false;
   v_secs     integer;
   v_mins     integer;
   v_problems integer;
@@ -400,11 +395,26 @@ begin
 
   v_end := case when s.status = 'paused' then coalesce(s.paused_at, v_now) else v_now end;
 
-  -- 그 날 23:59:59 를 넘는 부분은 잘라낸다 (자정 넘김은 0문제로 저장)
+  -- 그 날 자정을 넘긴 공부는 기록하지 않고 세션만 버린다 (12시 전에 종료를 누르지 않은 경우)
   v_cap := ((s.date + 1)::timestamp at time zone 'Asia/Seoul') - interval '1 second';
   if v_end > v_cap then
-    v_crossed := true;
-    v_end := v_cap;
+    delete from public.study_sessions where id = s.id;
+
+    select * into v_log
+      from public.study_logs
+     where student_id = s.student_id and date = s.date;
+
+    return jsonb_build_object(
+      'session',        null,
+      'log',            null,
+      'seconds',        0,
+      'minutes',        0,
+      'problems',       0,
+      'total_minutes',  coalesce(v_log.minutes, 0),
+      'total_problems', coalesce(v_log.problems, 0),
+      'date',           s.date,
+      'discarded',      true
+    );
   end if;
 
   v_secs := greatest(0, floor(extract(epoch from (v_end - s.started_at)))::integer - s.paused_seconds);
@@ -413,10 +423,7 @@ begin
   end if;
   v_mins := (v_secs / 60)::integer;
 
-  v_problems := case
-                  when v_crossed then 0
-                  else greatest(0, coalesce(p_problems, s.problems, 0))
-                end;
+  v_problems := greatest(0, coalesce(p_problems, s.problems, 0));
 
   update public.study_sessions
      set status          = 'finished',
@@ -446,6 +453,24 @@ begin
     'total_problems', coalesce(v_log.problems, 0),
     'date',           s.date
   );
+end;
+$$;
+
+-- 자정을 넘긴 세션 버리기 (기록 없이 삭제)
+create or replace function public.discard_session(p_session_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_deleted integer := 0;
+begin
+  delete from public.study_sessions
+   where id = p_session_id
+     and status <> 'finished';
+  get diagnostics v_deleted = row_count;
+  return v_deleted > 0;
 end;
 $$;
 
@@ -484,3 +509,4 @@ grant execute on function public.pause_session(uuid, boolean) to anon, authentic
 grant execute on function public.resume_session(uuid) to anon, authenticated;
 grant execute on function public.heartbeat(uuid) to anon, authenticated;
 grant execute on function public.finish_session(uuid, integer) to anon, authenticated;
+grant execute on function public.discard_session(uuid) to anon, authenticated;

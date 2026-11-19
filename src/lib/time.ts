@@ -179,6 +179,12 @@ export function kstDayEndMs(dateStr: string): number {
   return Date.UTC(y, (m ?? 1) - 1, d ?? 1, 14, 59, 0)
 }
 
+/** 그 날 다음 자정(00:00 KST)의 epoch ms — 이 시각을 넘긴 공부는 기록하지 않는다 */
+export function kstMidnightMs(dateStr: string): number {
+  const end = kstDayEndMs(dateStr)
+  return Number.isFinite(end) ? end + 60_000 : NaN
+}
+
 /** 밀리초 → Date.parse 안전 처리 */
 export function parseMs(value: string | null | undefined): number {
   if (!value) return NaN

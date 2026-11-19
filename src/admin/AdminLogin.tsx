@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BrandFooter, Mascot } from '../components/Brand'
+import { BrandFooter, LogoFull } from '../components/Brand'
 import { ADMIN_PASSWORD } from '../lib/supabase'
 
 interface AdminLoginProps {
@@ -27,7 +27,7 @@ export function AdminLogin({ onSuccess, onBack }: AdminLoginProps): JSX.Element 
   return (
     <div className="screen bg-gradient-to-b from-blue-soft/60 to-white">
       <div className="flex flex-1 flex-col items-center justify-center px-6">
-        <Mascot variant="face" className="h-24 w-24" />
+        <LogoFull className="h-24 w-24" />
         <h1 className="mt-4 font-round text-[26px] text-navy">선오공 관리자</h1>
         <p className="mt-1 text-[13px] font-semibold text-navy/50">관리자 비밀번호를 입력해주세요</p>
 

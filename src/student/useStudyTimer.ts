@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as api from '../lib/api'
-import { computeElapsedSeconds } from '../lib/session'
-import { HEARTBEAT_INTERVAL_MS, MAX_SESSION_SECONDS, kstDayEndMs, parseMs } from '../lib/time'
+import { computeElapsedSeconds, isHeartbeatStale } from '../lib/session'
+import { HEARTBEAT_INTERVAL_MS, MAX_SESSION_SECONDS, kstMidnightMs, parseMs, todayKst } from '../lib/time'
 import type { FinishResult, StudySession } from '../lib/types'
 
-export type FinishReason = 'manual' | 'limit' | 'midnight'
+export type FinishReason = 'manual' | 'limit'
+/** 기록 없이 버린 이유 — 자정이 지나서 / 이미 지난 날의 세션이라서 */
+export type DiscardReason = 'midnight' | 'stale'
 
 interface WakeLockSentinelLike {
   release: () => Promise<void>
@@ -20,6 +22,8 @@ export interface UseStudyTimerOptions {
   studentId: string
   initialSession?: StudySession | null
   onFinished?: (result: FinishResult, reason: FinishReason) => void
+  /** 자정을 넘겨 기록 없이 버려졌을 때 */
+  onDiscarded?: (reason: DiscardReason) => void
 }
 
 export interface StudyTimer {
@@ -36,18 +40,20 @@ export interface StudyTimer {
   pause: (auto?: boolean, message?: string) => Promise<void>
   resume: () => Promise<void>
   finish: (problems: number, reason?: FinishReason) => Promise<FinishResult | null>
+  discard: (reason?: DiscardReason) => Promise<void>
   reload: () => Promise<void>
   clearError: () => void
 }
 
 /**
  * 공부 타이머.
- * - 시작·일시정지·계속·종료 시각은 모두 Supabase 서버 시각(now())으로 저장하고,
+ * - 시작·일시정지·계속·종료 시각은 Supabase 서버 시각(now())으로 저장하고,
  *   화면 숫자는 서버 시각과 기기 시각의 차이(offset)를 보정해 계산한다.
- * - 10초마다 하트비트를 보내고, 다른 앱으로 이동하면 자동 일시정지한다(자동 재개 없음).
- * - 5시간(300분)을 넘으면 자동 종료 안내, 자정(23:59)을 넘으면 0문제로 종료한다.
+ * - 화면이 꺼지는 것만으로는 멈추지 않는다(공부는 계속). 앱을 벗어나 페이지를 떠날 때(pagehide),
+ *   앱을 닫았다가 다시 열었을 때(마지막 신호 이후), 그리고 직접 누른 일시정지에만 멈춘다.
+ * - 5시간(300분)을 넘으면 자동 종료 안내, 자정(00:00)을 넘기면 기록 없이 버린다.
  */
-export function useStudyTimer({ studentId, initialSession = null, onFinished }: UseStudyTimerOptions): StudyTimer {
+export function useStudyTimer({ studentId, initialSession = null, onFinished, onDiscarded }: UseStudyTimerOptions): StudyTimer {
   const [session, setSession] = useState<StudySession | null>(initialSession)
   const [loading, setLoading] = useState(!initialSession)
   const [busy, setBusy] = useState(false)
@@ -61,10 +67,11 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished }: 
   const offsetRef = useRef(0)
   const busyRef = useRef(false)
   const finishingRef = useRef(false)
-  const lastPauseAtRef = useRef(0)
   const wakeLockRef = useRef<WakeLockSentinelLike | null>(null)
   const onFinishedRef = useRef(onFinished)
+  const onDiscardedRef = useRef(onDiscarded)
   onFinishedRef.current = onFinished
+  onDiscardedRef.current = onDiscarded
 
   const applySession = useCallback((next: StudySession | null) => {
     sessionRef.current = next
@@ -75,6 +82,8 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished }: 
     const ms = parseMs(iso ?? null)
     if (Number.isFinite(ms)) offsetRef.current = ms - Date.now()
   }, [])
+
+  const serverNowMs = useCallback(() => Date.now() + offsetRef.current, [])
 
   const computeElapsed = useCallback((target: StudySession | null = sessionRef.current): number => {
     if (!target) return 0
@@ -100,30 +109,64 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished }: 
     })()
   }, [syncServerTime, computeElapsed])
 
+  /* 앱을 닫았다가 다시 연 경우: 마지막 신호 시점에 멈춘 것으로 본다.
+     (화면만 꺼진 경우에는 페이지가 살아 있어서 여기로 오지 않는다) */
+  const settleLoaded = useCallback(
+    async (active: StudySession | null) => {
+      let next = active
+      if (next && next.status === 'running' && isHeartbeatStale(next, Date.now() + offsetRef.current)) {
+        const paused = await api.pauseSession(next.id, true)
+        if (paused.ok) {
+          next = paused.data
+          setNotice('앱을 벗어나 있던 시간은 빼고 일시정지했어요')
+        }
+      }
+      applySession(next)
+      setElapsed(computeElapsed(next))
+      if (next?.status === 'paused') setNotice((prev) => prev ?? '일시정지 중이에요')
+    },
+    [applySession, computeElapsed],
+  )
+
   /* 처음 들어올 때 진행 중인 세션 확인 */
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
-    const res = await api.getActiveSession(studentId)
-    if (res.ok) {
-      const active = res.data && res.data.status !== 'finished' ? res.data : null
-      applySession(active)
-      setElapsed(computeElapsed(active))
-      if (active?.status === 'paused') setNotice('일시정지 중이에요')
-    } else {
-      setError(res.error)
-    }
-    setLoading(false)
-  }, [studentId, applySession, computeElapsed])
+    const nowRes = await api.serverNow()
+    if (nowRes.ok) syncServerTime(nowRes.data)
 
-  useEffect(() => {
-    if (initialSession) {
-      applySession(initialSession)
-      setElapsed(computeElapsed(initialSession))
+    const res = await api.getActiveSession(studentId)
+    if (!res.ok) {
+      setError(res.error)
       setLoading(false)
       return
     }
-    void load()
+    if (res.data.discarded) {
+      applySession(null)
+      setElapsed(0)
+      setLoading(false)
+      onDiscardedRef.current?.('stale')
+      return
+    }
+
+    await settleLoaded(res.data.session)
+    setLoading(false)
+  }, [studentId, applySession, settleLoaded, syncServerTime])
+
+  useEffect(() => {
+    if (!initialSession) {
+      void load()
+      return
+    }
+    // 이미 받아둔 세션이 있으면 바로 그리고, 서버 시각을 맞춘 뒤에 앱을 벗어나 있던 시간을 정리한다
+    applySession(initialSession)
+    setElapsed(computeElapsed(initialSession))
+    setLoading(false)
+    void (async () => {
+      const nowRes = await api.serverNow()
+      if (nowRes.ok) syncServerTime(nowRes.data)
+      await settleLoaded(sessionRef.current)
+    })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId])
 
@@ -154,6 +197,8 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished }: 
       if (!current || current.status !== 'running' || busyRef.current) return
       busyRef.current = true
       setBusy(true)
+      // 화면을 꺼둔 시간이 길었어도 "지금" 멈춘 것으로 처리되도록 마지막 신호를 먼저 갱신한다
+      await api.touchHeartbeat(current.id, new Date(Date.now() + offsetRef.current).toISOString())
       const res = await api.pauseSession(current.id, auto)
       if (res.ok) {
         applySession(res.data)
@@ -188,11 +233,34 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished }: 
     setBusy(false)
   }, [applySession, computeElapsed, syncServerTime])
 
+  /* 기록 없이 버리기 (자정 초과) */
+  const discard = useCallback(
+    async (reason: DiscardReason = 'midnight') => {
+      const current = sessionRef.current
+      if (!current) return
+      if (finishingRef.current) return
+      finishingRef.current = true
+      setBusy(true)
+      await api.discardSession(current.id)
+      finishingRef.current = false
+      setBusy(false)
+      applySession(null)
+      setElapsed(0)
+      onDiscardedRef.current?.(reason)
+    },
+    [applySession],
+  )
+
   /* 종료 (서버가 시간을 계산해 study_logs 에 누적) */
   const finish = useCallback(
     async (problems: number, reason: FinishReason = 'manual'): Promise<FinishResult | null> => {
       const current = sessionRef.current
       if (!current || finishingRef.current) return null
+      // 자정을 넘긴 세션은 종료를 눌러도 기록하지 않고 버린다
+      if (current.date !== todayKst()) {
+        await discard('stale')
+        return null
+      }
       finishingRef.current = true
       setBusy(true)
       setError(null)
@@ -212,21 +280,27 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished }: 
       setError(res.error)
       return null
     },
-    [applySession, computeElapsed],
+    [applySession, computeElapsed, discard],
   )
 
-  /* 하트비트 (10초) */
+  /* 하트비트 (10초) — 마지막 신호 시각만 갱신한다.
+     화면이 꺼져 타이머가 느려지더라도 서버가 임의로 일시정지하지 않게 하기 위해서다. */
   useEffect(() => {
     if (!session || session.status !== 'running') return undefined
     let cancelled = false
+    let beats = 0
 
     const beat = async () => {
       const current = sessionRef.current
       if (!current || current.status !== 'running' || finishingRef.current) return
-      const res = await api.sendHeartbeat(current.id)
-      if (cancelled || !res.ok) return
-      syncServerTime(res.data.server_now)
-      if (res.data.session) applySession(res.data.session)
+      beats += 1
+      // 가끔 서버 시각을 다시 맞춘다 (기기 시계가 조금씩 어긋나는 것 보정)
+      if (beats % 30 === 0) {
+        const nowRes = await api.serverNow()
+        if (cancelled) return
+        if (nowRes.ok) syncServerTime(nowRes.data)
+      }
+      await api.touchHeartbeat(current.id, new Date(Date.now() + offsetRef.current).toISOString())
     }
 
     const id = window.setInterval(() => void beat(), HEARTBEAT_INTERVAL_MS)
@@ -234,7 +308,7 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished }: 
       cancelled = true
       window.clearInterval(id)
     }
-  }, [session?.id, session?.status, applySession, syncServerTime])
+  }, [session?.id, session?.status, syncServerTime])
 
   /* 화면 켜두기 (Screen Wake Lock) */
   const requestWakeLock = useCallback(async () => {
@@ -274,57 +348,73 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished }: 
 
   useEffect(() => () => releaseWakeLock(), [releaseWakeLock])
 
-  /* 다른 앱·탭으로 이동하면 자동 일시정지 */
-  const maybePause = useCallback(
-    (message: string) => {
-      const current = sessionRef.current
-      if (!current || current.status !== 'running') return
-      const nowMs = Date.now()
-      if (nowMs - lastPauseAtRef.current < 800) return
-      lastPauseAtRef.current = nowMs
-      void pause(true, message)
-    },
-    [pause],
-  )
-
+  /* 화면 꺼짐 vs 앱 이탈
+     - 화면이 꺼지거나 앱을 잠깐 벗어난 것(visibilitychange hidden / blur)만으로는 멈추지 않는다.
+       화면을 끄고 공부를 계속하는 경우가 있어서다.
+     - 페이지를 실제로 떠날 때(pagehide·beforeunload)만 멈춘다. */
   useEffect(() => {
     if (!session || session.status === 'finished') return undefined
 
     const onVisibility = () => {
       try {
-        if (document.visibilityState === 'hidden') {
-          maybePause('화면을 벗어나서 일시정지했어요')
-        } else if (sessionRef.current?.status === 'running') {
-          void requestWakeLock()
+        if (document.visibilityState === 'visible') {
+          const current = sessionRef.current
+          if (current && current.date !== todayKst()) {
+            // 화면이 꺼져 있는 동안 자정을 넘긴 경우
+            void discard('midnight')
+            return
+          }
+          if (sessionRef.current?.status === 'running') {
+            void requestWakeLock()
+            // 화면이 다시 켜지면 마지막 신호 시각을 먼저 현재로 맞춘다
+            if (current) void api.touchHeartbeat(current.id, new Date(Date.now() + offsetRef.current).toISOString())
+            setElapsed(computeElapsed())
+          }
         }
       } catch (visibilityError) {
         console.warn('[sunogong] visibility 처리 실패:', visibilityError)
       }
     }
-    const onBlur = () => maybePause('다른 화면으로 이동해서 일시정지했어요')
-    const onPageHide = () => maybePause('화면을 벗어나서 일시정지했어요')
+
+    const onPageHide = () => {
+      const current = sessionRef.current
+      if (!current || current.status !== 'running') return
+      api.pauseSessionBeacon(current.id)
+    }
+
+    const onBeforeUnload = () => onPageHide()
+
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) void load()
+    }
 
     document.addEventListener('visibilitychange', onVisibility)
-    window.addEventListener('blur', onBlur)
     window.addEventListener('pagehide', onPageHide)
+    window.addEventListener('beforeunload', onBeforeUnload)
+    window.addEventListener('pageshow', onPageShow)
     return () => {
       document.removeEventListener('visibilitychange', onVisibility)
-      window.removeEventListener('blur', onBlur)
       window.removeEventListener('pagehide', onPageHide)
+      window.removeEventListener('beforeunload', onBeforeUnload)
+      window.removeEventListener('pageshow', onPageShow)
     }
-  }, [session?.id, session?.status, maybePause, requestWakeLock])
+  }, [session?.id, session?.status, requestWakeLock, computeElapsed, load, discard])
 
-  /* 한국 시간 자정(23:59) 이 되면 0문제로 종료 */
+  /* 한국 시간 자정(00:00)을 넘기면 기록 없이 버린다 */
   useEffect(() => {
     if (!session || session.status === 'finished') return undefined
-    const targetMs = kstDayEndMs(session.date)
-    const waitMs = targetMs - (Date.now() + offsetRef.current)
-    if (!Number.isFinite(waitMs) || waitMs <= 0) return undefined
+    const targetMs = kstMidnightMs(session.date)
+    const waitMs = targetMs - serverNowMs()
+    if (!Number.isFinite(waitMs)) return undefined
+    if (waitMs <= 0) {
+      void discard('midnight')
+      return undefined
+    }
     const id = window.setTimeout(() => {
-      void finish(0, 'midnight')
+      void discard('midnight')
     }, Math.min(waitMs, 2_147_483_000))
     return () => window.clearTimeout(id)
-  }, [session?.id, session?.date, session?.status, finish])
+  }, [session?.id, session?.date, session?.status, discard, serverNowMs])
 
   /* 5시간 제한 */
   useEffect(() => {
@@ -346,6 +436,7 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished }: 
     pause,
     resume,
     finish,
+    discard,
     reload: load,
     clearError: () => setError(null),
   }

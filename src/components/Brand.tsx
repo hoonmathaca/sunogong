@@ -43,7 +43,7 @@ export function Mascot({ variant = 'full', className = '', hideOnError = false }
   )
 }
 
-/** 훈수학 원형 로고 (모든 화면 맨 아래에만 작게) */
+/** 훈수학 원형 배지 (모든 화면 맨 아래에만 작게) */
 export function LogoMark({ className = 'h-6 w-6' }: { className?: string }): JSX.Element | null {
   const [failed, setFailed] = useState(false)
   if (failed) {
@@ -56,6 +56,21 @@ export function LogoMark({ className = 'h-6 w-6' }: { className?: string }): JSX
       </span>
     )
   }
+  return (
+    <img
+      src="/images/hunsu-badge.png"
+      alt="훈수학학원"
+      draggable={false}
+      onError={() => setFailed(true)}
+      className={`select-none object-contain ${className}`}
+    />
+  )
+}
+
+/** 훈수학 로고 (글자·전화번호가 들어간 원본 로고 — 큰 자리에만) */
+export function LogoFull({ className = 'h-24 w-24' }: { className?: string }): JSX.Element | null {
+  const [failed, setFailed] = useState(false)
+  if (failed) return null
   return (
     <img
       src="/images/hunsu-logo.png"

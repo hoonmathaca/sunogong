@@ -39,6 +39,10 @@ select count(*) from public.students;   -- 51
 select count(*) from public.study_logs; -- 2
 ```
 
+> **자정 규칙을 바꿨습니다 (2026-11-19).** 앱은 이 규칙을 클라이언트에서도 지키지만,
+> 데이터베이스까지 같은 규칙으로 맞추려면 `supabase/schema.sql` 을 SQL Editor에서 **한 번 다시 실행**해 주세요.
+> (자정을 넘긴 세션을 종료하지 않고 버리기 + 하트비트가 끊겨도 임의로 일시정지하지 않기)
+
 ## 3. 실행 / 빌드
 
 ```bash
@@ -50,19 +54,20 @@ npm run preview    # 빌드 결과 확인
 
 ---
 
-## 4. 이미지 파일 넣기
+## 4. 이미지 파일
 
-지금 들어 있는 이미지는 **자리표시자**입니다. 같은 이름으로 덮어쓰면 앱에 바로 반영됩니다.
+원장님이 보내준 마스코트·로고 원본에서 앱에 쓰는 이미지를 모두 만들었습니다.
 
-| 사용자가 보내는 파일 | 넣을 위치 | 쓰이는 곳 |
-|---|---|---|
-| 마스코트_전신_투명.png | `public/images/mascot-full.png` | 첫 화면(제목 옆), 타이머, 결과 화면 |
-| 마스코트_얼굴_투명.png | `public/images/mascot-face.png` | 관리자 화면 상단 |
-| 훈수학 원형 로고 | `public/images/hunsu-logo.png` | **모든 화면 맨 아래에만** 작게 + "훈수학학원" |
-| 앱 아이콘 | `public/icons/icon-192.png`, `public/icons/icon-512.png`, `public/icons/apple-touch-icon.png`(180×180) | 홈 화면 아이콘 |
-| 공유 미리보기 | `public/images/og-image.png` (1200×630) | 카카오톡·SNS 링크 미리보기 |
+| 파일 | 쓰이는 곳 |
+|---|---|
+| `public/images/mascot-full.png` (800×800, 투명) | 첫 화면(제목 옆), 타이머, 결과 화면 |
+| `public/images/mascot-face.png` (512×512, 투명) | 관리자 화면 상단 |
+| `public/images/hunsu-logo.png` (512×512, 투명) | 관리자 로그인 화면, 공유 미리보기 |
+| `public/images/hunsu-badge.png` (256×256, 원형) | **모든 화면 맨 아래에만** 작게 + "훈수학학원" |
+| `public/icons/icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `apple-touch-icon.png`(180×180) | 홈 화면 아이콘 |
+| `public/images/og-image.png` (1200×630) | 카카오톡·SNS 링크 미리보기 |
 
-자리표시자를 다시 만들려면(선택): `python3 tools/make_placeholders.py`
+같은 이미지를 다시 만들려면: `python3 tools/make_images.py <마스코트_원본> <로고_원본>`
 
 > 배포 후에는 `index.html` 의 `og:image` / `twitter:image` 를 실제 주소
 > (`https://내주소/images/og-image.png`)로 바꿔 주세요. 대부분의 메신저는 상대 경로를 읽지 않습니다.
@@ -101,11 +106,13 @@ npm run preview    # 빌드 결과 확인
 | 시작/일시정지/계속/종료 시각 저장 | `start_session`, `pause_session`, `resume_session`, `finish_session` |
 | 진행 중인 세션이 있으면 코드 입력 시 타이머로 복귀 | `active_session` → `start_session` |
 | 하루 여러 번 → `study_logs`(학생+날짜 unique)에 누적 합산 | `finish_session` 의 `on conflict do update` |
-| 다른 앱·탭으로 이동하면 자동 일시정지, 복귀해도 자동 재개 없음 | `visibilitychange` / `blur` / `pagehide` |
-| 10초마다 하트비트, 30초 이상 끊기면 마지막 신호부터 일시정지 | `heartbeat`, `reconcile_session` |
+| **화면을 꺼도 시간은 계속 간다** (공부 시간으로 인정) | `visibilitychange` 로는 멈추지 않음 |
+| 페이지를 실제로 떠날 때(pagehide·beforeunload) 일시정지 | `pauseSessionBeacon` (keepalive) |
+| 앱을 닫았다가 다시 열면 마지막 신호 시각까지로 일시정지 | 클라이언트 `isHeartbeatStale` + `pause_session` |
+| 10초마다 마지막 신호 시각만 갱신 (서버가 임의로 멈추지 않게) | `study_sessions.last_heartbeat_at` 직접 갱신 |
 | 자동 일시정지 누적 시간·횟수 | `auto_paused_seconds`, `auto_pause_count` |
 | 1회 최대 5시간(300분), 넘으면 자동 종료 | 클라이언트 안내 + 서버 18,000초 상한 |
-| 자정(23:59) 넘기면 그날 23:59에 종료, 푼 문제 0 | 클라이언트 타이머 + `reconcile_session` |
+| **자정(00:00) 전에 종료를 누르지 않으면 기록하지 않고 버린다** | 클라이언트 자정 타이머 + `discard_session`, `reconcile_session` |
 | 같은 종료 요청이 두 번 와도 기록이 두 번 쌓이지 않음 | `finish_session` 이 `finished` 상태를 먼저 확인 |
 
 화면이 꺼지지 않도록 **Screen Wake Lock** 을 쓰고, 지원하지 않는 브라우저에서는

@@ -4,18 +4,19 @@ import { Keypad, Spinner } from '../components/Keypad'
 import { Modal } from '../components/Modal'
 import { formatHMS, formatMinutes, MAX_SESSION_SECONDS } from '../lib/time'
 import type { FinishResult, Student, StudySession } from '../lib/types'
-import { useStudyTimer, type FinishReason } from './useStudyTimer'
+import { useStudyTimer, type DiscardReason, type FinishReason } from './useStudyTimer'
 
 interface TimerScreenProps {
   student: Student
   initialSession?: StudySession | null
   onFinished: (result: FinishResult, reason: FinishReason) => void
+  onDiscarded: (reason: DiscardReason) => void
   onExit: () => void
 }
 
 /** 공부 타이머 화면 */
-export function TimerScreen({ student, initialSession = null, onFinished, onExit }: TimerScreenProps): JSX.Element {
-  const timer = useStudyTimer({ studentId: student.id, initialSession, onFinished })
+export function TimerScreen({ student, initialSession = null, onFinished, onDiscarded, onExit }: TimerScreenProps): JSX.Element {
+  const timer = useStudyTimer({ studentId: student.id, initialSession, onFinished, onDiscarded })
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [problemOpen, setProblemOpen] = useState(false)
   const [problems, setProblems] = useState('')
@@ -149,7 +150,7 @@ export function TimerScreen({ student, initialSession = null, onFinished, onExit
           </button>
         </div>
         <p className="mt-2 text-center text-[11px] text-navy/35">
-          다른 앱으로 이동하면 자동으로 일시정지돼요
+          화면을 꺼도 시간은 계속 가요 · 앱을 닫으면 멈춰요
         </p>
       </div>
 
@@ -184,9 +185,7 @@ export function TimerScreen({ student, initialSession = null, onFinished, onExit
         description={
           pendingReason === 'limit'
             ? '5시간이 지나 자동으로 마무리해요. 푼 문제 수를 알려주세요.'
-            : pendingReason === 'midnight'
-              ? '자정이 지나 자동으로 마무리했어요.'
-              : '숫자 키패드로 입력하고 저장을 눌러주세요. (0도 괜찮아요)'
+            : '숫자 키패드로 입력하고 저장을 눌러주세요. (0도 괜찮아요)'
         }
         onClose={() => {
           if (pendingReason === 'limit') return

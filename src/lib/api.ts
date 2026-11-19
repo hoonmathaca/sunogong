@@ -1,5 +1,6 @@
-import { isSupabaseConfigured, supabase } from './supabase'
-import type { FinishResult, HeartbeatResult, Student, StudyLog, StudySession } from './types'
+import { isSupabaseConfigured, SUPABASE_ANON_KEY, SUPABASE_URL, supabase } from './supabase'
+import { todayKst } from './time'
+import type { FinishResult, Student, StudyLog, StudySession } from './types'
 
 export const NOT_CONFIGURED_MESSAGE =
   'Supabase 연결 정보가 없어요. .env 의 VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY 를 채우고 다시 빌드해주세요.'
@@ -75,28 +76,81 @@ export const serverNow = () => rpc<string>('server_now')
 export const findStudentsByCode = (code: string) =>
   rpc<Student[]>('find_students_by_code', { p_code: code })
 
-/** 진행 중인 세션 (없으면 null). 서버가 끊긴 하트비트·자정 초과를 먼저 정리한다. */
-export const getActiveSession = async (studentId: string): Promise<ApiResult<StudySession | null>> => {
-  const res = await rpc<StudySession | null>('active_session', { p_student_id: studentId })
-  if (!res.ok) return res
-  const row = res.data
-  // PostgREST는 SQL NULL 복합행을 '모든 칸이 null인 객체'로 돌려준다 → 진행 중인 세션이 없는 것으로 본다.
-  if (!row || !row.id || !row.status || row.status === 'finished') return { ok: true, data: null }
-  return { ok: true, data: row }
+export interface ActiveSessionResult {
+  session: StudySession | null
+  /** 자정을 넘긴 세션을 기록 없이 버렸는지 */
+  discarded: boolean
 }
 
-/** 세션 시작 (이미 진행 중이면 그 세션을 돌려준다) */
-export const startSession = (studentId: string) =>
-  rpc<StudySession>('start_session', { p_student_id: studentId })
+/** 진행 중인 세션 한 줄을 표에서 직접 읽는다 (서버 RPC의 자동 마감을 거치지 않게) */
+const fetchActiveRow = (studentId: string): Promise<ApiResult<StudySession | null>> =>
+  run<StudySession | null>(() =>
+    supabase
+      .from('study_sessions')
+      .select('*')
+      .eq('student_id', studentId)
+      .neq('status', 'finished')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  )
+
+/** 세션 폐기 — study_logs에 아무것도 남기지 않고 세션만 지운다 */
+export const discardSession = (sessionId: string) =>
+  run<null>(() => supabase.from('study_sessions').delete().eq('id', sessionId))
+
+/**
+ * 진행 중인 세션 (없으면 null).
+ * 그 날(date)이 지난 세션은 "자정 전에 종료를 누르지 않은 공부"라서 기록하지 않고 버린다.
+ */
+export const getActiveSession = async (studentId: string): Promise<ApiResult<ActiveSessionResult>> => {
+  const res = await fetchActiveRow(studentId)
+  if (!res.ok) return res
+  const row = res.data
+  if (!row || !row.id || !row.status || row.status === 'finished') {
+    return { ok: true, data: { session: null, discarded: false } }
+  }
+  if (row.date !== todayKst()) {
+    const removed = await discardSession(row.id)
+    return { ok: true, data: { session: null, discarded: removed.ok } }
+  }
+  return { ok: true, data: { session: row, discarded: false } }
+}
+
+/** 하트비트 — 마지막 신호 시각만 갱신한다 (서버의 30초 규칙을 건드리지 않게 표를 직접 고친다) */
+export const touchHeartbeat = (sessionId: string, atIso: string) =>
+  run<null>(() => supabase.from('study_sessions').update({ last_heartbeat_at: atIso }).eq('id', sessionId))
+
+/** 페이지를 떠나는 순간에도 살아남는 일시정지 요청 (keepalive) */
+export function pauseSessionBeacon(sessionId: string): void {
+  if (!isSupabaseConfigured) return
+  try {
+    void fetch(`${SUPABASE_URL}/rest/v1/rpc/pause_session`, {
+      method: 'POST',
+      keepalive: true,
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ p_session_id: sessionId, p_auto: true }),
+    }).catch(() => undefined)
+  } catch {
+    /* 페이지를 떠나는 중이라 실패해도 된다 — 다음에 열 때 서버 시각으로 정리된다 */
+  }
+}
+
+/** 세션 시작 (이미 진행 중이면 그 세션을 돌려준다). 지난 날 세션은 먼저 버린다. */
+export const startSession = async (studentId: string): Promise<ApiResult<StudySession>> => {
+  await getActiveSession(studentId)
+  return rpc<StudySession>('start_session', { p_student_id: studentId })
+}
 
 export const pauseSession = (sessionId: string, auto = false) =>
   rpc<StudySession>('pause_session', { p_session_id: sessionId, p_auto: auto })
 
 export const resumeSession = (sessionId: string) =>
   rpc<StudySession>('resume_session', { p_session_id: sessionId })
-
-export const sendHeartbeat = (sessionId: string) =>
-  rpc<HeartbeatResult>('heartbeat', { p_session_id: sessionId })
 
 export const finishSession = (sessionId: string, problems: number) =>
   rpc<FinishResult>('finish_session', { p_session_id: sessionId, p_problems: Math.max(0, Math.floor(problems) || 0) })
