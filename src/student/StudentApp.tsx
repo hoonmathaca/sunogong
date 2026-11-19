@@ -144,7 +144,8 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
     try {
       const res = await api.startSession(student.id, kind)
       if (res.ok) {
-        setInitialSession(res.data)
+        // DB 마이그레이션 전에는 세션에 종류가 없으므로, 방금 고른 종류를 붙여 넘긴다
+        setInitialSession({ ...res.data, kind: res.data.kind ?? kind })
         setPhase('timer')
       } else {
         setStartError(res.error)
