@@ -158,7 +158,7 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
           </button>
         </div>
         <p className="mt-2 text-center text-[11px] text-navy/35">
-          화면이 꺼져도 계속돼요 · 앱을 나가면 그 시점에서 멈춰요
+          화면이 꺼져도 시간은 계속 가요 · 끝나면 꼭 종료를 눌러주세요
         </p>
       </div>
 
