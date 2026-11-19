@@ -76,8 +76,14 @@ export const findStudentsByCode = (code: string) =>
   rpc<Student[]>('find_students_by_code', { p_code: code })
 
 /** 진행 중인 세션 (없으면 null). 서버가 끊긴 하트비트·자정 초과를 먼저 정리한다. */
-export const getActiveSession = (studentId: string) =>
-  rpc<StudySession | null>('active_session', { p_student_id: studentId })
+export const getActiveSession = async (studentId: string): Promise<ApiResult<StudySession | null>> => {
+  const res = await rpc<StudySession | null>('active_session', { p_student_id: studentId })
+  if (!res.ok) return res
+  const row = res.data
+  // PostgREST는 SQL NULL 복합행을 '모든 칸이 null인 객체'로 돌려준다 → 진행 중인 세션이 없는 것으로 본다.
+  if (!row || !row.id || !row.status || row.status === 'finished') return { ok: true, data: null }
+  return { ok: true, data: row }
+}
 
 /** 세션 시작 (이미 진행 중이면 그 세션을 돌려준다) */
 export const startSession = (studentId: string) =>

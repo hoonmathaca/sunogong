@@ -66,6 +66,7 @@ export function isDateString(value: unknown): value is string {
 
 /** 'YYYY-MM-DD' 를 UTC 정오 기준 밀리초로 (한국은 서머타임이 없어 날짜 계산이 안전) */
 function dateToUtcMs(dateStr: string): number {
+  if (typeof dateStr !== 'string') return NaN
   const [y, m, d] = dateStr.split('-').map(Number)
   return Date.UTC(y, (m ?? 1) - 1, d ?? 1, 12, 0, 0)
 }
@@ -173,6 +174,7 @@ export function weekRange(endDate: string = todayKst()): { start: string; end: s
  * 한국은 UTC+9 고정이라 23:59 KST = 같은 날 14:59 UTC.
  */
 export function kstDayEndMs(dateStr: string): number {
+  if (typeof dateStr !== 'string') return NaN
   const [y, m, d] = dateStr.split('-').map(Number)
   return Date.UTC(y, (m ?? 1) - 1, d ?? 1, 14, 59, 0)
 }
