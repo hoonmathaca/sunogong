@@ -7,6 +7,7 @@ import {
   currentMonthKst,
   formatDateShort,
   formatMinutes,
+  formatMinutesCompact,
   isWeekend,
   monthRange,
   rangeDates,
@@ -18,11 +19,13 @@ import {
   groupByGrade,
   indexLogs,
   sortStudents,
+  splitLog,
   studentsWithoutLogs,
+  sumSplits,
   type StudentStat,
 } from '../lib/stats'
 import type { Student, StudyLog } from '../lib/types'
-import { HorizontalBars } from './Charts'
+import { HorizontalBars, KindLegend, SplitBar } from './Charts'
 import { LogEditorModal } from './LogEditorModal'
 import { StudentDetailModal } from './StudentDetailModal'
 import {
@@ -89,8 +92,9 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
   const stats = useMemo(() => buildStats(filteredStudents, index, safeStart, safeEnd), [filteredStudents, index, safeStart, safeEnd])
   const statById = useMemo(() => new Map(stats.map((stat) => [stat.student.id, stat])), [stats])
 
-  const totalMinutes = stats.reduce((sum, stat) => sum + stat.minutes, 0)
-  const totalProblems = stats.reduce((sum, stat) => sum + stat.problems, 0)
+  const totals = useMemo(() => sumSplits(stats), [stats])
+  const totalMinutes = totals.minutes
+  const totalProblems = totals.problems
   const submittedStudents = stats.filter((stat) => stat.submittedDays > 0).length
   const maxMinutes = Math.max(1, ...stats.map((stat) => stat.minutes))
 
@@ -122,24 +126,53 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
       label: stat.student.name,
       sublabel: stat.student.grade.replace('미지정', '—'),
       value: metric === 'minutes' ? stat.minutes : stat.problems,
+      segments: [
+        {
+          value: metric === 'minutes' ? stat.academyMinutes : stat.academyProblems,
+          className: 'bg-navy',
+          label: '🏫 학원',
+        },
+        {
+          value: metric === 'minutes' ? stat.homeworkMinutes : stat.homeworkProblems,
+          className: 'bg-sky-400',
+          label: '🏠 숙제',
+        },
+      ],
     }))
   }, [stats, metric, showAllBars])
 
   const downloadCsv = (shape: 'long' | 'matrix') => {
     const rows: (string | number)[][] = []
     if (shape === 'long') {
-      rows.push(['학년', '이름', '코드', '날짜', '공부시간(분)', '공부시간', '푼 문제 수'])
+      rows.push([
+        '학년',
+        '이름',
+        '코드',
+        '날짜',
+        '학원 공부(분)',
+        '숙제 공부(분)',
+        '공부시간(분)',
+        '공부시간',
+        '학원 문제',
+        '숙제 문제',
+        '푼 문제 수',
+      ])
       for (const stat of stats) {
         for (const date of dates) {
           const log = stat.byDate.get(date)
           if (!log) continue
+          const split = splitLog(log)
           rows.push([
             normalizeGrade(stat.student.grade),
             stat.student.name,
             stat.student.code,
             date,
+            split.academyMinutes,
+            split.homeworkMinutes,
             log.minutes,
             formatMinutes(log.minutes),
+            split.academyProblems,
+            split.homeworkProblems,
             log.problems,
           ])
         }
@@ -149,7 +182,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
       for (const date of dates) {
         header.push(`${date} 공부(분)`, `${date} 문제`)
       }
-      header.push('합계(분)', '합계 문제')
+      header.push('합계(분)', '학원 공부(분)', '숙제 공부(분)', '합계 문제', '학원 문제', '숙제 문제')
       rows.push(header)
       for (const stat of stats) {
         const row: (string | number)[] = [normalizeGrade(stat.student.grade), stat.student.name, stat.student.code]
@@ -157,7 +190,14 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
           const log = stat.byDate.get(date)
           row.push(log ? log.minutes : '', log ? log.problems : '')
         }
-        row.push(stat.minutes, stat.problems)
+        row.push(
+          stat.minutes,
+          stat.academyMinutes,
+          stat.homeworkMinutes,
+          stat.problems,
+          stat.academyProblems,
+          stat.homeworkProblems,
+        )
         rows.push(row)
       }
     }
@@ -221,9 +261,21 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
         </div>
       </AdminSection>
 
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
         <StatCard label="학생" value={`${filteredStudents.length}명`} sub={`기록 있음 ${submittedStudents}명`} tone="navy" />
         <StatCard label="총 공부시간" value={formatMinutes(totalMinutes)} sub={`${safeStart} ~ ${safeEnd}`} />
+        <StatCard
+          label="🏫 학원 공부"
+          value={formatMinutes(totals.academyMinutes)}
+          sub={`문제 ${totals.academyProblems}개`}
+          tone="academy"
+        />
+        <StatCard
+          label="🏠 숙제 공부"
+          value={formatMinutes(totals.homeworkMinutes)}
+          sub={`문제 ${totals.homeworkProblems}개`}
+          tone="homework"
+        />
         <StatCard label="총 푼 문제" value={`${totalProblems}개`} sub={filteredStudents.length ? `1인당 ${Math.round(totalProblems / filteredStudents.length)}개` : undefined} />
         <StatCard
           label="1인당 평균"
@@ -237,7 +289,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
 
       <AdminSection
         title="학생 × 날짜 표"
-        description="칸을 누르면 그 날 기록을 고칠 수 있어요. 시간이 길수록 진하게 표시됩니다."
+        description="칸을 누르면 그 날 기록을 고칠 수 있어요. 시간이 길수록 진하게 표시되고, 칸 아래 막대는 학원·숙제 비율이에요."
       >
         {studentsLoading || loading ? (
           <LoadingBlock />
@@ -282,6 +334,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                     </th>
                     {dates.map((date) => {
                       const log = stat.byDate.get(date)
+                      const split = splitLog(log)
                       const weekend = isWeekend(date)
                       return (
                         <td key={date} className={`border-b border-blue-line p-0 text-center ${weekend && !log ? 'bg-blue-soft/60' : ''}`}>
@@ -305,6 +358,16 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                               <>
                                 <span className="text-[10px] font-bold leading-tight tabular">{log.minutes}분</span>
                                 <span className="text-[9px] leading-tight opacity-85 tabular">{log.problems}문제</span>
+                                {split.homeworkMinutes > 0 ? (
+                                  <SplitBar
+                                    academy={split.academyMinutes}
+                                    homework={split.homeworkMinutes}
+                                    className="mt-0.5 w-[30px]"
+                                    trackClass="bg-white/30"
+                                    academyClass="bg-white"
+                                    homeworkClass="bg-sky-300"
+                                  />
+                                ) : null}
                               </>
                             ) : (
                               <span className="text-[11px]">·</span>
@@ -313,9 +376,18 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                         </td>
                       )
                     })}
-                    <td className="sticky right-0 z-10 border-b border-l border-blue-line bg-white px-2 py-1 text-right text-[10px] font-bold text-navy tabular">
-                      {formatMinutes(stat.minutes)}
-                      <div className="text-[9px] font-medium text-navy/40">{stat.problems}문제</div>
+                    <td className="sticky right-0 z-10 border-b border-l border-blue-line bg-white px-2 py-1 text-right tabular">
+                      <span className="block text-[10px] font-bold text-navy">{formatMinutes(stat.minutes)}</span>
+                      <span className="block text-[9px] font-semibold text-navy/55">
+                        🏫 {formatMinutesCompact(stat.academyMinutes)}
+                      </span>
+                      <span className="block text-[9px] font-semibold text-sky-600/80">
+                        🏠 {formatMinutesCompact(stat.homeworkMinutes)}
+                      </span>
+                      {stat.otherMinutes > 0 ? (
+                        <span className="block text-[9px] font-medium text-navy/35">직접 수정 {stat.otherMinutes}분</span>
+                      ) : null}
+                      <span className="block text-[9px] font-medium text-navy/40">{stat.problems}문제</span>
                     </td>
                   </tr>
                 ))}
@@ -323,6 +395,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
             </table>
           </div>
         )}
+        <KindLegend className="mt-2.5" />
         <div className="mt-2 flex flex-wrap items-center gap-3 text-[10px] text-navy/45">
           <span className="flex items-center gap-1">
             <span className="inline-block h-3 w-3 rounded" style={{ backgroundColor: 'rgba(18,41,107,0.2)' }} /> 짧게
@@ -349,8 +422,9 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
             {sections.map((section) => {
               const sectionStats = section.students.map((student) => statById.get(student.id)).filter(Boolean) as StudentStat[]
               const count = sectionStats.length
-              const avgMinutes = count ? sectionStats.reduce((sum, stat) => sum + stat.minutes, 0) / count : 0
-              const avgProblems = count ? sectionStats.reduce((sum, stat) => sum + stat.problems, 0) / count : 0
+              const sectionTotals = sumSplits(sectionStats)
+              const avgMinutes = count ? sectionTotals.minutes / count : 0
+              const avgProblems = count ? sectionTotals.problems / count : 0
               const isCollapsed = Boolean(collapsed[section.grade])
               return (
                 <div key={section.grade} className="overflow-hidden rounded-2xl border border-blue-line">
@@ -369,38 +443,80 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                       {section.grade}
                       <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-navy/60">{count}명</span>
                     </span>
-                    <span className="text-[11px] font-semibold text-navy/55 tabular">
+                    <span className="text-right text-[11px] font-semibold text-navy/55 tabular">
                       평균 {formatMinutes(avgMinutes)} · {Math.round(avgProblems)}문제
+                      <span className="mt-0.5 block text-[10px] font-bold">
+                        <span className="text-navy/60">🏫 {formatMinutesCompact(count ? sectionTotals.academyMinutes / count : 0)}</span>
+                        <span className="text-navy/20"> · </span>
+                        <span className="text-sky-600/80">🏠 {formatMinutesCompact(count ? sectionTotals.homeworkMinutes / count : 0)}</span>
+                      </span>
                     </span>
                   </button>
 
                   {isCollapsed ? null : (
                     <div className="divide-y divide-blue-line">
-                      <div className="hidden grid-cols-[1.4fr_repeat(4,1fr)] gap-1 px-3 py-1 text-[10px] font-semibold text-navy/40 sm:grid">
+                      {/* PC: 학원·숙제를 각각 한 칸으로 나눠 보여준다 */}
+                      <div className="hidden grid-cols-[1.3fr_1fr_1fr_1.2fr_0.8fr_0.7fr] gap-1 px-3 py-1 text-[10px] font-semibold text-navy/40 sm:grid">
                         <span>이름</span>
-                        <span className="text-right">공부시간</span>
+                        <span className="text-right">🏫 학원</span>
+                        <span className="text-right">🏠 숙제</span>
+                        <span className="text-right">합계</span>
                         <span className="text-right">문제</span>
                         <span className="text-right">제출</span>
-                        <span className="text-right">하루 평균</span>
                       </div>
                       {sectionStats.map((stat) => (
-                        <div
-                          key={stat.student.id}
-                          className="grid grid-cols-[1.4fr_repeat(4,1fr)] items-center gap-1 px-3 py-1.5 text-[11px]"
-                        >
-                          <button
-                            type="button"
-                            onClick={() => setDetailStudent(stat.student)}
-                            className="truncate text-left font-bold text-navy hover:underline"
-                          >
-                            {stat.student.name}
-                          </button>
-                          <span className="text-right tabular text-navy/70">{formatMinutes(stat.minutes)}</span>
-                          <span className="text-right tabular text-navy/70">{stat.problems}개</span>
-                          <span className="text-right tabular text-navy/50">{stat.submittedDays}일</span>
-                          <span className="text-right tabular text-navy/50">
-                            {stat.submittedDays ? formatMinutes(stat.minutes / stat.submittedDays) : '—'}
-                          </span>
+                        <div key={stat.student.id}>
+                          {/* PC */}
+                          <div className="hidden grid-cols-[1.3fr_1fr_1fr_1.2fr_0.8fr_0.7fr] items-center gap-1 px-3 py-1.5 text-[11px] sm:grid">
+                            <button
+                              type="button"
+                              onClick={() => setDetailStudent(stat.student)}
+                              className="truncate text-left font-bold text-navy hover:underline"
+                            >
+                              {stat.student.name}
+                            </button>
+                            <span className="text-right font-semibold tabular text-navy/80">
+                              {formatMinutes(stat.academyMinutes)}
+                            </span>
+                            <span className="text-right font-semibold tabular text-sky-600/90">
+                              {formatMinutes(stat.homeworkMinutes)}
+                            </span>
+                            <span className="text-right tabular">
+                              <span className="font-bold text-navy">{formatMinutes(stat.minutes)}</span>
+                              <span className="block text-[9px] font-medium text-navy/40">
+                                하루 {stat.submittedDays ? formatMinutesCompact(stat.minutes / stat.submittedDays) : '—'}
+                              </span>
+                            </span>
+                            <span className="text-right tabular text-navy/70">{stat.problems}개</span>
+                            <span className="text-right tabular text-navy/50">{stat.submittedDays}일</span>
+                          </div>
+                          {/* 스마트폰: 한 줄에 이름·합계, 아래에 학원/숙제 */}
+                          <div className="px-3 py-2 sm:hidden">
+                            <div className="flex items-baseline justify-between gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setDetailStudent(stat.student)}
+                                className="truncate text-left text-[12px] font-bold text-navy"
+                              >
+                                {stat.student.name}
+                              </button>
+                              <span className="shrink-0 text-[12px] font-extrabold tabular text-navy">
+                                {formatMinutes(stat.minutes)}
+                              </span>
+                            </div>
+                            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10.5px] font-semibold tabular">
+                              <span className="text-navy/75">🏫 학원 {formatMinutesCompact(stat.academyMinutes)}</span>
+                              <span className="text-sky-600/85">🏠 숙제 {formatMinutesCompact(stat.homeworkMinutes)}</span>
+                              <span className="text-navy/40">
+                                {stat.problems}문제 · {stat.submittedDays}일
+                              </span>
+                            </div>
+                            <SplitBar
+                              academy={stat.academyMinutes}
+                              homework={stat.homeworkMinutes}
+                              className="mt-1.5"
+                            />
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -414,7 +530,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
 
       <AdminSection
         title="학생 비교"
-        description="기간 동안의 기록을 학생별로 비교해요."
+        description="기간 동안의 기록을 학생별로 비교해요. 막대는 학원 공부(남색)와 숙제 공부(하늘색)로 나뉘어 쌓입니다."
         actions={
           <>
             <div className="flex rounded-full bg-blue-soft p-0.5">
@@ -442,10 +558,13 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
         {loading ? (
           <LoadingBlock />
         ) : (
-          <HorizontalBars
-            items={barItems}
-            format={(value) => (metric === 'minutes' ? formatMinutes(value) : `${value}개`)}
-          />
+          <>
+            <HorizontalBars
+              items={barItems}
+              format={(value) => (metric === 'minutes' ? formatMinutes(value) : `${value}개`)}
+            />
+            <KindLegend className="mt-3" />
+          </>
         )}
       </AdminSection>
 

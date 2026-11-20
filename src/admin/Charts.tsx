@@ -1,10 +1,18 @@
 import { formatMinutes, formatDateShort } from '../lib/time'
 
+export interface BarSegment {
+  value: number
+  className: string
+  label?: string
+}
+
 export interface BarItem {
   key: string
   label: string
   sublabel?: string
   value: number
+  /** 값을 학원/숙제처럼 여러 조각으로 나누어 쌓아 보여준다 */
+  segments?: BarSegment[]
 }
 
 export function HorizontalBars({
@@ -25,24 +33,84 @@ export function HorizontalBars({
 
   return (
     <ul className="space-y-1.5">
-      {items.map((item) => (
+      {items.map((item) => {
+        const segments = (item.segments ?? []).filter((segment) => segment.value > 0)
+        const total = segments.reduce((sum, segment) => sum + segment.value, 0)
+        const width = `${Math.max(2, Math.round((item.value / max) * 100))}%`
+        return (
         <li key={item.key} className="flex items-center gap-2.5">
           <span className="w-[76px] shrink-0 truncate text-[12px] font-bold text-navy" title={item.label}>
             {item.label}
           </span>
           <span className="h-4 flex-1 overflow-hidden rounded-full bg-blue-soft">
-            <span
-              className={`block h-full rounded-full ${barClass}`}
-              style={{ width: `${Math.max(2, Math.round((item.value / max) * 100))}%` }}
-            />
+            {segments.length > 0 && total > 0 ? (
+              <span className="flex h-full overflow-hidden rounded-full" style={{ width }}>
+                {segments.map((segment, index) => (
+                  <span
+                    key={`${item.key}-${index}`}
+                    className={`block h-full ${segment.className}`}
+                    style={{ width: `${(segment.value / total) * 100}%` }}
+                    title={`${segment.label ?? ''} ${format(segment.value)}`}
+                  />
+                ))}
+              </span>
+            ) : (
+              <span className={`block h-full rounded-full ${barClass}`} style={{ width }} />
+            )}
           </span>
           <span className="w-16 shrink-0 text-right text-[11px] font-semibold tabular text-navy/70">{format(item.value)}</span>
           {item.sublabel ? (
             <span className="w-9 shrink-0 text-right text-[10px] tabular text-navy/35">{item.sublabel}</span>
           ) : null}
         </li>
-      ))}
+        )
+      })}
     </ul>
+  )
+}
+
+/**
+ * 학원 공부와 숙제 공부의 비율을 한 줄로 보여주는 막대.
+ * 둘 다 0이면 아무것도 그리지 않는다.
+ */
+export function SplitBar({
+  academy,
+  homework,
+  className = '',
+  trackClass = 'bg-navy/10',
+  academyClass = 'bg-navy',
+  homeworkClass = 'bg-sky-400',
+}: {
+  academy: number
+  homework: number
+  className?: string
+  trackClass?: string
+  academyClass?: string
+  homeworkClass?: string
+}): JSX.Element | null {
+  const a = Math.max(0, academy)
+  const h = Math.max(0, homework)
+  const total = a + h
+  if (total <= 0) return null
+  return (
+    <span className={`flex h-1 w-full overflow-hidden rounded-full ${trackClass} ${className}`}>
+      {a > 0 ? <span className={`block h-full ${academyClass}`} style={{ width: `${(a / total) * 100}%` }} /> : null}
+      {h > 0 ? <span className={`block h-full ${homeworkClass}`} style={{ width: `${(h / total) * 100}%` }} /> : null}
+    </span>
+  )
+}
+
+/** 그래프·표에서 쓰는 학원/숙제 색 안내 */
+export function KindLegend({ className = '' }: { className?: string }): JSX.Element {
+  return (
+    <div className={`flex flex-wrap items-center gap-3 text-[10px] font-semibold text-navy/50 ${className}`}>
+      <span className="flex items-center gap-1">
+        <span className="inline-block h-2.5 w-2.5 rounded-full bg-navy" /> 🏫 학원 공부
+      </span>
+      <span className="flex items-center gap-1">
+        <span className="inline-block h-2.5 w-2.5 rounded-full bg-sky-400" /> 🏠 숙제 공부
+      </span>
+    </div>
   )
 }
 

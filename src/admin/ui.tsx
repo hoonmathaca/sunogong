@@ -28,6 +28,35 @@ export function AdminSection({
   )
 }
 
+const STAT_TONES = {
+  white: {
+    box: 'border border-blue-line bg-white text-navy',
+    label: 'text-navy/45',
+    value: 'text-navy',
+    sub: 'text-navy/40',
+  },
+  navy: {
+    box: 'bg-navy text-white',
+    label: 'text-white/60',
+    value: 'text-white',
+    sub: 'text-white/50',
+  },
+  /** 🏫 학원 공부 */
+  academy: {
+    box: 'border border-blue-line bg-blue-soft/60 text-navy',
+    label: 'text-navy/50',
+    value: 'text-navy',
+    sub: 'text-navy/40',
+  },
+  /** 🏠 숙제 공부 */
+  homework: {
+    box: 'border border-sky-100 bg-sky-50/80 text-navy',
+    label: 'text-sky-800/60',
+    value: 'text-sky-600',
+    sub: 'text-sky-800/45',
+  },
+} as const
+
 export function StatCard({
   label,
   value,
@@ -37,14 +66,14 @@ export function StatCard({
   label: string
   value: string
   sub?: string
-  tone?: 'white' | 'navy'
+  tone?: keyof typeof STAT_TONES
 }): JSX.Element {
-  const navy = tone === 'navy'
+  const style = STAT_TONES[tone] ?? STAT_TONES.white
   return (
-    <div className={`rounded-2xl px-4 py-3 ${navy ? 'bg-navy text-white' : 'border border-blue-line bg-white text-navy'}`}>
-      <p className={`text-[11px] font-semibold ${navy ? 'text-white/60' : 'text-navy/45'}`}>{label}</p>
-      <p className="mt-1 text-xl font-extrabold tabular">{value}</p>
-      {sub ? <p className={`mt-0.5 text-[11px] ${navy ? 'text-white/50' : 'text-navy/40'}`}>{sub}</p> : null}
+    <div className={`rounded-2xl px-4 py-3 ${style.box}`}>
+      <p className={`text-[11px] font-semibold ${style.label}`}>{label}</p>
+      <p className={`mt-1 text-xl font-extrabold tabular ${style.value}`}>{value}</p>
+      {sub ? <p className={`mt-0.5 text-[11px] ${style.sub}`}>{sub}</p> : null}
     </div>
   )
 }

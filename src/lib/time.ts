@@ -151,6 +151,16 @@ export function formatMinutes(minutes: number): string {
   return `${h}시간 ${rest}분`
 }
 
+/** 분 → '1시간30분' (표·좁은 칸에서 쓰는 짧은 표기) */
+export function formatMinutesCompact(minutes: number): string {
+  const m = Math.max(0, Math.round(minutes || 0))
+  const h = Math.floor(m / 60)
+  const rest = m % 60
+  if (h === 0) return `${rest}분`
+  if (rest === 0) return `${h}시간`
+  return `${h}시간${rest}분`
+}
+
 /** 초 → 'HH:MM:SS' */
 export function formatHMS(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds || 0))

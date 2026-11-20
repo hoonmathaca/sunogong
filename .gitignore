@@ -9,3 +9,4 @@ dist-ssr
 tsconfig.tsbuildinfo
 *.tsbuildinfo
 .tmp
+.smoke2

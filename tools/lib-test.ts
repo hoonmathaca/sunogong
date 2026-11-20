@@ -1,6 +1,6 @@
 /** 순수 함수(날짜·집계·랭킹) 점검용 테스트 (개발용) */
-import { addDays, formatHMS, formatMinutes, kstDateString, monthRange, rangeDates, weekRange, weekdayOf, kstDayEndMs, kstMidnightMs } from '../src/lib/time'
-import { buildStats, indexLogs, longestStreakAllTime, longestStreakInRange, rankEntries } from '../src/lib/stats'
+import { addDays, formatHMS, formatMinutes, formatMinutesCompact, kstDateString, monthRange, rangeDates, weekRange, weekdayOf, kstDayEndMs, kstMidnightMs } from '../src/lib/time'
+import { buildStats, indexLogs, longestStreakAllTime, longestStreakInRange, rankEntries, splitLog, sumSplits } from '../src/lib/stats'
 import { computeElapsedSeconds, isHeartbeatStale } from '../src/lib/session'
 import { normalizeKind, pausesOnLeave } from '../src/lib/kinds'
 import { isMobileOrTablet, isStudentScreenBlocked, readDeviceFingerprint } from '../src/lib/device'
@@ -46,6 +46,9 @@ eq('분 표시 60', formatMinutes(60), '1시간')
 eq('분 표시 90', formatMinutes(90), '1시간 30분')
 eq('분 표시 45', formatMinutes(45), '45분')
 eq('분 표시 0', formatMinutes(0), '0분')
+eq('짧은 분 표시 90', formatMinutesCompact(90), '1시간30분')
+eq('짧은 분 표시 60', formatMinutesCompact(60), '1시간')
+eq('짧은 분 표시 5', formatMinutesCompact(5), '5분')
 eq('시:분:초', formatHMS(3661), '01:01:01')
 eq('시:분:초 0', formatHMS(0), '00:00:00')
 
@@ -73,6 +76,55 @@ eq('누적 시간', stats[0].minutes, 90)
 eq('누적 문제', stats[0].problems, 15)
 eq('제출 일수', stats[0].submittedDays, 2)
 eq('기간 밖 기록 제외', stats[1].minutes, 90)
+
+/* 학원 공부 / 숙제 공부 나눠 집계 */
+eq('종류별 값이 없는 예전 기록은 학원 공부', splitLog(logs[0]), {
+  academyMinutes: 60,
+  academyProblems: 10,
+  homeworkMinutes: 0,
+  homeworkProblems: 0,
+})
+const mixedLog: StudyLog = {
+  id: 'm1',
+  student_id: 'a',
+  date: '2026-11-20',
+  minutes: 100,
+  problems: 40,
+  academy_minutes: 70,
+  academy_problems: 25,
+  homework_minutes: 30,
+  homework_problems: 15,
+  updated_at: '',
+}
+eq('학원·숙제 나눠 읽기', splitLog(mixedLog), {
+  academyMinutes: 70,
+  academyProblems: 25,
+  homeworkMinutes: 30,
+  homeworkProblems: 15,
+})
+eq(
+  '숙제만 있는 기록(문제는 학원)',
+  splitLog({ ...mixedLog, minutes: 4, problems: 47, academy_minutes: 0, academy_problems: 47, homework_minutes: 4, homework_problems: 0 }),
+  { academyMinutes: 0, academyProblems: 47, homeworkMinutes: 4, homeworkProblems: 0 },
+)
+eq('기록 없음', splitLog(null), { academyMinutes: 0, academyProblems: 0, homeworkMinutes: 0, homeworkProblems: 0 })
+
+const splitStats = buildStats(
+  [students[0]],
+  indexLogs([mixedLog, logs[0]]),
+  '2026-11-17',
+  '2026-11-20',
+)
+eq('학생별 학원 합계', [splitStats[0].academyMinutes, splitStats[0].academyProblems], [130, 35])
+eq('학생별 숙제 합계', [splitStats[0].homeworkMinutes, splitStats[0].homeworkProblems], [30, 15])
+eq('학생별 전체 합계', [splitStats[0].minutes, splitStats[0].problems], [160, 50])
+eq('나뉜 값과 합계가 같으면 기타 없음', splitStats[0].otherMinutes, 0)
+eq('기간 밖 기록은 종류별로도 제외', buildStats([students[1]], indexLogs([{ ...mixedLog, student_id: 'b', date: '2026-10-01' }]), '2026-11-17', '2026-11-20')[0].academyMinutes, 0)
+const summed = sumSplits(splitStats)
+eq('합계 집계', [summed.minutes, summed.academyMinutes, summed.homeworkMinutes], [160, 130, 30])
+const editedStats = buildStats([students[0]], indexLogs([{ ...mixedLog, minutes: 140 }]), '2026-11-17', '2026-11-20')
+eq('합계만 고친 기록은 기타로', editedStats[0].otherMinutes, 40)
+eq('기타 합계 집계', sumSplits(editedStats).otherMinutes, 40)
 
 /* 랭킹: 동점은 같은 순위, 그 안에서는 제출 일수 많은 학생 먼저 */
 const ranking = rankEntries([

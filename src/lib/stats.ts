@@ -4,10 +4,54 @@ import type { Student, StudyLog } from './types'
 
 export interface StudentStat {
   student: Student
+  /** 전체 공부 시간(분) — study_logs.minutes 합계 */
   minutes: number
   problems: number
+  /** 학원 공부(🏫)로 집계된 시간·문제 */
+  academyMinutes: number
+  academyProblems: number
+  /** 숙제 공부(🏠)로 집계된 시간·문제 */
+  homeworkMinutes: number
+  homeworkProblems: number
+  /** 학원·숙제 어느 쪽에도 잡히지 않은 시간 (합계만 직접 고친 기록) */
+  otherMinutes: number
+  otherProblems: number
   submittedDays: number
   byDate: Map<string, StudyLog>
+}
+
+export interface KindSplit {
+  academyMinutes: number
+  academyProblems: number
+  homeworkMinutes: number
+  homeworkProblems: number
+}
+
+export const EMPTY_SPLIT: KindSplit = {
+  academyMinutes: 0,
+  academyProblems: 0,
+  homeworkMinutes: 0,
+  homeworkProblems: 0,
+}
+
+/**
+ * 하루 기록을 학원 공부와 숙제 공부로 나눈다.
+ * 종류별 값(academy_minutes 등)이 없는 예전 기록이나,
+ * 원장님이 합계만 직접 고친 기록은 학원 공부로 본다.
+ */
+export function splitLog(log: StudyLog | null | undefined): KindSplit {
+  if (!log) return EMPTY_SPLIT
+  const homeworkMinutes = Math.max(0, log.homework_minutes ?? 0)
+  const homeworkProblems = Math.max(0, log.homework_problems ?? 0)
+  let academyMinutes = Math.max(0, log.academy_minutes ?? 0)
+  let academyProblems = Math.max(0, log.academy_problems ?? 0)
+  if (academyMinutes === 0 && homeworkMinutes === 0 && (log.minutes ?? 0) > 0) {
+    academyMinutes = Math.max(0, log.minutes)
+  }
+  if (academyProblems === 0 && homeworkProblems === 0 && (log.problems ?? 0) > 0) {
+    academyProblems = Math.max(0, log.problems)
+  }
+  return { academyMinutes, academyProblems, homeworkMinutes, homeworkProblems }
 }
 
 export type LogIndex = Map<string, Map<string, StudyLog>> // student_id → date → log
@@ -35,6 +79,10 @@ export function buildStats(
     const byDate = new Map<string, StudyLog>()
     let minutes = 0
     let problems = 0
+    let academyMinutes = 0
+    let academyProblems = 0
+    let homeworkMinutes = 0
+    let homeworkProblems = 0
     const source = index.get(student.id)
     if (source) {
       for (const [date, log] of source) {
@@ -42,10 +90,27 @@ export function buildStats(
           byDate.set(date, log)
           minutes += log.minutes ?? 0
           problems += log.problems ?? 0
+          const split = splitLog(log)
+          academyMinutes += split.academyMinutes
+          academyProblems += split.academyProblems
+          homeworkMinutes += split.homeworkMinutes
+          homeworkProblems += split.homeworkProblems
         }
       }
     }
-    return { student, minutes, problems, submittedDays: byDate.size, byDate }
+    return {
+      student,
+      minutes,
+      problems,
+      academyMinutes,
+      academyProblems,
+      homeworkMinutes,
+      homeworkProblems,
+      otherMinutes: Math.max(0, minutes - academyMinutes - homeworkMinutes),
+      otherProblems: Math.max(0, problems - academyProblems - homeworkProblems),
+      submittedDays: byDate.size,
+      byDate,
+    }
   })
 }
 
@@ -161,18 +226,42 @@ export function studentsWithoutLogs(
   })
 }
 
-/** 날짜별 합계 (그래프용) */
-export function dailyTotals(index: LogIndex, dates: string[]): { date: string; minutes: number; problems: number }[] {
+/** 날짜별 합계 (그래프용) — 학원·숙제도 함께 센다 */
+export function dailyTotals(
+  index: LogIndex,
+  dates: string[],
+): { date: string; minutes: number; problems: number; academyMinutes: number; homeworkMinutes: number }[] {
   return dates.map((date) => {
     let minutes = 0
     let problems = 0
+    let academyMinutes = 0
+    let homeworkMinutes = 0
     for (const byDate of index.values()) {
       const log = byDate.get(date)
       if (log) {
         minutes += log.minutes ?? 0
         problems += log.problems ?? 0
+        const split = splitLog(log)
+        academyMinutes += split.academyMinutes
+        homeworkMinutes += split.homeworkMinutes
       }
     }
-    return { date, minutes, problems }
+    return { date, minutes, problems, academyMinutes, homeworkMinutes }
   })
+}
+
+/** 학생별 통계의 학원·숙제 합계 (학년별 요약 등에서 재사용) */
+export function sumSplits(stats: StudentStat[]): KindSplit & { minutes: number; problems: number; otherMinutes: number } {
+  return stats.reduce(
+    (acc, stat) => ({
+      academyMinutes: acc.academyMinutes + stat.academyMinutes,
+      academyProblems: acc.academyProblems + stat.academyProblems,
+      homeworkMinutes: acc.homeworkMinutes + stat.homeworkMinutes,
+      homeworkProblems: acc.homeworkProblems + stat.homeworkProblems,
+      minutes: acc.minutes + stat.minutes,
+      problems: acc.problems + stat.problems,
+      otherMinutes: acc.otherMinutes + stat.otherMinutes,
+    }),
+    { academyMinutes: 0, academyProblems: 0, homeworkMinutes: 0, homeworkProblems: 0, minutes: 0, problems: 0, otherMinutes: 0 },
+  )
 }

@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Modal } from '../components/Modal'
 import { Spinner } from '../components/Keypad'
 import * as api from '../lib/api'
-import { addDays, formatDateKo, formatMinutes, rangeDates } from '../lib/time'
+import { splitLog } from '../lib/stats'
+import { addDays, formatDateKo, formatMinutes, formatMinutesCompact, rangeDates } from '../lib/time'
 import type { Student, StudyLog } from '../lib/types'
 import { TrendLineChart, type LinePoint } from './Charts'
 import { LogEditorModal } from './LogEditorModal'
@@ -55,6 +56,8 @@ export function StudentDetailModal({ open, student, endDate, onClose, onChanged 
 
   const totalMinutes = logs.reduce((sum, log) => sum + log.minutes, 0)
   const totalProblems = logs.reduce((sum, log) => sum + log.problems, 0)
+  const totalAcademyMinutes = logs.reduce((sum, log) => sum + splitLog(log).academyMinutes, 0)
+  const totalHomeworkMinutes = logs.reduce((sum, log) => sum + splitLog(log).homeworkMinutes, 0)
   const recent = [...logs].sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 14)
 
   return (
@@ -72,18 +75,24 @@ export function StudentDetailModal({ open, student, endDate, onClose, onChanged 
           </div>
         ) : (
           <>
-            <div className="mb-3 grid grid-cols-3 gap-2 text-center">
+            <div className="mb-3 grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
               <div className="rounded-xl bg-blue-soft px-2 py-2">
-                <p className="text-[10px] font-semibold text-navy/45">공부시간</p>
-                <p className="text-[15px] font-extrabold text-navy tabular">{formatMinutes(totalMinutes)}</p>
+                <p className="text-[10px] font-semibold text-navy/45">총 공부시간</p>
+                <p className="text-[14px] font-extrabold text-navy tabular">{formatMinutesCompact(totalMinutes)}</p>
               </div>
               <div className="rounded-xl bg-blue-soft px-2 py-2">
-                <p className="text-[10px] font-semibold text-navy/45">푼 문제</p>
-                <p className="text-[15px] font-extrabold text-navy tabular">{totalProblems}개</p>
+                <p className="text-[10px] font-semibold text-navy/45">🏫 학원 공부</p>
+                <p className="text-[14px] font-extrabold text-navy tabular">{formatMinutesCompact(totalAcademyMinutes)}</p>
+              </div>
+              <div className="rounded-xl bg-sky-50 px-2 py-2">
+                <p className="text-[10px] font-semibold text-sky-800/55">🏠 숙제 공부</p>
+                <p className="text-[14px] font-extrabold text-sky-600 tabular">{formatMinutesCompact(totalHomeworkMinutes)}</p>
               </div>
               <div className="rounded-xl bg-blue-soft px-2 py-2">
-                <p className="text-[10px] font-semibold text-navy/45">제출 일수</p>
-                <p className="text-[15px] font-extrabold text-navy tabular">{logs.length}일</p>
+                <p className="text-[10px] font-semibold text-navy/45">푼 문제 · 제출</p>
+                <p className="text-[14px] font-extrabold text-navy tabular">
+                  {totalProblems}개 · {logs.length}일
+                </p>
               </div>
             </div>
 
