@@ -8,16 +8,38 @@ import { MemoryRouter } from 'react-router-dom'
 import { AdminLogin } from '../src/admin/AdminLogin'
 import { AdminApp } from '../src/admin/AdminApp'
 import { Dashboard } from '../src/admin/Dashboard'
+import { QuestionsPanel } from '../src/admin/QuestionsPanel'
 import { RankingPanel } from '../src/admin/RankingPanel'
 import { StudentsPanel } from '../src/admin/StudentsPanel'
 import { CodeEntryScreen } from '../src/student/CodeEntryScreen'
 import { ChooseStudentScreen } from '../src/student/ChooseStudentScreen'
+import { QuestionAskForm } from '../src/student/QuestionAskForm'
+import { QuestionBoardScreen } from '../src/student/QuestionBoardScreen'
 import { StudentHomeScreen } from '../src/student/StudentHomeScreen'
 import { ResultScreen } from '../src/student/ResultScreen'
 import { TimerScreen } from '../src/student/TimerScreen'
 import { ErrorBoundary } from '../src/components/ErrorBoundary'
 import { DesktopBlockScreen } from '../src/components/DesktopBlockScreen'
 import type { FinishResult, Student, StudySession } from '../src/lib/types'
+
+/* 서버에는 localStorage 가 없어서, 관리자 화면(로그인 유지) 스모크용으로 최소 저장소를 흉내 낸다 */
+if (typeof globalThis.localStorage === 'undefined') {
+  const store = new Map<string, string>([['sunogong.admin-signed-in', '1']])
+  ;(globalThis as unknown as { localStorage: Storage }).localStorage = {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      store.set(key, String(value))
+    },
+    removeItem: (key: string) => {
+      store.delete(key)
+    },
+    clear: () => store.clear(),
+    key: (index: number) => Array.from(store.keys())[index] ?? null,
+    get length() {
+      return store.size
+    },
+  } as Storage
+}
 
 const student: Student = {
   id: '006f733f-98c3-45d0-a152-3518f1fff1b7',
@@ -96,7 +118,10 @@ const cases: [string, () => JSX.Element][] = [
       <ChooseStudentScreen code="0213" candidates={[student, { ...student, id: 'x', name: '서루빈' }]} busy={false} onSelect={() => {}} onBack={() => {}} />
     ),
   ],
-  ['StudentHomeScreen', () => <StudentHomeScreen student={student} onStart={() => {}} onExit={() => {}} />],
+  ['StudentHomeScreen', () => <StudentHomeScreen student={student} onStart={() => {}} onExit={() => {}} onQuestions={() => {}} unreadAnswers={2} />],
+  ['QuestionBoardScreen', () => <QuestionBoardScreen student={student} onBack={() => {}} />],
+  ['QuestionAskForm', () => <QuestionAskForm studentId={student.id} />],
+  ['QuestionsPanel(관리자 질문함)', () => <QuestionsPanel />],
   ['ResultScreen', () => <ResultScreen student={student} result={result} reason="manual" onHome={() => {}} onAgain={() => {}} />],
   ['AdminLogin', () => <AdminLogin onSuccess={() => {}} onBack={() => {}} />],
   ['AdminApp', () => <AdminApp onBack={() => {}} />],
@@ -144,7 +169,33 @@ const checks: [string, boolean][] = [
   ['PC 안내: 스마트폰·태블릿에서만 안내', (rendered['DesktopBlockScreen(PC 안내)'] ?? '').includes('스마트폰 또는 태블릿에서만')],
   ['PC 안내: 관리자 페이지 링크', (rendered['DesktopBlockScreen(PC 안내)'] ?? '').includes('href="/admin"')],
 ]
+
+/* '선오공에게 질문하기' Q&A 화면 */
+const homeHtml = rendered['StudentHomeScreen'] ?? ''
+const questionHtml = rendered['QuestionBoardScreen'] ?? ''
+const askHtml = rendered['QuestionAskForm'] ?? ''
+const questionsPanelHtml = rendered['QuestionsPanel(관리자 질문함)'] ?? ''
+const adminHtml = rendered['AdminApp'] ?? ''
+const questionChecks: [string, boolean][] = [
+  ['질문: 홈에 진입 버튼', homeHtml.includes('선오공에게 질문하기')],
+  ['질문: 홈에 새 답변 배지', homeHtml.includes('새 답변')],
+  ['질문: 타이머에도 질문 버튼', homeworkHtml.includes('선오공에게 질문하기')],
+  ['질문: 타이머는 계속 간다는 안내', homeworkHtml.includes('타이머는 계속 가요')],
+  ['질문: 학생 화면 제목', questionHtml.includes('선오공에게 질문하기')],
+  ['질문: 학생 화면 질문 올리기', questionHtml.includes('질문 올리기')],
+  ['질문: 사진 찍기·앨범 버튼', askHtml.includes('사진 찍기') && askHtml.includes('앨범에서')],
+  ['질문: 관리자 질문함 제목', questionsPanelHtml.includes('선오공에게 온 질문')],
+  ['질문: 관리자 필터(답변 대기)', questionsPanelHtml.includes('답변 대기')],
+  ['질문: 관리자 자동 정리 안내', questionsPanelHtml.includes('오래된 질문 자동 정리')],
+  ['질문: 관리자 7일 보관 안내', questionsPanelHtml.includes('7일')],
+  ['질문: 관리자 질문함 탭', adminHtml.includes('질문함')],
+  ['조사: "선오공이에게" 표기 없음', ![homeHtml, homeworkHtml, academyHtml, questionHtml, askHtml, questionsPanelHtml, adminHtml].join('').includes('선오공이에게')],
+]
 for (const [name, ok] of checks) {
+  if (!ok) failed += 1
+  console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)
+}
+for (const [name, ok] of questionChecks) {
   if (!ok) failed += 1
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)
 }

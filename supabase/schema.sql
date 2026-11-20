@@ -547,13 +547,68 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------
+-- 3.5 '선오공에게 질문하기' Q&A (2026-11-21 추가)
+--     학생: 문제 사진 + 한 줄 메모 → 선오공이(관리자)가 답변 글 + 사진/동영상
+--     자세한 변경 이력은 supabase/migrate-2026-11-21-questions.sql
+-- ---------------------------------------------------------------------
+
+create table if not exists public.study_questions (
+  id                uuid primary key default gen_random_uuid(),
+  student_id        uuid not null references public.students (id) on delete cascade,
+  memo              text,
+  image_path        text not null,
+  answer            text,
+  answer_media_path text,
+  answered_at       timestamptz,
+  answered_by       text not null default '선오공이',
+  student_read_at   timestamptz,
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now(),
+  constraint study_questions_memo_len   check (memo is null or length(memo) <= 200),
+  constraint study_questions_answer_len check (answer is null or length(answer) <= 2000)
+);
+
+alter table public.study_questions add column if not exists memo text;
+alter table public.study_questions add column if not exists answer text;
+alter table public.study_questions add column if not exists answer_media_path text;
+alter table public.study_questions add column if not exists answered_at timestamptz;
+alter table public.study_questions add column if not exists answered_by text not null default '선오공이';
+alter table public.study_questions add column if not exists student_read_at timestamptz;
+alter table public.study_questions add column if not exists updated_at timestamptz not null default now();
+
+create index if not exists study_questions_student_idx
+  on public.study_questions (student_id, created_at desc);
+
+create index if not exists study_questions_waiting_idx
+  on public.study_questions (created_at desc)
+  where answer is null;
+
+-- 질문 사진 · 답변 사진/동영상 버킷 (비공개, 1개 50MB 까지)
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'question-images',
+  'question-images',
+  false,
+  52428800,
+  array[
+    'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif',
+    'video/mp4', 'video/webm', 'video/quicktime', 'video/x-m4v', 'video/3gpp'
+  ]
+)
+on conflict (id) do update
+  set public             = false,
+      file_size_limit    = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
+
+-- ---------------------------------------------------------------------
 -- 4. 권한 · RLS
 --    앱은 익명 키(anon)로 동작합니다. 관리자 화면은 앱 안의 비밀번호로 입장합니다.
 -- ---------------------------------------------------------------------
 
-alter table public.students       enable row level security;
-alter table public.study_sessions enable row level security;
-alter table public.study_logs     enable row level security;
+alter table public.students         enable row level security;
+alter table public.study_sessions   enable row level security;
+alter table public.study_logs       enable row level security;
+alter table public.study_questions  enable row level security;
 
 drop policy if exists students_anon_all on public.students;
 create policy students_anon_all on public.students
@@ -567,8 +622,36 @@ drop policy if exists study_logs_anon_all on public.study_logs;
 create policy study_logs_anon_all on public.study_logs
   for all to anon, authenticated using (true) with check (true);
 
+drop policy if exists study_questions_anon_all on public.study_questions;
+create policy study_questions_anon_all on public.study_questions
+  for all to anon, authenticated using (true) with check (true);
+
+-- Storage 정책 — question-images 버킷 안의 파일만
+
+drop policy if exists question_images_read   on storage.objects;
+drop policy if exists question_images_insert on storage.objects;
+drop policy if exists question_images_update on storage.objects;
+drop policy if exists question_images_delete on storage.objects;
+
+create policy question_images_read on storage.objects
+  for select to anon, authenticated
+  using (bucket_id = 'question-images');
+
+create policy question_images_insert on storage.objects
+  for insert to anon, authenticated
+  with check (bucket_id = 'question-images');
+
+create policy question_images_update on storage.objects
+  for update to anon, authenticated
+  using (bucket_id = 'question-images')
+  with check (bucket_id = 'question-images');
+
+create policy question_images_delete on storage.objects
+  for delete to anon, authenticated
+  using (bucket_id = 'question-images');
+
 grant usage on schema public to anon, authenticated;
-grant select, insert, update, delete on public.students, public.study_sessions, public.study_logs to anon, authenticated;
+grant select, insert, update, delete on public.students, public.study_sessions, public.study_logs, public.study_questions to anon, authenticated;
 
 grant execute on function public.server_now() to anon, authenticated;
 grant execute on function public.kst_today() to anon, authenticated;

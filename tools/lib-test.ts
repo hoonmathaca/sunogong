@@ -4,6 +4,31 @@ import { buildStats, indexLogs, longestStreakAllTime, longestStreakInRange, rank
 import { editTotals, editValuesFromLog, normalizeEditValues } from '../src/lib/logEdit'
 import { computeElapsedSeconds, isHeartbeatStale } from '../src/lib/session'
 import { normalizeKind, pausesOnLeave } from '../src/lib/kinds'
+import {
+  ANSWER_MEDIA_MAX_BYTES,
+  answerMediaPath,
+  answerStateLabel,
+  cleanupCutoffIso,
+  countUnanswered,
+  countUnreadAnswers,
+  filterQuestions,
+  fitInside,
+  formatQuestionTime,
+  isAnswered,
+  isCleanupTarget,
+  isUnreadAnswer,
+  mediaExtension,
+  mediaKindFromPath,
+  mediaKindOfFile,
+  normalizeAnswer,
+  normalizeMemo,
+  parseAutoCleanup,
+  QUESTION_MEMO_MAX,
+  questionImagePath,
+  questionStudent,
+  sortQuestionsForAdmin,
+  validateAnswerMedia,
+} from '../src/lib/questionBoard'
 import { isMobileOrTablet, isStudentScreenBlocked, readDeviceFingerprint } from '../src/lib/device'
 import {
   detectPlatform,
@@ -15,6 +40,7 @@ import {
   supportsFullscreen,
 } from '../src/lib/fullscreen'
 import type { Student, StudyLog } from '../src/lib/types'
+import type { StudyQuestion } from '../src/lib/types'
 
 let failed = 0
 function eq(name: string, actual: unknown, expected: unknown) {
@@ -331,5 +357,101 @@ eq('기기 차단(User-Agent 없음)', isStudentScreenBlocked({}), true)
 eq('기기 허용(터치 없는 아이패드 User-Agent)', isStudentScreenBlocked({ userAgent: UA.ipad, maxTouchPoints: 0 }), false)
 eq('기기(맥 + 터치 1개는 컴퓨터)', isMobileOrTablet({ userAgent: UA.mac, maxTouchPoints: 1 }), false)
 eq('SSR: 브라우저 정보 없음 → 컴퓨터로 처리', isStudentScreenBlocked(readDeviceFingerprint()), true)
+
+/* '선오공에게 질문하기' Q&A — 배지·정렬·파일 고르기·7일 정리 계산 */
+const questionBase: StudyQuestion = {
+  id: 'q1',
+  student_id: 'a',
+  memo: '3번에서 막혔어요',
+  image_path: 'a/1700000000000-token.jpg',
+  answer: null,
+  answer_media_path: null,
+  answered_at: null,
+  answered_by: '선오공이',
+  student_read_at: null,
+  created_at: '2026-11-20T05:00:00Z',
+  updated_at: '2026-11-20T05:00:00Z',
+}
+const answeredQuestion: StudyQuestion = {
+  ...questionBase,
+  id: 'q2',
+  answer: '통분하면 돼요',
+  answer_media_path: 'answers/q2-1-token.mp4',
+  answered_at: '2026-11-20T06:00:00Z',
+}
+const readQuestion: StudyQuestion = { ...answeredQuestion, id: 'q3', student_read_at: '2026-11-20T07:00:00Z' }
+
+const questionList = [readQuestion, questionBase, answeredQuestion]
+eq('질문: 답변 없음', isAnswered(questionBase), false)
+eq('질문: 빈 답변은 답변 아님', isAnswered({ ...questionBase, answer: '   ' }), false)
+eq('질문: 답변 있음', isAnswered(answeredQuestion), true)
+eq('질문: 새 답변(안 읽음)', isUnreadAnswer(answeredQuestion), true)
+eq('질문: 읽은 답변은 배지 없음', isUnreadAnswer(readQuestion), false)
+eq('질문: 답변 대기에는 새 답변 없음', isUnreadAnswer(questionBase), false)
+eq('질문: 상태 문구(대기)', answerStateLabel(questionBase), '답변 대기')
+eq('질문: 상태 문구(완료)', answerStateLabel(answeredQuestion), '답변 완료')
+eq('질문: 답변 대기 수', countUnanswered(questionList), 1)
+eq('질문: 새 답변 수', countUnreadAnswers(questionList), 1)
+eq('질문: 필터(대기)', filterQuestions(questionList, 'waiting').map((q) => q.id), ['q1'])
+eq('질문: 필터(완료)', filterQuestions(questionList, 'answered').map((q) => q.id), ['q3', 'q2'])
+eq('질문: 필터(전체)', filterQuestions(questionList, 'all').length, 3)
+
+const olderWaiting: StudyQuestion = { ...questionBase, id: 'old', created_at: '2026-11-01T05:00:00Z' }
+const newerAnswered: StudyQuestion = { ...answeredQuestion, id: 'new-answered', created_at: '2026-11-20T09:00:00Z' }
+const newerWaiting: StudyQuestion = { ...questionBase, id: 'new-waiting', created_at: '2026-11-20T10:00:00Z' }
+eq(
+  '질문: 관리자 정렬(답변 대기 먼저, 그 안에서 최근 순)',
+  sortQuestionsForAdmin([olderWaiting, newerAnswered, newerWaiting]).map((q) => q.id),
+  ['new-waiting', 'old', 'new-answered'],
+)
+
+eq('질문: 메모 정리(줄바꿈·공백)', normalizeMemo('  3번\n\n에서   막혔어요 '), '3번 에서 막혔어요')
+eq('질문: 메모 최대 길이', normalizeMemo('가'.repeat(QUESTION_MEMO_MAX + 20)).length, QUESTION_MEMO_MAX)
+eq('질문: 답변은 줄바꿈 유지', normalizeAnswer('  첫 줄\r\n둘째 줄  '), '첫 줄\n둘째 줄')
+eq('질문: 시각 표시(한국 시간)', formatQuestionTime('2026-11-20T05:05:00Z'), '11월 20일 (금) 14:05')
+eq('질문: 시각 표시(값 없음)', formatQuestionTime(null), '')
+
+eq('질문: 사진 경로', questionImagePath('abc-123', 1700000000000, 'tok123'), 'abc-123/1700000000000-tok123.jpg')
+eq('질문: 사진 경로(이상한 글자 제거)', questionImagePath('a/b:c', 1, 't'), 'abc/1-t.jpg')
+eq('답변: 영상 경로', answerMediaPath('q1', 'MP4', 1, 't'), 'answers/q1-1-t.mp4')
+eq('답변: 확장자(동영상)', mediaExtension({ type: 'video/quicktime', name: 'clip.mov' }), 'mov')
+eq('답변: 확장자(이름으로)', mediaExtension({ type: '', name: 'clip.webm' }), 'webm')
+eq('답변: 확장자(사진)', mediaExtension({ type: 'image/jpeg', name: 'a' }), 'jpg')
+eq('답변: 종류(경로)', [mediaKindFromPath('a/1.jpg'), mediaKindFromPath('answers/1.mov'), mediaKindFromPath('a/x')], ['image', 'video', null])
+eq('답변: 종류(파일)', [mediaKindOfFile({ type: 'video/mp4' }), mediaKindOfFile({ type: '', name: 'a.MOV' }), mediaKindOfFile({ type: 'application/pdf' })], ['video', 'video', null])
+const answerFile = (size: number, type: string, name = 'a'): File =>
+  ({ size, type, name }) as unknown as File
+eq('답변: 사진 허용', validateAnswerMedia(answerFile(1024, 'image/jpeg', 'a.jpg')), null)
+eq(
+  '답변: 50MB 넘는 영상 막음',
+  validateAnswerMedia(answerFile(ANSWER_MEDIA_MAX_BYTES + 1, 'video/mp4', 'a.mp4')),
+  '영상은 50MB까지만 올릴 수 있어요. 1분 안팎으로 짧게 찍어 주세요.',
+)
+eq('답변: 50MB 영상 허용', validateAnswerMedia(answerFile(ANSWER_MEDIA_MAX_BYTES, 'video/webm', 'a.webm')), null)
+eq(
+  '답변: 사진·영상이 아니면 막음',
+  validateAnswerMedia(answerFile(100, 'application/pdf', 'a.pdf')),
+  '사진(JPG·PNG)이나 동영상(MP4·WebM·MOV)만 올릴 수 있어요.',
+)
+eq('답변: 파일 없음', validateAnswerMedia(null), '해설지 사진이나 영상을 골라주세요.')
+
+eq('사진 크기(긴 쪽 맞추기)', fitInside(4000, 3000, 1400), { width: 1400, height: 1050 })
+eq('사진 크기(작으면 그대로)', fitInside(800, 600, 1400), { width: 800, height: 600 })
+eq('사진 크기(세로 사진)', fitInside(1200, 4000, 1400), { width: 420, height: 1400 })
+eq('사진 크기(0·음수 안전)', [fitInside(0, 0, 1400), fitInside(-5, 10, 1400)], [{ width: 1, height: 1 }, { width: 1, height: 10 }])
+
+eq('정리: 7일 기준 시각', cleanupCutoffIso(7, Date.parse('2026-11-21T00:00:00Z')), '2026-11-14T00:00:00.000Z')
+eq('정리: 8일 지난 답변은 대상', isCleanupTarget({ ...answeredQuestion, answered_at: '2026-11-10T00:00:00Z' }, '2026-11-14T00:00:00.000Z'), true)
+eq('정리: 3일 지난 답변은 그대로', isCleanupTarget({ ...answeredQuestion, answered_at: '2026-11-18T00:00:00Z' }, '2026-11-14T00:00:00.000Z'), false)
+eq('정리: 답변 대기는 지우지 않음', isCleanupTarget(questionBase, '2026-11-14T00:00:00.000Z'), false)
+eq(
+  '정리: 답변 시각이 없으면 수정 시각으로',
+  isCleanupTarget({ ...answeredQuestion, answered_at: null, updated_at: '2026-11-01T00:00:00Z' }, '2026-11-14T00:00:00.000Z'),
+  true,
+)
+eq('자동 정리 설정(기본 켜짐)', [parseAutoCleanup(null), parseAutoCleanup('on')], [true, true])
+eq('자동 정리 설정(끄기)', [parseAutoCleanup('off'), parseAutoCleanup('OFF')], [false, false])
+eq('질문: 학생 이름(조인 배열)', questionStudent({ ...questionBase, students: [{ name: '이지빈', grade: '초1' }] }).name, '이지빈')
+eq('질문: 학생 이름(조인 없음)', questionStudent(questionBase).name, '학생')
 
 console.log(failed === 0 ? 'ALL LIB TESTS PASSED' : `${failed} FAILED`)

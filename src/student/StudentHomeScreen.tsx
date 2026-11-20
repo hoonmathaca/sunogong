@@ -11,6 +11,10 @@ interface StudentHomeScreenProps {
   student: Student
   onStart: (kind: SessionKind) => void
   onExit: () => void
+  /** '선오공에게 질문하기' 화면 열기 */
+  onQuestions: () => void
+  /** 아직 열지 않은 답변 수 (배지) */
+  unreadAnswers?: number
   busy?: boolean
 }
 
@@ -19,7 +23,14 @@ const PERIODS = [7, 30] as const
 type Period = (typeof PERIODS)[number]
 
 /** 학생 홈: 오늘 누적(학원/숙제 따로), 기간별 그래프, 공부 시작 */
-export function StudentHomeScreen({ student, onStart, onExit, busy = false }: StudentHomeScreenProps): JSX.Element {
+export function StudentHomeScreen({
+  student,
+  onStart,
+  onExit,
+  onQuestions,
+  unreadAnswers = 0,
+  busy = false,
+}: StudentHomeScreenProps): JSX.Element {
   const [logs, setLogs] = useState<StudyLog[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -261,6 +272,33 @@ export function StudentHomeScreen({ student, onStart, onExit, busy = false }: St
 
           <p className="mt-2 text-[11px] text-navy/35">{formatDateKo(today)} 기준</p>
         </section>
+
+        {/* 선오공에게 질문하기 — 홈에서 바로 들어간다. 새 답변이 있으면 배지 */}
+        <button
+          type="button"
+          onClick={onQuestions}
+          className="mt-4 flex w-full items-center gap-3 rounded-3xl border border-[#6D3BD6]/15 bg-[#F5F0FF] px-4 py-3.5 text-left shadow-card transition active:scale-[0.99]"
+        >
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-[20px] shadow-sm" aria-hidden="true">
+            💬
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex flex-wrap items-center gap-1.5">
+              <span className="font-round text-[15px] font-extrabold text-[#4A28A0]">선오공에게 질문하기</span>
+              {unreadAnswers > 0 ? (
+                <span className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white tabular">
+                  새 답변 {unreadAnswers}
+                </span>
+              ) : null}
+            </span>
+            <span className="mt-0.5 block text-[11.5px] font-semibold text-[#5B2FC0]/65">
+              문제 사진을 올리면 선오공이가 답해줘요
+            </span>
+          </span>
+          <span className="shrink-0 text-[20px] leading-none text-[#6D3BD6]/40" aria-hidden="true">
+            ›
+          </span>
+        </button>
 
         {error ? (
           <div className="mt-3 flex items-center justify-between gap-2 rounded-2xl bg-red-50 px-3 py-2 text-[12px] text-red-500">

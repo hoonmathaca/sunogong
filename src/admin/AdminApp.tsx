@@ -1,16 +1,18 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { BrandFooter, Mascot } from '../components/Brand'
 import { ErrorBoundary } from '../components/ErrorBoundary'
+import * as questionsApi from '../lib/questions'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { AdminLogin } from './AdminLogin'
 import { Dashboard } from './Dashboard'
+import { QuestionsPanel } from './QuestionsPanel'
 import { RankingPanel } from './RankingPanel'
 import { StudentsPanel } from './StudentsPanel'
 import { useStudents } from './useStudents'
 
 const STORAGE_KEY = 'sunogong.admin-signed-in'
 
-type Tab = 'dashboard' | 'students' | 'ranking'
+type Tab = 'dashboard' | 'questions' | 'students' | 'ranking'
 
 function readSignedIn(): boolean {
   try {
@@ -28,7 +30,22 @@ export interface AdminAppProps {
 export function AdminApp({ onBack }: AdminAppProps): JSX.Element {
   const [signedIn, setSignedIn] = useState(readSignedIn)
   const [tab, setTab] = useState<Tab>('dashboard')
+  const [unanswered, setUnanswered] = useState(0)
   const { students, loading, error, reload } = useStudents()
+
+  /** 질문함 탭 배지 — 답변 대기 질문 수 (질문 기능이 없어도 조용히 0) */
+  const refreshUnanswered = useCallback(() => {
+    void questionsApi.countUnansweredQuestions().then((res) => {
+      if (res.ok) setUnanswered(res.data)
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!signedIn) return
+    refreshUnanswered()
+    const id = window.setInterval(refreshUnanswered, 60_000)
+    return () => window.clearInterval(id)
+  }, [signedIn, refreshUnanswered])
 
   const signIn = () => {
     try {
@@ -77,6 +94,7 @@ export function AdminApp({ onBack }: AdminAppProps): JSX.Element {
           {(
             [
               { key: 'dashboard', label: '대시보드' },
+              { key: 'questions', label: '질문함' },
               { key: 'students', label: '학생 관리' },
               { key: 'ranking', label: '랭킹' },
             ] as { key: Tab; label: string }[]
@@ -84,12 +102,24 @@ export function AdminApp({ onBack }: AdminAppProps): JSX.Element {
             <button
               key={item.key}
               type="button"
-              onClick={() => setTab(item.key)}
-              className={`shrink-0 rounded-full px-4 py-1.5 text-[12px] font-bold transition ${
+              onClick={() => {
+                setTab(item.key)
+                if (item.key === 'questions') refreshUnanswered()
+              }}
+              className={`relative shrink-0 rounded-full px-4 py-1.5 text-[12px] font-bold transition ${
                 tab === item.key ? 'bg-navy text-white shadow-soft' : 'text-navy/55 hover:bg-blue-soft'
               }`}
             >
               {item.label}
+              {item.key === 'questions' && unanswered > 0 ? (
+                <span
+                  className={`ml-1.5 inline-flex min-w-[18px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular ${
+                    tab === 'questions' ? 'bg-white text-navy' : 'bg-red-500 text-white'
+                  }`}
+                >
+                  {unanswered > 99 ? '99+' : unanswered}
+                </span>
+              ) : null}
             </button>
           ))}
         </nav>
@@ -112,6 +142,7 @@ export function AdminApp({ onBack }: AdminAppProps): JSX.Element {
               reloadStudents={() => void reload()}
             />
           ) : null}
+          {tab === 'questions' ? <QuestionsPanel onUnansweredChange={setUnanswered} /> : null}
           {tab === 'students' ? (
             <StudentsPanel students={students} loading={loading} error={error} reload={() => void reload()} />
           ) : null}

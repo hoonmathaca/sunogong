@@ -43,6 +43,33 @@ export interface StudyLog {
   updated_at: string
 }
 
+/* ------------------------------------------------------------------ */
+/* '선오공에게 질문하기' Q&A                                            */
+/* ------------------------------------------------------------------ */
+
+/** 학생이 올린 질문 + 선오공이의 답변 */
+export interface StudyQuestion {
+  id: string
+  student_id: string
+  /** 한 줄 질문 메모 (없을 수 있다) */
+  memo: string | null
+  /** 질문 문제 사진의 Storage 경로 */
+  image_path: string
+  /** 선오공이 답변 글 (없으면 답변 대기) */
+  answer: string | null
+  /** 답변에 붙인 사진·동영상의 Storage 경로 */
+  answer_media_path: string | null
+  /** 답변을 단 시각 (null 이면 답변 대기) */
+  answered_at: string | null
+  answered_by: string | null
+  /** 학생이 답변을 연 시각 (null 이면 새 답변) */
+  student_read_at: string | null
+  created_at: string
+  updated_at: string
+  /** 관리자 목록에서 학생 이름·학년을 함께 읽는다 */
+  students?: { name: string | null; grade: string | null } | { name: string | null; grade: string | null }[] | null
+}
+
 export interface HeartbeatResult {
   session: StudySession
   server_now: string

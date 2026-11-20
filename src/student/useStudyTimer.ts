@@ -45,6 +45,11 @@ export interface StudyTimer {
   discard: (reason?: DiscardReason) => Promise<void>
   reload: () => Promise<void>
   clearError: () => void
+  /**
+   * 질문 창(사진 고르기·카메라)을 여는 동안에는 화면을 잠깐 벗어나도 일시정지하지 않는다.
+   * (숙제 공부 중에 문제 사진을 찍으러 카메라로 넘어가도 타이머가 멈추지 않게)
+   */
+  holdOnLeave: (held: boolean) => void
 }
 
 /**
@@ -76,6 +81,8 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
   const kindRef = useRef<SessionKind>(normalizeKind(initialSession?.kind))
   const onFinishedRef = useRef(onFinished)
   const onDiscardedRef = useRef(onDiscarded)
+  /** 질문 창을 여는 동안 화면을 벗어나도 멈추지 않기 (숙제 공부) */
+  const leaveHoldRef = useRef(false)
   onFinishedRef.current = onFinished
   onDiscardedRef.current = onDiscarded
 
@@ -95,10 +102,27 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
 
   const serverNowMs = useCallback(() => Date.now() + offsetRef.current, [])
 
+  /** 지금 시각(서버 보정) ISO */
+  const nowIso = useCallback(() => new Date(Date.now() + offsetRef.current).toISOString(), [])
+
+  /* 질문 창(사진·카메라)을 여는 동안 숙제 타이머가 멈추지 않게 잠깐 잡아 둔다.
+     창을 닫으면 그동안 끊겼을 수 있는 마지막 신호를 지금으로 다시 맞춘다. */
   const computeElapsed = useCallback((target: StudySession | null = sessionRef.current): number => {
     if (!target) return 0
     return computeElapsedSeconds(target, Date.now() + offsetRef.current)
   }, [])
+
+  const holdOnLeave = useCallback(
+    (held: boolean) => {
+      leaveHoldRef.current = held
+      const current = sessionRef.current
+      if (!held && current && current.status === 'running' && pausesOnLeave(current.kind)) {
+        void api.touchHeartbeat(current.id, new Date(Date.now() + offsetRef.current).toISOString())
+        setElapsed(computeElapsed(current))
+      }
+    },
+    [computeElapsed],
+  )
 
   /* 1초마다 화면 숫자 갱신 */
   useEffect(() => {
@@ -390,13 +414,12 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
   useEffect(() => {
     if (!session || session.status === 'finished') return undefined
 
-    const nowIso = () => new Date(Date.now() + offsetRef.current).toISOString()
-
     /** 숙제 공부: 지금 이 순간 멈춘 것으로 화면에 먼저 반영하고 서버에도 알린다 */
     const pauseForLeave = () => {
       const current = sessionRef.current
       if (!current || current.status !== 'running') return
       if (finishingRef.current || busyRef.current) return
+      if (leaveHoldRef.current) return
       const at = nowIso()
       const paused: StudySession = { ...current, status: 'paused', paused_at: at }
       applySession(paused)
@@ -439,7 +462,7 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
           }
           if (current && current.status === 'running') {
             void requestWakeLock()
-            if (pausesOnLeave(current.kind)) {
+            if (pausesOnLeave(current.kind) && !leaveHoldRef.current) {
               void stopLeftHomework()
             } else {
               // 화면이 다시 켜지면 마지막 신호 시각을 먼저 현재로 맞춘다
@@ -477,7 +500,7 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
       window.removeEventListener('beforeunload', onLeave)
       window.removeEventListener('pageshow', onPageShow)
     }
-  }, [session?.id, session?.status, requestWakeLock, computeElapsed, load, discard, applySession])
+  }, [session?.id, session?.status, requestWakeLock, computeElapsed, load, discard, applySession, nowIso])
 
   /* 한국 시간 자정(00:00)을 넘기면 기록 없이 버린다 */
   useEffect(() => {
@@ -519,5 +542,6 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
     discard,
     reload: load,
     clearError: () => setError(null),
+    holdOnLeave,
   }
 }

@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
 import * as api from '../lib/api'
+import * as questionsApi from '../lib/questions'
 import { normalizeKind, type SessionKind } from '../lib/kinds'
 import type { FinishResult, Student, StudySession } from '../lib/types'
 import { ChooseStudentScreen } from './ChooseStudentScreen'
 import { CodeEntryScreen } from './CodeEntryScreen'
+import { QuestionBoardScreen } from './QuestionBoardScreen'
 import { ResultScreen } from './ResultScreen'
 import { StudentHomeScreen } from './StudentHomeScreen'
 import { TimerScreen } from './TimerScreen'
 import type { DiscardReason, FinishReason } from './useStudyTimer'
 
-type Phase = 'code' | 'choose' | 'home' | 'timer' | 'result'
+type Phase = 'code' | 'choose' | 'home' | 'timer' | 'result' | 'questions'
 
 const STORAGE_KEY = 'sunogong.current-student'
 
@@ -66,6 +68,8 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
   const [flash, setFlash] = useState<string | null>(null)
   /* 방금 한 공부 종류 — 결과 화면의 "공부 더 하기" 가 같은 종류로 이어진다 */
   const [lastKind, setLastKind] = useState<SessionKind>('academy')
+  /* 새로 온 선오공이 답변 수 (홈 배지) */
+  const [unreadAnswers, setUnreadAnswers] = useState(0)
 
   const discardMessage = (reason: DiscardReason) =>
     reason === 'stale'
@@ -105,6 +109,10 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
     try {
       saveStudent(target)
       setStudent(target)
+      // 새 답변 배지는 조용히 읽어 둔다 (질문 기능이 아직 없어도 홈은 그대로)
+      void questionsApi.countUnreadAnswers(target.id).then((res) => {
+        if (res.ok) setUnreadAnswers(res.data)
+      })
       const active = await api.getActiveSession(target.id)
       if (active.ok && active.data.discarded) setFlash(discardMessage('stale'))
       const found = active.ok ? active.data.session : null
@@ -173,6 +181,18 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
     setPhase('result')
   }, [])
 
+  /* 홈으로 돌아올 때마다 새 답변 배지를 새로 읽는다 */
+  useEffect(() => {
+    if (!student || (phase !== 'home' && phase !== 'result')) return
+    let alive = true
+    void questionsApi.countUnreadAnswers(student.id).then((res) => {
+      if (alive && res.ok) setUnreadAnswers(res.data)
+    })
+    return () => {
+      alive = false
+    }
+  }, [phase, student?.id])
+
   return (
     <div className="min-h-dvh bg-white">
       {phase === 'code' ? <CodeEntryScreen onSubmit={handleCode} onAdmin={onAdmin} /> : null}
@@ -191,7 +211,22 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
       ) : null}
 
       {phase === 'home' && student ? (
-        <StudentHomeScreen student={student} onStart={(kind) => void startStudy(kind)} onExit={exitToCode} busy={busy} />
+        <StudentHomeScreen
+          student={student}
+          onStart={(kind) => void startStudy(kind)}
+          onExit={exitToCode}
+          onQuestions={() => setPhase('questions')}
+          unreadAnswers={unreadAnswers}
+          busy={busy}
+        />
+      ) : null}
+
+      {phase === 'questions' && student ? (
+        <QuestionBoardScreen
+          student={student}
+          onBack={() => setPhase('home')}
+          onUnreadChange={setUnreadAnswers}
+        />
       ) : null}
 
       {phase === 'timer' && student ? (

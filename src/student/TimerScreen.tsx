@@ -17,6 +17,7 @@ import {
 import { KIND_EMOJI, KIND_LABEL } from '../lib/kinds'
 import { formatHMS, formatMinutes, MAX_SESSION_SECONDS } from '../lib/time'
 import type { FinishResult, Student, StudySession } from '../lib/types'
+import { QuestionAskForm } from './QuestionAskForm'
 import { useStudyTimer, type DiscardReason, type FinishReason } from './useStudyTimer'
 
 interface TimerScreenProps {
@@ -32,6 +33,9 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
   const timer = useStudyTimer({ studentId: student.id, initialSession, onFinished, onDiscarded })
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [problemOpen, setProblemOpen] = useState(false)
+  /* 공부 중에 바로 문제 사진을 올리는 '선오공에게 질문하기' 창 */
+  const [askOpen, setAskOpen] = useState(false)
+  const [askBusy, setAskBusy] = useState(false)
   const [problems, setProblems] = useState('')
   const [pendingReason, setPendingReason] = useState<FinishReason>('manual')
   /* 화면보호 모드(저조도) — 숙제 공부에서만 쓴다. 기본은 꺼짐. */
@@ -60,6 +64,8 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
   useEffect(() => {
     if (!limitReached || limitModalShown.current) return
     limitModalShown.current = true
+    setAskOpen(false)
+    setAskBusy(false)
     setPendingReason('limit')
     setProblems('')
     setProblemOpen(true)
@@ -162,6 +168,18 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
   const openFinishFlow = () => {
     if (busy) return
     setConfirmOpen(true)
+  }
+
+  /* 질문 창을 여는 동안에는 숙제 공부도 멈추지 않는다 (사진 찍으러 카메라로 넘어가도 계속) */
+  const openAsk = () => {
+    timer.holdOnLeave(true)
+    setAskOpen(true)
+  }
+
+  const closeAsk = () => {
+    if (askBusy) return
+    setAskOpen(false)
+    timer.holdOnLeave(false)
   }
 
   const openProblemInput = () => {
@@ -372,6 +390,24 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
           ) : null}
         </div>
 
+        <div className="px-5 pb-1.5">
+          <button
+            type="button"
+            onClick={openAsk}
+            className={`flex w-full items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-[13.5px] font-bold transition active:scale-[0.99] ${
+              dim
+                ? 'border border-white/10 bg-white/[0.04] text-[#8C97AD]'
+                : 'border border-[#6D3BD6]/25 bg-[#F5F0FF] text-[#4A28A0]'
+            }`}
+          >
+            <span aria-hidden="true">💬</span>
+            선오공에게 질문하기
+            <span className={`text-[11px] font-semibold ${dim ? 'text-[#5A6478]' : 'text-[#6D3BD6]/60'}`}>
+              타이머는 계속 가요
+            </span>
+          </button>
+        </div>
+
         <div className="px-5 pb-2">
           <div className="flex gap-2.5">
             {isPaused ? (
@@ -417,6 +453,16 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
 
         <BrandFooter className={dim ? 'pt-1 opacity-25' : 'pt-1'} />
       </div>
+
+      {/* 공부 중 질문 — 타이머는 그대로 두고 문제 사진을 올린다 */}
+      <Modal
+        open={askOpen}
+        title="선오공에게 질문하기"
+        description="사진을 찍어 올려도 타이머는 멈추지 않고 계속 가요."
+        onClose={closeAsk}
+      >
+        <QuestionAskForm studentId={student.id} onBusyChange={setAskBusy} compact />
+      </Modal>
 
       {/* 종료 확인 */}
       <Modal

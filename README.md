@@ -28,15 +28,21 @@ cp .env.example .env      # 아래 값을 채워주세요
 
 Supabase Dashboard → **SQL Editor** 에서 순서대로 실행합니다.
 
-1. `supabase/schema.sql` — 테이블 3개(`students`, `study_sessions`, `study_logs`), 서버 시각·타이머 RPC, RLS 정책, 권한
+1. `supabase/schema.sql` — 테이블 4개(`students`, `study_sessions`, `study_logs`, `study_questions`), 서버 시각·타이머 RPC, Storage 버킷(`question-images`), RLS 정책, 권한
 2. `supabase/seed.sql` — 기존 데이터 이관 (**학생 51명 + 공부 기록 2건**, 원래 UUID 그대로)
+3. **`supabase/migrate-2026-11-21-questions.sql` — '선오공에게 질문하기' Q&A** (아래 표·버킷만 추가)
+   - 운영 DB에는 **이 파일을 한 번 실행해야 질문 기능이 켜집니다.** 실행 전에는 학생 화면에 `질문 기능을 아직 준비 중이에요` 안내가 뜨고, 공부 기록·타이머는 그대로 동작합니다.
+   - `study_questions` 표, Storage 버킷 `question-images`(비공개, 파일 1개 50MB), RLS 정책을 만듭니다.
+   - `schema.sql` 전체를 새로 실행해도 같은 결과가 됩니다(이미 반영된 파일).
 
-두 파일 모두 여러 번 실행해도 안전합니다(`if not exists` / `on conflict do nothing`).
+세 파일 모두 여러 번 실행해도 안전합니다(`if not exists` / `on conflict do nothing` / 정책은 지웠다가 다시 생성).
 실행 후 확인:
 
 ```sql
-select count(*) from public.students;   -- 51
-select count(*) from public.study_logs; -- 2
+select count(*) from public.students;         -- 51
+select count(*) from public.study_logs;       -- 2
+select count(*) from public.study_questions;  -- 0 (질문이 쌓이면 늘어남)
+select id, public, file_size_limit from storage.buckets where id = 'question-images';
 ```
 
 > **2026-11-19 변경분은 이미 운영 DB(`sunogong`)에 반영되어 있습니다.**
@@ -94,14 +100,26 @@ npm run preview    # 빌드 결과 확인
    - **잔상(번인) 방지** — 화면보호 모드나 전체화면으로 켜둔 동안 1분마다 타이머 화면 내용을 2~6px 범위에서 조금씩 옮긴다(같은 픽셀이 계속 켜지지 않게).
    - **아이폰** — 사파리는 일반 웹페이지 전체화면을 막으므로 오류 없이 안내 문구만 보여 준다(`‘홈 화면에 추가’로 열면 주소창 없이 쓸 수 있어요`).
    - 학원 공부: `🏫 학원 공부는 화면이 꺼져도 계속 가요` 안내
+   - **`💬 선오공에게 질문하기`** — 공부 중에 바로 문제 사진을 올린다. 창을 여는 동안(사진 찍으러 카메라로 넘어가는 동안 포함) **타이머는 멈추지 않는다**.
 4. **종료** — `공부를 마칠까요?` → `오늘 푼 문제 수` 키패드(0 가능) → 저장
 5. **결과** — `오늘 ○시간 ○분 공부했어요` + 오늘 합계 · 오늘 학원/숙제 시간 · 푼 문제 수
+
+### 선오공에게 질문하기 (Q&A)
+- **홈 진입 버튼** — 공부 기록 카드 아래 `💬 선오공에게 질문하기`. 아직 열지 않은 답변이 있으면 `새 답변 N` 배지가 붙는다.
+- **질문 올리기** — `📷 사진 찍기` / `🖼️ 앨범에서` 로 문제 사진을 고르고, 한 줄 메모(선택, 200자)를 적어 올린다.
+  - 사진은 올리기 전에 브라우저 Canvas 로 긴 쪽 1400px·JPEG(품질 0.82)로 줄여 올린다(`src/lib/imageCompress.ts`). 촬영 위치 정보 같은 메타데이터도 함께 사라진다.
+- **내 질문 카드** — 내가 올린 사진·메모와 그 아래 **선오공이** 답변(글 + 해설지 사진 또는 훈노트 영상)을 카드로 보여 준다.
+  - `답변 대기` / `답변 완료` 배지, 새로 온 답변에는 `새 답변` 표시(화면을 열면 읽음 처리).
+  - 사진은 눌러서 크게 보고, 동영상은 카드 안에서 바로 재생된다(`<video controls playsInline>`).
+- 사진은 **비공개 Storage 버킷**에 올라가고, 화면에는 1시간짜리 서명 URL 로만 보인다.
 
 ### 관리자 (`/admin`, 첫 화면의 `관리자` 버튼)
 - 비밀번호 `0801` (`VITE_ADMIN_PASSWORD` 로 변경). 기기에 로그인이 유지되고 로그아웃 버튼이 있습니다.
 - **대시보드**: 최근 30일 기본, 기간 변경 · 학년 필터(표와 그래프 모두 적용) · 학생×날짜 표(시간이 길수록 진한 남색, 미제출 회색, 주말 배경) · 칸을 누르면 그 날 **기록 수정/삭제** · 학년별 요약(접기/펼치기) · 학생 비교 막대그래프 · 미제출 학생(오늘/이번 주/이번 달) · CSV(UTF-8 BOM)
 - **기록 수정 모달 — 학원·숙제 따로 입력**: 🏫 학원 공부 / 🏠 숙제 공부의 **공부시간(분)·푼 문제 수**를 각각 고치면 전체 공부시간(`minutes`)·문제 수(`problems`)는 학원+숙제로 자동 계산해 저장합니다(`academy_*`·`homework_*`도 함께 갱신). 학원·숙제 구분이 없던 예전 기록은 기존 기준대로 학원 공부로 채워 열리고, 안내 문구로 알려 줍니다. 표의 칸(대시보드)과 학생 상세의 `수정` 버튼이 같은 모달을 엽니다. 계산은 `src/lib/logEdit.ts`.
 - **학원 공부(🏫)와 숙제 공부(🏠)를 따로 집계**: 위쪽 요약 카드(총 공부시간 · 학원 · 숙제 · 푼 문제 · 1인당 평균), 학생×날짜 표의 합계 칸과 칸 아래 비율 막대, 학년별 요약(학생마다 학원/숙제 따로 + 합계), 학생 비교 막대(학원은 남색 · 숙제는 보라색으로 쌓인 막대), 학생 상세(최근 30일 학원/숙제 합계), CSV 두 종류 모두에 반영. 종류가 없던 예전 기록은 학원 공부로 본다.
+- **질문함** (상단 탭, 답변 대기 건수 배지): 학생 질문을 **답변 대기 우선**으로 보고 `답변 대기 / 답변 완료 / 전체` 로 거른다. 사진을 눌러 크게 보고, **선오공이** 이름으로 답변 글 + 해설지 사진 또는 **훈노트 영상**(MP4·WebM·MOV, 50MB 이하)을 달거나 수정하고, 질문을 삭제(사진·영상 포함)할 수 있다.
+  - **오래된 질문 자동 정리** — 질문함을 열 때 **답변 완료 후 7일**이 지난 질문과 Storage 사진·영상을 자동으로 지운다(끄기 스위치 있음, `지금 정리` 버튼도 있음). DB 줄만 지우지 않고 파일까지 지워서 무료 용량이 실제로 비워진다.
 - **학생 관리**: 추가/수정/삭제, 학년(초1~고3, 미지정), 같은 코드면 `동일코드` 배지, 이름·코드 검색, 학생별 기록 관리
 - **랭킹**: 이번 달(기본) / 지난달 / 월 선택 / 전체 누적, 학년 필터, 연속 공부·공부시간·문제 풀이 TOP3, 동점은 같은 순위(제출 일수 많은 학생 먼저), **이미지로 저장**(html2canvas)
 
@@ -128,6 +146,7 @@ npm run preview    # 빌드 결과 확인
 | **숙제 공부: 화면을 끄거나 다른 화면·앱으로 나가면 즉시 일시정지** | `visibilitychange hidden`/`blur`/`pagehide` → `pause_sessionBeacon`(keepalive) + 화면 즉시 반영 |
 | 숙제 공부: 요청이 닿지 못해도 서버가 30초 뒤 자동 일시정지 (멈춘 시각 = 마지막 신호) | `reconcile_session` (kind = homework) |
 | 앱을 닫았다가 다시 열면 마지막 신호 시각까지로 일시정지 | 클라이언트 `isHeartbeatStale` + `pause_session` |
+| **공부 중 '선오공에게 질문하기' 창을 여는 동안(카메라로 넘어간 시간 포함)에는 숙제 공부도 멈추지 않는다** | `holdOnLeave` — 창을 닫을 때 마지막 신호를 현재로 다시 맞춤 |
 | 10초마다 마지막 신호 시각만 갱신 (서버가 임의로 멈추지 않게) | `study_sessions.last_heartbeat_at` 직접 갱신 |
 | 일시정지 시간은 한 번만 뺀다 (멈춘 시각 = 마지막 신호면 그 뒤 시간은 이미 안 세므로 `paused_seconds` 를 또 더하지 않음) | `pause_session` |
 | 1회 최대 5시간(300분), 넘으면 자동 종료 | 클라이언트 안내 + 서버 18,000초 상한 |
@@ -153,17 +172,20 @@ sunogong/
 │  ├─ images/                 # mascot-full / mascot-face / hunsu-logo / og-image
 │  └─ icons/                  # icon-192 / icon-512 / apple-touch-icon
 ├─ supabase/
-│  ├─ schema.sql              # 테이블 + RPC + RLS
-│  └─ seed.sql                # 기존 51명 + 2건
+│  ├─ schema.sql              # 테이블 4개 + RPC + Storage 버킷 + RLS
+│  ├─ seed.sql                # 기존 51명 + 2건
+│  └─ migrate-2026-11-21-questions.sql  # '선오공에게 질문하기' 표·버킷·정책
 ├─ tools/make_placeholders.py # 자리표시자 이미지 생성(선택)
-├─ tools/lib-test.ts          # 날짜·집계·랭킹·타이머·전체화면·잔상 이동 계산 테스트(개발용)
+├─ tools/lib-test.ts          # 날짜·집계·랭킹·타이머·기기 판별·질문(Q&A) 계산 테스트(개발용)
 ├─ tools/ssr-smoke.tsx        # 모든 화면 렌더 확인(개발용)
 └─ src/
    ├─ main.tsx, App.tsx, index.css
-   ├─ lib/                    # supabase.ts, api.ts, time.ts, session.ts, stats.ts, logEdit.ts(기록 수정 계산), grades.ts, csv.ts, device.ts, types.ts
-   ├─ components/             # ErrorBoundary, Brand(마스코트·로고·푸터), Keypad, Modal, InstallBanner, DesktopBlockScreen(PC 안내)
-   ├─ student/                # StudentApp, CodeEntry, ChooseStudent, Home, Timer, Result, useStudyTimer
-   └─ admin/                  # AdminApp, AdminLogin, Dashboard, StudentsPanel, RankingPanel, Charts, 모달들
+   ├─ lib/                    # supabase.ts, api.ts, time.ts, session.ts, stats.ts, logEdit.ts(기록 수정 계산), grades.ts, csv.ts, device.ts, types.ts,
+   │                          # questions.ts(Q&A DB·Storage), questionBoard.ts(질문 순수 함수), imageCompress.ts(사진 줄이기)
+   ├─ components/             # ErrorBoundary, Brand(마스코트·로고·푸터), Keypad, Modal, ImageViewer(사진 확대), InstallBanner, DesktopBlockScreen(PC 안내)
+   ├─ student/                # StudentApp, CodeEntry, ChooseStudent, Home, Timer, Result, useStudyTimer,
+   │                          # QuestionBoardScreen(질문 화면), QuestionAskForm(질문 올리기 폼)
+   └─ admin/                  # AdminApp, AdminLogin, Dashboard, StudentsPanel, RankingPanel, QuestionsPanel(질문함), Charts, 모달들
 ```
 
 ---
@@ -181,8 +203,10 @@ sunogong/
 - 환경변수(`VITE_*`)는 빌드 시점에 들어갑니다. 값을 바꾸면 다시 빌드해야 합니다.
 
 ### 보안에 대해
-- 앱은 Supabase **anon 키**로 동작하고, `students`/`study_sessions`/`study_logs` 는 RLS 정책상 익명 사용자도 읽고 쓸 수 있습니다.
+- 앱은 Supabase **anon 키**로 동작하고, `students`/`study_sessions`/`study_logs`/`study_questions` 는 RLS 정책상 익명 사용자도 읽고 쓸 수 있습니다.
   (학생이 코드만으로 기록을 남기는 구조라 필요합니다.)
+- 질문 사진·답변 사진/영상은 **비공개 Storage 버킷**(`question-images`)에 올라가고, 화면에서는 1시간짜리 **서명 URL** 로만 보입니다.
+  버킷 정책은 앱과 같은 anon 키로 읽고 쓰는 구조라, 강한 보호가 필요하면 Supabase Auth(교사·학생 계정)로 바꾸는 것을 권합니다.
 - 관리자 비밀번호는 **화면 잠금** 수준입니다. 데이터 자체를 보호해야 한다면 Supabase Auth(교사 계정)와
   역할 기반 RLS로 바꾸는 것을 권합니다. 필요하면 그 작업도 이어서 해 드릴 수 있어요.
 
@@ -207,6 +231,22 @@ npx vite build --ssr tools/ssr-smoke.tsx --outDir .smoke && node .smoke/ssr-smok
 python3 -c "import pglast; pglast.parse_sql(open('supabase/schema.sql').read())"
 ```
 
-결과: 단위 테스트 전부 통과(110건 — 날짜·집계·학원/숙제 분리 집계·기록 수정 계산·비율·랭킹·타이머·기기 판별 포함), 11개 화면 모두 렌더 성공, `schema.sql`/`seed.sql` 문법 오류 없음.
+결과: 단위 테스트 전부 통과(155건 — 날짜·집계·학원/숙제 분리 집계·기록 수정 계산·비율·랭킹·타이머·기기 판별·질문(Q&A) 계산 포함), 16개 화면 모두 렌더 성공, `schema.sql`/`seed.sql`/`migrate-2026-11-21-questions.sql` 문법 오류 없음.
 기기 판별(학생 화면 PC 차단) 테스트 16건도 함께 통과합니다 — 아이폰·아이패드·안드로이드 허용, 윈도우·맥·리눅스·크롬북(터치 노트북 포함) 차단.
-실제 Supabase 프로젝트에 붙여 라이브로 돌려보는 확인은 프로젝트 키를 넣은 뒤에 할 수 있습니다.
+화면 점검에는 `선오공에게 질문하기` 홈·타이머 버튼, 학생 질문 화면, 질문 올리기 폼, 관리자 질문함(자동 정리 안내 포함)이 모두 들어 있습니다.
+`'선오공이에게'` 대신 `'선오공에게'` 로만 표기되는지도 테스트로 확인합니다.
+
+---
+
+## 10. 저장 용량 관리 (질문 사진·영상)
+
+Supabase 무료 플랜은 Storage **1GB** 까지 씁니다. 질문 사진은 올리기 전에 줄여서(장당 100~400KB) 올리고,
+답변 영상은 1개 **50MB** 까지로 제한합니다(앱에서 미리 검사해 안내).
+
+질문함을 열 때 **답변 완료 후 7일이 지난 질문과 사진·영상 파일을 자동으로 지운다** (`QuestionsPanel`, 기본 켜짐 · 끄기 스위치 있음).
+- DB 줄(`study_questions`)을 지우는 것과 함께 **Storage 파일도 직접 지워서** 용량이 실제로 비워진다.
+- 답변을 달지 않은 질문은 지우지 않는다.
+- `지금 정리` 버튼으로 바로 정리할 수도 있고, 화면에 `지금 정리할 질문 N개` 가 표시된다.
+- 보관 기간을 바꾸려면 `src/lib/questionBoard.ts` 의 `QUESTION_RETENTION_DAYS` 값을 고친다(기본 7일).
+
+DB에 쌓이는 질문 줄은 글자 몇백 바이트라 용량에 거의 영향이 없고, 큰 것은 사진·영상 파일이다.
