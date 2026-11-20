@@ -99,7 +99,8 @@ npm run preview    # 빌드 결과 확인
 
 ### 관리자 (`/admin`, 첫 화면의 `관리자` 버튼)
 - 비밀번호 `0801` (`VITE_ADMIN_PASSWORD` 로 변경). 기기에 로그인이 유지되고 로그아웃 버튼이 있습니다.
-- **대시보드**: 최근 30일 기본, 기간 변경 · 학년 필터(표와 그래프 모두 적용) · 학생×날짜 표(시간이 길수록 진한 남색, 미제출 회색, 주말 배경) · 칸을 누르면 그 날 기록 수정/삭제 · 학년별 요약(접기/펼치기) · 학생 비교 막대그래프 · 미제출 학생(오늘/이번 주/이번 달) · CSV(UTF-8 BOM)
+- **대시보드**: 최근 30일 기본, 기간 변경 · 학년 필터(표와 그래프 모두 적용) · 학생×날짜 표(시간이 길수록 진한 남색, 미제출 회색, 주말 배경) · 칸을 누르면 그 날 **기록 수정/삭제** · 학년별 요약(접기/펼치기) · 학생 비교 막대그래프 · 미제출 학생(오늘/이번 주/이번 달) · CSV(UTF-8 BOM)
+- **기록 수정 모달 — 학원·숙제 따로 입력**: 🏫 학원 공부 / 🏠 숙제 공부의 **공부시간(분)·푼 문제 수**를 각각 고치면 전체 공부시간(`minutes`)·문제 수(`problems`)는 학원+숙제로 자동 계산해 저장합니다(`academy_*`·`homework_*`도 함께 갱신). 학원·숙제 구분이 없던 예전 기록은 기존 기준대로 학원 공부로 채워 열리고, 안내 문구로 알려 줍니다. 표의 칸(대시보드)과 학생 상세의 `수정` 버튼이 같은 모달을 엽니다. 계산은 `src/lib/logEdit.ts`.
 - **학원 공부(🏫)와 숙제 공부(🏠)를 따로 집계**: 위쪽 요약 카드(총 공부시간 · 학원 · 숙제 · 푼 문제 · 1인당 평균), 학생×날짜 표의 합계 칸과 칸 아래 비율 막대, 학년별 요약(학생마다 학원/숙제 따로 + 합계), 학생 비교 막대(학원은 남색 · 숙제는 보라색으로 쌓인 막대), 학생 상세(최근 30일 학원/숙제 합계), CSV 두 종류 모두에 반영. 종류가 없던 예전 기록은 학원 공부로 본다.
 - **학생 관리**: 추가/수정/삭제, 학년(초1~고3, 미지정), 같은 코드면 `동일코드` 배지, 이름·코드 검색, 학생별 기록 관리
 - **랭킹**: 이번 달(기본) / 지난달 / 월 선택 / 전체 누적, 학년 필터, 연속 공부·공부시간·문제 풀이 TOP3, 동점은 같은 순위(제출 일수 많은 학생 먼저), **이미지로 저장**(html2canvas)
@@ -159,7 +160,7 @@ sunogong/
 ├─ tools/ssr-smoke.tsx        # 모든 화면 렌더 확인(개발용)
 └─ src/
    ├─ main.tsx, App.tsx, index.css
-   ├─ lib/                    # supabase.ts, api.ts, time.ts, session.ts, stats.ts, grades.ts, csv.ts, device.ts, types.ts
+   ├─ lib/                    # supabase.ts, api.ts, time.ts, session.ts, stats.ts, logEdit.ts(기록 수정 계산), grades.ts, csv.ts, device.ts, types.ts
    ├─ components/             # ErrorBoundary, Brand(마스코트·로고·푸터), Keypad, Modal, InstallBanner, DesktopBlockScreen(PC 안내)
    ├─ student/                # StudentApp, CodeEntry, ChooseStudent, Home, Timer, Result, useStudyTimer
    └─ admin/                  # AdminApp, AdminLogin, Dashboard, StudentsPanel, RankingPanel, Charts, 모달들
@@ -206,6 +207,6 @@ npx vite build --ssr tools/ssr-smoke.tsx --outDir .smoke && node .smoke/ssr-smok
 python3 -c "import pglast; pglast.parse_sql(open('supabase/schema.sql').read())"
 ```
 
-결과: 단위 테스트 전부 통과(99건 — 날짜·집계·학원/숙제 분리 집계·비율·랭킹·타이머·기기 판별 포함), 11개 화면 모두 렌더 성공, `schema.sql`/`seed.sql` 문법 오류 없음.
+결과: 단위 테스트 전부 통과(110건 — 날짜·집계·학원/숙제 분리 집계·기록 수정 계산·비율·랭킹·타이머·기기 판별 포함), 11개 화면 모두 렌더 성공, `schema.sql`/`seed.sql` 문법 오류 없음.
 기기 판별(학생 화면 PC 차단) 테스트 16건도 함께 통과합니다 — 아이폰·아이패드·안드로이드 허용, 윈도우·맥·리눅스·크롬북(터치 노트북 포함) 차단.
 실제 Supabase 프로젝트에 붙여 라이브로 돌려보는 확인은 프로젝트 키를 넣은 뒤에 할 수 있습니다.

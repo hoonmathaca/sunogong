@@ -1,6 +1,7 @@
 /** 순수 함수(날짜·집계·랭킹) 점검용 테스트 (개발용) */
 import { addDays, formatHMS, formatMinutes, formatMinutesCompact, kstDateString, monthRange, rangeDates, weekRange, weekdayOf, kstDayEndMs, kstMidnightMs } from '../src/lib/time'
 import { buildStats, indexLogs, longestStreakAllTime, longestStreakInRange, rankEntries, splitLog, splitPercents, sumSplits } from '../src/lib/stats'
+import { editTotals, editValuesFromLog, normalizeEditValues } from '../src/lib/logEdit'
 import { computeElapsedSeconds, isHeartbeatStale } from '../src/lib/session'
 import { normalizeKind, pausesOnLeave } from '../src/lib/kinds'
 import { isMobileOrTablet, isStudentScreenBlocked, readDeviceFingerprint } from '../src/lib/device'
@@ -125,6 +126,51 @@ eq('합계 집계', [summed.minutes, summed.academyMinutes, summed.homeworkMinut
 const editedStats = buildStats([students[0]], indexLogs([{ ...mixedLog, minutes: 140 }]), '2026-11-17', '2026-11-20')
 eq('합계만 고친 기록은 기타로', editedStats[0].otherMinutes, 40)
 eq('기타 합계 집계', sumSplits(editedStats).otherMinutes, 40)
+
+/* 관리자 기록 수정: 학원·숙제 따로 입력 → 합계 자동 */
+const legacyEdit = editValuesFromLog(logs[0])
+eq('수정 초기값: 예전 기록은 학원 공부', legacyEdit.values, {
+  academyMinutes: 60,
+  academyProblems: 10,
+  homeworkMinutes: 0,
+  homeworkProblems: 0,
+})
+eq('수정 초기값: 예전 기록 안내', [legacyEdit.filledFromTotal, legacyEdit.filledMinutes], [true, 60])
+const mixedEdit = editValuesFromLog(mixedLog)
+eq('수정 초기값: 나뉜 기록은 그대로', mixedEdit.values, {
+  academyMinutes: 70,
+  academyProblems: 25,
+  homeworkMinutes: 30,
+  homeworkProblems: 15,
+})
+eq('수정 초기값: 나뉜 기록은 안내 없음', mixedEdit.filledFromTotal, false)
+eq(
+  '수정 초기값: 모자란 합계는 학원 공부로 채움',
+  editValuesFromLog({ ...mixedLog, academy_minutes: 0, academy_problems: 0, homework_minutes: 20, homework_problems: 5 }).values,
+  { academyMinutes: 80, academyProblems: 35, homeworkMinutes: 20, homeworkProblems: 5 },
+)
+eq('수정 초기값: 기록 없음', editValuesFromLog(null).values, {
+  academyMinutes: 0,
+  academyProblems: 0,
+  homeworkMinutes: 0,
+  homeworkProblems: 0,
+})
+eq('수정 합계 = 학원 + 숙제', editTotals({ academyMinutes: 45, academyProblems: 12, homeworkMinutes: 25, homeworkProblems: 8 }), {
+  minutes: 70,
+  problems: 20,
+})
+eq('수정 합계: 음수·소수·빈 칸 정리', normalizeEditValues({ academyMinutes: -5, academyProblems: 3.7, homeworkMinutes: 12.9, homeworkProblems: Number.NaN }), {
+  academyMinutes: 0,
+  academyProblems: 3,
+  homeworkMinutes: 12,
+  homeworkProblems: 0,
+})
+eq('수정 저장 뒤 합계가 줄지 않음(예전 기록)', editTotals(legacyEdit.values), { minutes: 60, problems: 10 })
+eq('수정 저장 뒤 합계 그대로(나뉜 기록)', editTotals(mixedEdit.values), { minutes: 100, problems: 40 })
+eq('수정 저장 뒤 합계 그대로(합계만 고친 기록)', editTotals(editValuesFromLog({ ...mixedLog, minutes: 140 }).values), {
+  minutes: 140,
+  problems: 40,
+})
 
 /* 인바디형 비율 */
 eq('비율 3:1', splitPercents(90, 30), { academy: 75, homework: 25 })

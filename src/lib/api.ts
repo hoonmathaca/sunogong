@@ -1,5 +1,6 @@
 import { isSupabaseConfigured, SUPABASE_ANON_KEY, SUPABASE_URL, supabase } from './supabase'
 import type { SessionKind } from './kinds'
+import { editTotals, normalizeEditValues } from './logEdit'
 import { todayKst } from './time'
 import type { FinishResult, Student, StudyLog, StudySession } from './types'
 
@@ -270,16 +271,43 @@ async function listLogsFiltered(
   }
 }
 
-export const upsertLog = (input: { student_id: string; date: string; minutes: number; problems: number }) =>
-  run<StudyLog>(() =>
+export interface LogUpsertInput {
+  student_id: string
+  date: string
+  /** 학원 공부(🏫) — 전체 시간은 학원+숙제로 자동 계산한다 */
+  academy_minutes?: number
+  academy_problems?: number
+  /** 숙제 공부(🏠) */
+  homework_minutes?: number
+  homework_problems?: number
+}
+
+/**
+ * 하루 기록 저장(없으면 새로 만든다).
+ * 학원·숙제를 따로 받아 합계(minutes·problems)를 여기서 계산하므로,
+ * 합계와 학원+숙제 합이 어긋나지 않는다.
+ */
+export const upsertLog = (input: LogUpsertInput) => {
+  const split = normalizeEditValues({
+    academyMinutes: input.academy_minutes,
+    academyProblems: input.academy_problems,
+    homeworkMinutes: input.homework_minutes,
+    homeworkProblems: input.homework_problems,
+  })
+  const totals = editTotals(split)
+  return run<StudyLog>(() =>
     supabase
       .from('study_logs')
       .upsert(
         {
           student_id: input.student_id,
           date: input.date,
-          minutes: Math.max(0, Math.floor(input.minutes) || 0),
-          problems: Math.max(0, Math.floor(input.problems) || 0),
+          minutes: totals.minutes,
+          problems: totals.problems,
+          academy_minutes: split.academyMinutes,
+          academy_problems: split.academyProblems,
+          homework_minutes: split.homeworkMinutes,
+          homework_problems: split.homeworkProblems,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'student_id,date' },
@@ -287,6 +315,7 @@ export const upsertLog = (input: { student_id: string; date: string; minutes: nu
       .select('*')
       .single(),
   )
+}
 
 export const deleteLog = (id: string) => run<null>(() => supabase.from('study_logs').delete().eq('id', id))
 
