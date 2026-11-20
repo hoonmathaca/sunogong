@@ -214,7 +214,7 @@ export function StudentHomeScreen({ student, onStart, onExit, busy = false }: St
                   return (
                     <li key={date} className="flex items-center gap-2 text-[12px]">
                       <span
-                        className={`w-12 shrink-0 font-semibold tabular ${
+                        className={`w-[62px] shrink-0 whitespace-nowrap text-[11px] font-semibold tabular ${
                           isToday ? 'text-navy' : weekdayOf(date) === 0 ? 'text-red-400' : 'text-navy/45'
                         }`}
                       >
