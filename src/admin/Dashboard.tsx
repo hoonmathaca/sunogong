@@ -379,12 +379,16 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                     })}
                     <td className="sticky right-0 z-10 min-w-[92px] whitespace-nowrap border-b border-l border-blue-line bg-white px-2 py-1 text-right tabular">
                       <span className="block text-[10px] font-bold text-navy">{formatMinutes(stat.minutes)}</span>
-                      <span className="block text-[9px] font-semibold text-navy/55">
-                        🏫 {formatMinutesCompact(stat.academyMinutes)}
-                      </span>
-                      <span className="block text-[9px] font-semibold text-[#5B2FC0]/85">
-                        🏠 {formatMinutesCompact(stat.homeworkMinutes)}
-                      </span>
+                      {stat.academyMinutes + stat.homeworkMinutes > 0 ? (
+                        <>
+                          <span className="block text-[9px] font-semibold text-navy/55">
+                            🏫 {formatMinutesCompact(stat.academyMinutes)}
+                          </span>
+                          <span className="block text-[9px] font-semibold text-[#5B2FC0]/85">
+                            🏠 {formatMinutesCompact(stat.homeworkMinutes)}
+                          </span>
+                        </>
+                      ) : null}
                       {stat.otherMinutes > 0 ? (
                         <span className="block text-[9px] font-medium text-navy/35">직접 수정 {stat.otherMinutes}분</span>
                       ) : null}
