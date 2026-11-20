@@ -377,7 +377,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                         </td>
                       )
                     })}
-                    <td className="sticky right-0 z-10 border-b border-l border-blue-line bg-white px-2 py-1 text-right tabular">
+                    <td className="sticky right-0 z-10 min-w-[92px] whitespace-nowrap border-b border-l border-blue-line bg-white px-2 py-1 text-right tabular">
                       <span className="block text-[10px] font-bold text-navy">{formatMinutes(stat.minutes)}</span>
                       <span className="block text-[9px] font-semibold text-navy/55">
                         🏫 {formatMinutesCompact(stat.academyMinutes)}
@@ -531,7 +531,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
 
       <AdminSection
         title="학생 비교"
-        description="기간 동안의 기록을 학생별로 비교해요. 막대는 학원 공부(남색)와 숙제 공부(하늘색)로 나뉘어 쌓입니다."
+        description="기간 동안의 기록을 학생별로 비교해요. 막대는 학원 공부(남색)와 숙제 공부(보라색)로 나뉘어 쌓입니다."
         actions={
           <>
             <div className="flex rounded-full bg-blue-soft p-0.5">
