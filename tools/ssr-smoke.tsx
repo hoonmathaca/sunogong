@@ -9,6 +9,7 @@ import { AdminLogin } from '../src/admin/AdminLogin'
 import { AdminApp } from '../src/admin/AdminApp'
 import { Dashboard } from '../src/admin/Dashboard'
 import { QuestionsPanel } from '../src/admin/QuestionsPanel'
+import { PushNotifyPanel } from '../src/admin/PushNotifyPanel'
 import { RankingPanel } from '../src/admin/RankingPanel'
 import { StudentsPanel } from '../src/admin/StudentsPanel'
 import { CodeEntryScreen } from '../src/student/CodeEntryScreen'
@@ -122,6 +123,7 @@ const cases: [string, () => JSX.Element][] = [
   ['QuestionBoardScreen', () => <QuestionBoardScreen student={student} onBack={() => {}} />],
   ['QuestionAskForm', () => <QuestionAskForm studentId={student.id} />],
   ['QuestionsPanel(관리자 질문함)', () => <QuestionsPanel />],
+  ['PushNotifyPanel(새 질문 알림)', () => <PushNotifyPanel />],
   ['ResultScreen', () => <ResultScreen student={student} result={result} reason="manual" onHome={() => {}} onAgain={() => {}} />],
   ['AdminLogin', () => <AdminLogin onSuccess={() => {}} onBack={() => {}} />],
   ['AdminApp', () => <AdminApp onBack={() => {}} />],
@@ -189,6 +191,9 @@ const questionChecks: [string, boolean][] = [
   ['질문: 관리자 자동 정리 안내', questionsPanelHtml.includes('오래된 질문 자동 정리')],
   ['질문: 관리자 7일 보관 안내', questionsPanelHtml.includes('7일')],
   ['질문: 관리자 질문함 탭', adminHtml.includes('질문함')],
+  ['알림: 관리자 질문함에 알림 설정', questionsPanelHtml.includes('새 질문 알림')],
+  ['알림: 알림 켜기 버튼', (rendered['PushNotifyPanel(새 질문 알림)'] ?? '').includes('알림 켜기')],
+  ['알림: 테스트 알림 버튼', (rendered['PushNotifyPanel(새 질문 알림)'] ?? '').includes('테스트 알림 보내기')],
   ['조사: "선오공이에게" 표기 없음', ![homeHtml, homeworkHtml, academyHtml, questionHtml, askHtml, questionsPanelHtml, adminHtml].join('').includes('선오공이에게')],
 ]
 for (const [name, ok] of checks) {

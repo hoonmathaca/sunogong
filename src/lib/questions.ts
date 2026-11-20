@@ -19,6 +19,7 @@ import {
   validateAnswerMedia,
 } from './questionBoard'
 import { isSupabaseConfigured, supabase } from './supabase'
+import { notifyNewQuestion } from './push'
 import type { StudyQuestion } from './types'
 
 export const QUESTION_BUCKET = 'question-images'
@@ -194,6 +195,8 @@ export async function createQuestion(input: CreateQuestionInput): Promise<ApiRes
       void supabase.storage.from(QUESTION_BUCKET).remove([path])
       return fail(describeQuestionError(error.message))
     }
+    // 관리자에게 새 질문 알림 (결과를 기다리지 않는다 — 실패해도 질문 등록은 그대로)
+    notifyNewQuestion((data as StudyQuestion).id)
     return { ok: true, data: data as StudyQuestion }
   } catch (error) {
     console.warn('[sunogong] 질문 올리기 실패:', error)

@@ -32,6 +32,24 @@ import {
 } from '../src/lib/questionBoard'
 import { isMobileOrTablet, isStudentScreenBlocked, readDeviceFingerprint } from '../src/lib/device'
 import {
+  detectPushPlatform,
+  isExpiredSubscription,
+  isStandaloneDisplay,
+  PUSH_IOS_INSTALL_MESSAGE,
+  PUSH_TEST_BODY,
+  PUSH_TITLE,
+  PUSH_UNSUPPORTED_MESSAGE,
+  pushApiErrorMessage,
+  pushAvailability,
+  pushResultSummary,
+  pushStateHint,
+  pushStateLabel,
+  questionPushBody,
+  toSubscriptionRow,
+  urlBase64ToUint8Array,
+  VAPID_PUBLIC_KEY,
+} from '../src/lib/pushBoard'
+import {
   detectPlatform,
   fullscreenHint,
   isFullscreenActive,
@@ -460,5 +478,77 @@ const savedWithoutJoin: StudyQuestion = { ...joinedQuestion, students: null, ans
 eq('질문: 답변 저장 뒤 학생 이름 유지', questionStudent(mergeQuestion(joinedQuestion, savedWithoutJoin)).name, '강은서')
 eq('질문: 답변 저장 뒤 답변 반영', mergeQuestion(joinedQuestion, savedWithoutJoin).answer, '통분하면 돼요')
 eq('질문: 답변 저장 뒤 읽음 표시 초기화', mergeQuestion({ ...joinedQuestion, student_read_at: '2026-11-20T00:00:00Z' }, savedWithoutJoin).student_read_at, null)
+
+/* 새 질문 웹 푸시 알림 */
+const vapidBytes = urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+eq('알림: VAPID 공개 키 길이(65바이트)', vapidBytes.length, 65)
+eq('알림: VAPID 공개 키 머리(0x04)', vapidBytes[0], 4)
+eq('알림: base64url - _ 처리', Array.from(urlBase64ToUint8Array('-_8')).join(','), '251,255')
+eq(
+  '알림: 기기 판별',
+  [
+    detectPushPlatform('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Safari', 5),
+    detectPushPlatform('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15', 5),
+    detectPushPlatform('Mozilla/5.0 (Linux; Android 14; SM-S911N) AppleWebKit/537.36 Chrome/120', 5),
+    detectPushPlatform('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120', 0),
+    detectPushPlatform('', 0),
+  ],
+  ['ios', 'ios', 'android', 'desktop', 'other'],
+)
+eq('알림: 홈 화면 앱 판별', [isStandaloneDisplay(true, undefined), isStandaloneDisplay(false, true), isStandaloneDisplay(false, undefined)], [true, true, false])
+const avail = (o: Partial<Parameters<typeof pushAvailability>[0]>) =>
+  pushAvailability({ platform: 'android', standalone: false, hasServiceWorker: true, hasPushManager: true, hasNotification: true, ...o })
+eq(
+  '알림: 켤 수 있는 브라우저',
+  [avail({}), avail({ platform: 'desktop' }), avail({ platform: 'ios', standalone: true })],
+  ['ready', 'ready', 'ready'],
+)
+eq('알림: 아이폰인데 홈 화면 추가 전', avail({ platform: 'ios' }), 'needs-install')
+eq('알림: 푸시 미지원 브라우저', [avail({ hasPushManager: false }), avail({ hasServiceWorker: false }), avail({ hasNotification: false })], ['unsupported', 'unsupported', 'unsupported'])
+eq('알림: 상태 이름', [pushStateLabel('on'), pushStateLabel('off'), pushStateLabel('denied')], ['알림 켜짐', '알림 꺼짐', '알림이 막혀 있음'])
+eq('알림: 아이폰 안내', pushStateHint('needs-install', 'ios'), PUSH_IOS_INSTALL_MESSAGE)
+eq('알림: 미지원 안내', pushStateHint('unsupported', 'desktop'), PUSH_UNSUPPORTED_MESSAGE)
+eq(
+  '알림: 구독 저장 모양',
+  toSubscriptionRow({ endpoint: 'https://push.example/abc', keys: { p256dh: 'pk', auth: 'au' } }, 'UA'),
+  { endpoint: 'https://push.example/abc', p256dh: 'pk', auth: 'au', user_agent: 'UA' },
+)
+eq(
+  '알림: 키가 빠진 구독은 저장 안 함',
+  [toSubscriptionRow(null), toSubscriptionRow({ endpoint: 'x' }), toSubscriptionRow({ endpoint: 'x', keys: { p256dh: 'p' } })],
+  [null, null, null],
+)
+eq('알림: 만료 구독 코드', [isExpiredSubscription(404), isExpiredSubscription(410), isExpiredSubscription(400), isExpiredSubscription(undefined)], [true, true, false, false])
+eq('알림: 질문 알림 본문', questionPushBody('  이지빈 '), '이지빈 학생이 질문을 올렸어요!')
+eq('알림: 이름 없을 때 본문', questionPushBody(null), '학생이 질문을 올렸어요!')
+eq(
+  '알림: 서버 오류를 읽을 말로',
+  [
+    pushApiErrorMessage(503, { error: 'push_not_configured' }),
+    pushApiErrorMessage(401, { error: 'unauthorized' }),
+    pushApiErrorMessage(400, { error: 'invalid_question' }),
+    pushApiErrorMessage(500, {}),
+  ].map((text) => [text.startsWith('알림 서버 키'), text.length > 10]),
+  [
+    [true, true],
+    [false, true],
+    [false, true],
+    [false, true],
+  ],
+)
+eq(
+  '알림: 테스트 결과 요약',
+  [
+    pushResultSummary({ sent: 0, removed: 0, devices: 0 }),
+    pushResultSummary({ sent: 2, removed: 1, devices: 3 }),
+    pushResultSummary({ sent: 1, removed: 0, devices: 1 }),
+  ],
+  [
+    '알림 받을 기기가 없어요. 먼저 이 기기에서 알림을 켜 주세요.',
+    '테스트 알림을 2대에 보냈어요. (만료된 기기 1대는 정리했어요)',
+    '테스트 알림을 1대에 보냈어요.',
+  ],
+)
+eq('알림: 제목·본문 상수', [PUSH_TITLE, PUSH_TEST_BODY.length > 0], ['선오공 새 질문', true])
 
 console.log(failed === 0 ? 'ALL LIB TESTS PASSED' : `${failed} FAILED`)

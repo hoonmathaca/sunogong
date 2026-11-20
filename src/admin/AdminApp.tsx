@@ -14,12 +14,25 @@ const STORAGE_KEY = 'sunogong.admin-signed-in'
 
 type Tab = 'dashboard' | 'questions' | 'students' | 'ranking'
 
+const TABS: Tab[] = ['dashboard', 'questions', 'students', 'ranking']
+
 function readSignedIn(): boolean {
   try {
     return localStorage.getItem(STORAGE_KEY) === '1'
   } catch {
     return false
   }
+}
+
+/** 알림을 눌러 열 때(`/admin?tab=questions`) 바로 질문함이 보이게 한다 */
+function readInitialTab(): Tab {
+  try {
+    const value = new URLSearchParams(window.location.search).get('tab')
+    if (value && (TABS as string[]).includes(value)) return value as Tab
+  } catch {
+    /* 주소를 읽지 못하면 대시보드 */
+  }
+  return 'dashboard'
 }
 
 export interface AdminAppProps {
@@ -29,7 +42,7 @@ export interface AdminAppProps {
 /** 관리자 화면: 대시보드 · 학생 관리 · 랭킹 */
 export function AdminApp({ onBack }: AdminAppProps): JSX.Element {
   const [signedIn, setSignedIn] = useState(readSignedIn)
-  const [tab, setTab] = useState<Tab>('dashboard')
+  const [tab, setTab] = useState<Tab>(readInitialTab)
   const [unanswered, setUnanswered] = useState(0)
   const { students, loading, error, reload } = useStudents()
 

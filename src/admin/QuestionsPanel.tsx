@@ -26,6 +26,7 @@ import {
   type QuestionFilter,
 } from '../lib/questionBoard'
 import type { StudyQuestion } from '../lib/types'
+import { PushNotifyPanel } from './PushNotifyPanel'
 import { AdminSection, EmptyBlock, ErrorBlock, LoadingBlock } from './ui'
 
 const STORAGE_KEY = 'sunogong.questions-auto-cleanup'
@@ -264,6 +265,8 @@ export function QuestionsPanel({ onUnansweredChange }: QuestionsPanelProps): JSX
 
   return (
     <div className="space-y-3">
+      <PushNotifyPanel />
+
       <AdminSection
         title="선오공에게 온 질문"
         description="학생이 올린 문제 사진에 선오공이(선생님)가 답합니다. 답변에는 해설지 사진이나 훈노트 영상(50MB 이하)을 붙일 수 있어요."

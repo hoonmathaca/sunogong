@@ -583,6 +583,28 @@ create index if not exists study_questions_waiting_idx
   on public.study_questions (created_at desc)
   where answer is null;
 
+-- ---------------------------------------------------------------------
+-- 3.6 관리자 '새 질문 알림' (웹 푸시, 2026-11-21 추가)
+--     알림을 켠 관리자 기기(브라우저 푸시 구독)와, 질문별 알림 발송 표시
+--     자세한 변경 이력은 supabase/migrate-2026-11-21-push.sql
+-- ---------------------------------------------------------------------
+
+create table if not exists public.push_subscriptions (
+  id          uuid primary key default gen_random_uuid(),
+  endpoint    text not null unique,
+  p256dh      text not null,
+  auth        text not null,
+  user_agent  text,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+create index if not exists push_subscriptions_created_idx
+  on public.push_subscriptions (created_at desc);
+
+-- 같은 질문으로 두 번 알리지 않게
+ alter table public.study_questions add column if not exists push_notified_at timestamptz;
+
 -- 질문 사진 · 답변 사진/동영상 버킷 (비공개, 1개 50MB 까지)
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (
@@ -609,6 +631,7 @@ alter table public.students         enable row level security;
 alter table public.study_sessions   enable row level security;
 alter table public.study_logs       enable row level security;
 alter table public.study_questions  enable row level security;
+alter table public.push_subscriptions enable row level security;
 
 drop policy if exists students_anon_all on public.students;
 create policy students_anon_all on public.students
@@ -624,6 +647,10 @@ create policy study_logs_anon_all on public.study_logs
 
 drop policy if exists study_questions_anon_all on public.study_questions;
 create policy study_questions_anon_all on public.study_questions
+  for all to anon, authenticated using (true) with check (true);
+
+drop policy if exists push_subscriptions_anon_all on public.push_subscriptions;
+create policy push_subscriptions_anon_all on public.push_subscriptions
   for all to anon, authenticated using (true) with check (true);
 
 -- Storage 정책 — question-images 버킷 안의 파일만
@@ -651,7 +678,7 @@ create policy question_images_delete on storage.objects
   using (bucket_id = 'question-images');
 
 grant usage on schema public to anon, authenticated;
-grant select, insert, update, delete on public.students, public.study_sessions, public.study_logs, public.study_questions to anon, authenticated;
+grant select, insert, update, delete on public.students, public.study_sessions, public.study_logs, public.study_questions, public.push_subscriptions to anon, authenticated;
 
 grant execute on function public.server_now() to anon, authenticated;
 grant execute on function public.kst_today() to anon, authenticated;

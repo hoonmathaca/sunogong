@@ -28,28 +28,34 @@ cp .env.example .env      # 아래 값을 채워주세요
 
 Supabase Dashboard → **SQL Editor** 에서 순서대로 실행합니다.
 
-1. `supabase/schema.sql` — 테이블 4개(`students`, `study_sessions`, `study_logs`, `study_questions`), 서버 시각·타이머 RPC, Storage 버킷(`question-images`), RLS 정책, 권한
+1. `supabase/schema.sql` — 테이블 5개(`students`, `study_sessions`, `study_logs`, `study_questions`, `push_subscriptions`), 서버 시각·타이머 RPC, Storage 버킷(`question-images`), RLS 정책, 권한
 2. `supabase/seed.sql` — 기존 데이터 이관 (**학생 51명 + 공부 기록 2건**, 원래 UUID 그대로)
 3. **`supabase/migrate-2026-11-21-questions.sql` — '선오공에게 질문하기' Q&A** (아래 표·버킷만 추가)
    - 운영 DB에는 **이 파일을 한 번 실행해야 질문 기능이 켜집니다.** 실행 전에는 학생 화면에 `질문 기능을 아직 준비 중이에요` 안내가 뜨고, 공부 기록·타이머는 그대로 동작합니다.
    - `study_questions` 표, Storage 버킷 `question-images`(비공개, 파일 1개 50MB), RLS 정책을 만듭니다.
    - `schema.sql` 전체를 새로 실행해도 같은 결과가 됩니다(이미 반영된 파일).
+4. **`supabase/migrate-2026-11-21-push.sql` — 관리자 '새 질문 알림'(웹 푸시)**
+   - `push_subscriptions` 표(알림을 켠 관리자 기기), `study_questions.push_notified_at`(같은 질문에 한 번만 알림), RLS 정책을 만듭니다.
+   - 운영 DB(`qdzlenhmhszdsnygslhp`)에는 **2026-11-21 적용 완료**입니다. 실행 전에는 관리자 화면의 알림 카드에 `알림 표가 아직 없어요` 안내가 뜨고, 질문·공부 기록은 그대로 동작합니다.
 
-세 파일 모두 여러 번 실행해도 안전합니다(`if not exists` / `on conflict do nothing` / 정책은 지웠다가 다시 생성).
+네 파일 모두 여러 번 실행해도 안전합니다(`if not exists` / `on conflict do nothing` / 정책은 지웠다가 다시 생성).
 실행 후 확인:
 
 ```sql
 select count(*) from public.students;         -- 51
 select count(*) from public.study_logs;       -- 2
-select count(*) from public.study_questions;  -- 0 (질문이 쌓이면 늘어남)
+select count(*) from public.study_questions;      -- 0 (질문이 쌓이면 늘어남)
+select count(*) from public.push_subscriptions;   -- 0 (알림 켠 기기 수)
 select id, public, file_size_limit from storage.buckets where id = 'question-images';
 ```
 
 > **2026-11-19 변경분은 이미 운영 DB(`sunogong`)에 반영되어 있습니다.**
 > 다른 프로젝트에 새로 올릴 때는 `supabase/schema.sql` 전체를 한 번 실행하면 됩니다(여러 번 실행해도 안전).
-> 변경 이력은 두 파일로 남겨 두었습니다.
+> 변경 이력은 아래 파일들로 남겨 두었습니다.
 > - `supabase/migrate-2026-11-19-study-kind.sql` — 공부 종류(학원/숙제) 열 추가(기존 기록은 '학원 공부'로 1회 채움), 자정 넘긴 세션 버리기
 > - `supabase/migrate-2026-11-19-homework-pause.sql` — 숙제 공부 자동 일시정지, `pause_session` 시간 계산 보정
+> - `supabase/migrate-2026-11-21-questions.sql` — 질문(Q&A) 표·Storage 버킷
+> - `supabase/migrate-2026-11-21-push.sql` — 새 질문 알림(웹 푸시) 구독 표 (2026-11-21 운영 DB 적용 완료)
 
 ## 3. 실행 / 빌드
 
@@ -120,14 +126,33 @@ npm run preview    # 빌드 결과 확인
 - **학원 공부(🏫)와 숙제 공부(🏠)를 따로 집계**: 위쪽 요약 카드(총 공부시간 · 학원 · 숙제 · 푼 문제 · 1인당 평균), 학생×날짜 표의 합계 칸과 칸 아래 비율 막대, 학년별 요약(학생마다 학원/숙제 따로 + 합계), 학생 비교 막대(학원은 남색 · 숙제는 보라색으로 쌓인 막대), 학생 상세(최근 30일 학원/숙제 합계), CSV 두 종류 모두에 반영. 종류가 없던 예전 기록은 학원 공부로 본다.
 - **질문함** (상단 탭, 답변 대기 건수 배지): 학생 질문을 **답변 대기 우선**으로 보고 `답변 대기 / 답변 완료 / 전체` 로 거른다. 사진을 눌러 크게 보고, **선오공이** 이름으로 답변 글 + 해설지 사진 또는 **훈노트 영상**(MP4·WebM·MOV, 50MB 이하)을 달거나 수정하고, 질문을 삭제(사진·영상 포함)할 수 있다.
   - **오래된 질문 자동 정리** — 질문함을 열 때 **답변 완료 후 7일**이 지난 질문과 Storage 사진·영상을 자동으로 지운다(끄기 스위치 있음, `지금 정리` 버튼도 있음). DB 줄만 지우지 않고 파일까지 지워서 무료 용량이 실제로 비워진다.
+- **🔔 새 질문 알림** (질문함 맨 위 카드): 이 기기에서 알림을 **켜기/끄기**, 알림 받는 **기기 수**, **테스트 알림 보내기**.
+  - 켜면 학생이 질문을 올릴 때마다 휴대폰에 `선오공 새 질문` 알림이 오고, 누르면 `/admin?tab=questions`(질문함)이 바로 열린다.
+  - 기기마다 따로 켜야 한다(원장님 폰·태블릿 각각). 아이폰은 홈 화면에 추가한 선오공에서만 켤 수 있다(iOS 16.4+).
 - **학생 관리**: 추가/수정/삭제, 학년(초1~고3, 미지정), 같은 코드면 `동일코드` 배지, 이름·코드 검색, 학생별 기록 관리
 - **랭킹**: 이번 달(기본) / 지난달 / 월 선택 / 전체 누적, 학년 필터, 연속 공부·공부시간·문제 풀이 TOP3, 동점은 같은 순위(제출 일수 많은 학생 먼저), **이미지로 저장**(html2canvas)
 
-### 홈 화면 설치(PWA)
+### 홈 화면 설치(PWA) 및 새 질문 알림(웹 푸시)
 `public/manifest.webmanifest` — `display: standalone`, `theme_color #12296B`, `background_color #ffffff`.
 (`display: "fullscreen"` 은 상태 표시줄까지 사라져 시계·배터리를 볼 수 없어 쓰지 않았다. 화면 안의 `⛶ 전체화면` 버튼이 주소창만 숨긴다.)
-**Service Worker / 오프라인 캐시는 넣지 않았습니다.** 학생 첫 화면 아래에 iOS Safari / Android Chrome 설치 안내 배너가 뜨고,
-닫으면 `localStorage`에 기억해 다시 뜨지 않습니다.
+학생 첫 화면 아래에 iOS Safari / Android Chrome 설치 안내 배너가 뜨고, 닫으면 `localStorage`에 기억해 다시 뜨지 않는다.
+
+**서비스 워커(`public/sw.js`)는 알림만 담당한다.** 캐시·오프라인 저장은 하지 않고 `fetch` 를 가로채지도 않는다(push 이벤트 → 알림 표시, 알림을 누르면 `/admin?tab=questions`).
+
+**새 질문 알림**: 관리자 `/admin` → **질문함** 맨 위의 **🔔 새 질문 알림** 카드에서 켜고 끈다.
+- 켜기 = `Notification.requestPermission()` → `navigator.serviceWorker.register('/sw.js')` → `pushManager.subscribe({ userVisibleOnly: true, applicationServerKey })` → Supabase `push_subscriptions` 에 저장
+- 학생이 질문을 올리면 `src/lib/questions.ts` 의 `createQuestion` 이 **기다리지 않고**(non-blocking) `POST /api/notify-question` 을 호출한다 → Vercel Serverless Function `api/notify-question.ts` 가 `web-push`(VAPID)로 등록된 관리자 기기에 발송(제목 `선오공 새 질문`, 본문 `{학생이름} 학생이 질문을 올렸어요!`). 만료된 구독(404/410)은 자동으로 지운다.
+- 같은 질문에 두 번 알리지 않도록 `study_questions.push_notified_at` 을 한 번만 표시한다(요청이 겹쳐 와도 한 번).
+- **관리자만** '테스트 알림 보내기'를 쓸 수 있다(`x-sunogong-admin` 머리글 = 관리자 비밀번호).
+- 아이폰은 **홈 화면에 추가한 선오공**에서만 알림을 켤 수 있어(iOS 16.4+) 그 안내를 화면에 띄운다.
+
+**필요한 Vercel 환경변수** (Production)
+
+| 변수 | 설명 |
+|---|---|
+| `VAPID_PRIVATE_KEY` | **필수·비밀**. `npx web-push generate-vapid-keys` 의 privateKey 값. 없으면 알림 서버가 503 `push_not_configured` 로 답하고 화면에 안내가 뜬다 |
+| `VAPID_PUBLIC_KEY` | 선택. 비워도 `src/lib/pushBoard.ts` · `api/notify-question.ts` 의 기본 공개 키를 쓴다(키를 바꿀 때만 넣으면 된다) |
+| `VAPID_SUBJECT` | 선택. 기본 `mailto:illkg1@gmail.com` |
 
 ---
 
@@ -167,25 +192,29 @@ npm run preview    # 빌드 결과 확인
 ```
 sunogong/
 ├─ index.html                 # meta, og:image, manifest, 폰트
+├─ api/notify-question.ts     # Vercel Serverless Function — 새 질문 웹 푸시 발송
 ├─ public/
 │  ├─ manifest.webmanifest
+│  ├─ sw.js                   # 서비스 워커(알림 표시·클릭 이동만)
 │  ├─ images/                 # mascot-full / mascot-face / hunsu-logo / og-image
 │  └─ icons/                  # icon-192 / icon-512 / apple-touch-icon
 ├─ supabase/
-│  ├─ schema.sql              # 테이블 4개 + RPC + Storage 버킷 + RLS
+│  ├─ schema.sql              # 테이블 5개 + RPC + Storage 버킷 + RLS
 │  ├─ seed.sql                # 기존 51명 + 2건
-│  └─ migrate-2026-11-21-questions.sql  # '선오공에게 질문하기' 표·버킷·정책
+│  ├─ migrate-2026-11-21-questions.sql  # '선오공에게 질문하기' 표·버킷·정책
+│  └─ migrate-2026-11-21-push.sql       # 새 질문 알림 구독 표
 ├─ tools/make_placeholders.py # 자리표시자 이미지 생성(선택)
-├─ tools/lib-test.ts          # 날짜·집계·랭킹·타이머·기기 판별·질문(Q&A) 계산 테스트(개발용)
+├─ tools/lib-test.ts          # 날짜·집계·랭킹·타이머·기기 판별·질문(Q&A)·알림 계산 테스트(개발용)
 ├─ tools/ssr-smoke.tsx        # 모든 화면 렌더 확인(개발용)
 └─ src/
    ├─ main.tsx, App.tsx, index.css
    ├─ lib/                    # supabase.ts, api.ts, time.ts, session.ts, stats.ts, logEdit.ts(기록 수정 계산), grades.ts, csv.ts, device.ts, types.ts,
-   │                          # questions.ts(Q&A DB·Storage), questionBoard.ts(질문 순수 함수), imageCompress.ts(사진 줄이기)
+   │                          # questions.ts(Q&A DB·Storage), questionBoard.ts(질문 순수 함수), imageCompress.ts(사진 줄이기),
+   │                          # push.ts(알림 켜기/끄기·구독 저장), pushBoard.ts(알림 순수 함수·VAPID 공개 키)
    ├─ components/             # ErrorBoundary, Brand(마스코트·로고·푸터), Keypad, Modal, ImageViewer(사진 확대), InstallBanner, DesktopBlockScreen(PC 안내)
    ├─ student/                # StudentApp, CodeEntry, ChooseStudent, Home, Timer, Result, useStudyTimer,
    │                          # QuestionBoardScreen(질문 화면), QuestionAskForm(질문 올리기 폼)
-   └─ admin/                  # AdminApp, AdminLogin, Dashboard, StudentsPanel, RankingPanel, QuestionsPanel(질문함), Charts, 모달들
+   └─ admin/                  # AdminApp, AdminLogin, Dashboard, StudentsPanel, RankingPanel, QuestionsPanel(질문함), PushNotifyPanel(알림 설정), Charts, 모달들
 ```
 
 ---
@@ -201,10 +230,12 @@ sunogong/
   - Vercel: `{ "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }] }`
   - Netlify: `/* /index.html 200`
 - 환경변수(`VITE_*`)는 빌드 시점에 들어갑니다. 값을 바꾸면 다시 빌드해야 합니다.
+- **`api/notify-question.ts` 는 Vercel 이 `api/` 폴더를 보고 자동으로 서버리스 함수로 배포합니다**(`/api/notify-question`). 따로 설정할 것은 없고, 서버 전용 비밀 값만 환경변수로 넣으면 됩니다 — `VAPID_PRIVATE_KEY`(필수), `VAPID_PUBLIC_KEY`·`VAPID_SUBJECT`(선택), `VITE_SUPABASE_URL`·`VITE_SUPABASE_ANON_KEY`·`VITE_ADMIN_PASSWORD`(앱과 같은 값). 위 '홈 화면 설치(PWA) 및 새 질문 알림' 절의 표를 보세요.
 
 ### 보안에 대해
-- 앱은 Supabase **anon 키**로 동작하고, `students`/`study_sessions`/`study_logs`/`study_questions` 는 RLS 정책상 익명 사용자도 읽고 쓸 수 있습니다.
-  (학생이 코드만으로 기록을 남기는 구조라 필요합니다.)
+- 앱은 Supabase **anon 키**로 동작하고, `students`/`study_sessions`/`study_logs`/`study_questions`/`push_subscriptions` 는 RLS 정책상 익명 사용자도 읽고 쓸 수 있습니다.
+  (학생이 코드만으로 기록을 남기는 구조라 필요합니다. 알림 구독 표도 서버 함수가 같은 anon 키로 읽고 지웁니다.)
+  그래서 `push_subscriptions` 의 `endpoint`·`p256dh`·`auth` 는 anon 키로 읽힐 수 있지만, 그 값만으로는 다른 기기로 알림을 보낼 수 없습니다(VAPID 비밀 키는 Vercel 서버에만 있음).
 - 질문 사진·답변 사진/영상은 **비공개 Storage 버킷**(`question-images`)에 올라가고, 화면에서는 1시간짜리 **서명 URL** 로만 보입니다.
   버킷 정책은 앱과 같은 anon 키로 읽고 쓰는 구조라, 강한 보호가 필요하면 Supabase Auth(교사·학생 계정)로 바꾸는 것을 권합니다.
 - 관리자 비밀번호는 **화면 잠금** 수준입니다. 데이터 자체를 보호해야 한다면 Supabase Auth(교사 계정)와
@@ -225,13 +256,13 @@ npm run build       # tsc -b + vite build 통과 (타입 오류 0)
 npx vite build --ssr tools/lib-test.ts --outDir .smoke && node .smoke/lib-test.js
 
 # 2) 모든 화면이 오류 없이 그려지는지 (서버 없이 첫 렌더 확인)
-npx vite build --ssr tools/ssr-smoke.tsx --outDir .smoke && node .smoke/ssr-smoke.js
+npx vite build --ssr tools/ssr-smoke.tsx --outDir .smoke2 && node .smoke2/ssr-smoke.js
 
 # 3) SQL 문법 검증 (PostgreSQL 파서)
 python3 -c "import pglast; pglast.parse_sql(open('supabase/schema.sql').read())"
 ```
 
-결과: 단위 테스트 전부 통과(159건 — 날짜·집계·학원/숙제 분리 집계·기록 수정 계산·비율·랭킹·타이머·기기 판별·질문(Q&A) 계산 포함), 16개 화면 모두 렌더 성공, `schema.sql`/`seed.sql`/`migrate-2026-11-21-questions.sql` 문법 오류 없음.
+결과: 단위 테스트 전부 통과(**178건** — 날짜·집계·학원/숙제 분리 집계·기록 수정 계산·비율·랭킹·타이머·기기 판별·질문(Q&A)·알림(VAPID 키·기기 판별·구독 저장 모양·오류 문구) 계산 포함), **17개 화면** 모두 렌더 성공(관리자 알림 카드 포함), `schema.sql`/`seed.sql`/`migrate-2026-11-21-questions.sql`/`migrate-2026-11-21-push.sql` 문법 오류 없음.
 기기 판별(학생 화면 PC 차단) 테스트 16건도 함께 통과합니다 — 아이폰·아이패드·안드로이드 허용, 윈도우·맥·리눅스·크롬북(터치 노트북 포함) 차단.
 화면 점검에는 `선오공에게 질문하기` 홈·타이머 버튼, 학생 질문 화면, 질문 올리기 폼, 관리자 질문함(자동 정리 안내 포함)이 모두 들어 있습니다.
 `'선오공이에게'` 대신 `'선오공에게'` 로만 표기되는지도 테스트로 확인합니다.
