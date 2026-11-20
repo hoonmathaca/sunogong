@@ -219,6 +219,11 @@ export function parseAutoCleanup(value: string | null | undefined): boolean {
   return (value ?? '').trim().toLowerCase() !== 'off'
 }
 
+/** 답변 저장 뒤 목록 한 줄 갱신 — 학생 이름·학년 조인은 원래 값을 유지한다 */
+export function mergeQuestion(prev: StudyQuestion, saved: StudyQuestion): StudyQuestion {
+  return { ...prev, ...saved, students: prev.students ?? saved.students ?? null }
+}
+
 /** 관리자 목록에서 학생 이름·학년 (조인이 배열로 올 때도 있다) */
 export function questionStudent(question: StudyQuestion): { name: string; grade: string } {
   const joined = question.students

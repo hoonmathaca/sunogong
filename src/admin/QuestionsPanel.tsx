@@ -12,6 +12,7 @@ import {
   isAnswered,
   mediaKindFromPath,
   mediaKindOfFile,
+  mergeQuestion,
   normalizeAnswer,
   parseAutoCleanup,
   QUESTION_ANSWER_MAX,
@@ -166,7 +167,11 @@ export function QuestionsPanel({ onUnansweredChange }: QuestionsPanelProps): JSX
       return
     }
     const saved = res.data
-    setQuestions((prev) => sortQuestionsForAdmin(prev.map((item) => (item.id === saved.id ? saved : item))))
+    setQuestions((prev) => {
+      const next = sortQuestionsForAdmin(prev.map((item) => (item.id === saved.id ? mergeQuestion(item, saved) : item)))
+      onUnansweredChange?.(countUnanswered(next))
+      return next
+    })
     void questionsApi
       .signQuestionMedia([saved.answer_media_path])
       .then((signed) => setUrls((prev) => ({ ...prev, ...signed })))

@@ -20,6 +20,7 @@ import {
   mediaExtension,
   mediaKindFromPath,
   mediaKindOfFile,
+  mergeQuestion,
   normalizeAnswer,
   normalizeMemo,
   parseAutoCleanup,
@@ -453,5 +454,10 @@ eq('자동 정리 설정(기본 켜짐)', [parseAutoCleanup(null), parseAutoClea
 eq('자동 정리 설정(끄기)', [parseAutoCleanup('off'), parseAutoCleanup('OFF')], [false, false])
 eq('질문: 학생 이름(조인 배열)', questionStudent({ ...questionBase, students: [{ name: '이지빈', grade: '초1' }] }).name, '이지빈')
 eq('질문: 학생 이름(조인 없음)', questionStudent(questionBase).name, '학생')
+const joinedQuestion: StudyQuestion = { ...questionBase, students: [{ name: '강은서', grade: '중1' }] }
+const savedWithoutJoin: StudyQuestion = { ...joinedQuestion, students: null, answer: '통분하면 돼요', answered_at: '2026-11-21T00:00:00Z' }
+eq('질문: 답변 저장 뒤 학생 이름 유지', questionStudent(mergeQuestion(joinedQuestion, savedWithoutJoin)).name, '강은서')
+eq('질문: 답변 저장 뒤 답변 반영', mergeQuestion(joinedQuestion, savedWithoutJoin).answer, '통분하면 돼요')
+eq('질문: 답변 저장 뒤 읽음 표시 초기화', mergeQuestion({ ...joinedQuestion, student_read_at: '2026-11-20T00:00:00Z' }, savedWithoutJoin).student_read_at, null)
 
 console.log(failed === 0 ? 'ALL LIB TESTS PASSED' : `${failed} FAILED`)
