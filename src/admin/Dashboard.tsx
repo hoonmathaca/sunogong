@@ -377,7 +377,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                         </td>
                       )
                     })}
-                    <td className="sticky right-0 z-10 min-w-[92px] whitespace-nowrap border-b border-l border-blue-line bg-white px-2 py-1 text-right tabular">
+                    <td className="sticky right-0 z-10 min-w-[92px] whitespace-nowrap border-b border-l border-blue-line bg-white px-2 pb-1.5 pt-1 text-right leading-tight tabular">
                       <span className="block text-[10px] font-bold text-navy">{formatMinutes(stat.minutes)}</span>
                       {stat.academyMinutes + stat.homeworkMinutes > 0 ? (
                         <>
