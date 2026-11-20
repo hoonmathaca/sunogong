@@ -1,6 +1,6 @@
 /** 순수 함수(날짜·집계·랭킹) 점검용 테스트 (개발용) */
 import { addDays, formatHMS, formatMinutes, formatMinutesCompact, kstDateString, monthRange, rangeDates, weekRange, weekdayOf, kstDayEndMs, kstMidnightMs } from '../src/lib/time'
-import { buildStats, indexLogs, longestStreakAllTime, longestStreakInRange, rankEntries, splitLog, sumSplits } from '../src/lib/stats'
+import { buildStats, indexLogs, longestStreakAllTime, longestStreakInRange, rankEntries, splitLog, splitPercents, sumSplits } from '../src/lib/stats'
 import { computeElapsedSeconds, isHeartbeatStale } from '../src/lib/session'
 import { normalizeKind, pausesOnLeave } from '../src/lib/kinds'
 import { isMobileOrTablet, isStudentScreenBlocked, readDeviceFingerprint } from '../src/lib/device'
@@ -125,6 +125,12 @@ eq('합계 집계', [summed.minutes, summed.academyMinutes, summed.homeworkMinut
 const editedStats = buildStats([students[0]], indexLogs([{ ...mixedLog, minutes: 140 }]), '2026-11-17', '2026-11-20')
 eq('합계만 고친 기록은 기타로', editedStats[0].otherMinutes, 40)
 eq('기타 합계 집계', sumSplits(editedStats).otherMinutes, 40)
+
+/* 인바디형 비율 */
+eq('비율 3:1', splitPercents(90, 30), { academy: 75, homework: 25 })
+eq('비율은 항상 합 100', splitPercents(1, 2), { academy: 33, homework: 67 })
+eq('비율(숙제만)', splitPercents(0, 45), { academy: 0, homework: 100 })
+eq('비율(기록 없음)', splitPercents(0, 0), { academy: 0, homework: 0 })
 
 /* 랭킹: 동점은 같은 순위, 그 안에서는 제출 일수 많은 학생 먼저 */
 const ranking = rankEntries([

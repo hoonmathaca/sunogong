@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BrandFooter, Mascot } from '../components/Brand'
 import { Spinner } from '../components/Keypad'
 import * as api from '../lib/api'
-import { KIND_EMOJI, KIND_LABEL, type SessionKind } from '../lib/kinds'
-import { addDays, formatDateKo, formatMinutes, todayKst, weekdayOf } from '../lib/time'
+import { KIND_BAR_CLASS, KIND_EMOJI, KIND_LABEL, KIND_TEXT_CLASS, type SessionKind } from '../lib/kinds'
+import { splitLog, splitPercents } from '../lib/stats'
+import { addDays, formatDateKo, formatMinutes, formatMinutesCompact, todayKst, weekdayOf } from '../lib/time'
 import type { Student, StudyLog } from '../lib/types'
 
 interface StudentHomeScreenProps {
@@ -14,19 +15,24 @@ interface StudentHomeScreenProps {
 }
 
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토']
+const PERIODS = [7, 30] as const
+type Period = (typeof PERIODS)[number]
 
-/** 학생 홈: 오늘 누적, 최근 7일, 공부 시작 */
+/** 학생 홈: 오늘 누적(학원/숙제 따로), 기간별 그래프, 공부 시작 */
 export function StudentHomeScreen({ student, onStart, onExit, busy = false }: StudentHomeScreenProps): JSX.Element {
   const [logs, setLogs] = useState<StudyLog[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [period, setPeriod] = useState<Period>(7)
+  const listRef = useRef<HTMLUListElement | null>(null)
 
   const today = todayKst()
-  const start = addDays(today, -6)
+  // 30일치를 한 번에 받아 두고, 기간(7일/30일)만 바꿔서 보여준다
+  const loadStart = addDays(today, -29)
 
   const load = useCallback(async () => {
     setLoading(true)
-    const res = await api.listStudentLogs(student.id, start, today)
+    const res = await api.listStudentLogs(student.id, loadStart, today)
     if (res.ok) {
       setLogs(res.data)
       setError(null)
@@ -34,26 +40,57 @@ export function StudentHomeScreen({ student, onStart, onExit, busy = false }: St
       setError(res.error)
     }
     setLoading(false)
-  }, [student.id, start, today])
+  }, [student.id, loadStart, today])
 
   useEffect(() => {
     void load()
   }, [load])
 
+  const periodStart = addDays(today, -(period - 1))
+
   const days = useMemo(
     () =>
-      Array.from({ length: 7 }, (_, index) => {
-        const date = addDays(today, -6 + index)
+      Array.from({ length: period }, (_, index) => {
+        const date = addDays(periodStart, index)
         const log = logs.find((item) => item.date === date)
         return { date, log }
       }),
-    [logs, today],
+    [logs, period, periodStart],
   )
 
+  const totals = useMemo(() => {
+    return logs
+      .filter((log) => log.date >= periodStart && log.date <= today)
+      .reduce(
+        (acc, log) => {
+          const split = splitLog(log)
+          return {
+            minutes: acc.minutes + (log.minutes ?? 0),
+            problems: acc.problems + (log.problems ?? 0),
+            academy: acc.academy + split.academyMinutes,
+            homework: acc.homework + split.homeworkMinutes,
+            academyProblems: acc.academyProblems + split.academyProblems,
+            homeworkProblems: acc.homeworkProblems + split.homeworkProblems,
+          }
+        },
+        { minutes: 0, problems: 0, academy: 0, homework: 0, academyProblems: 0, homeworkProblems: 0 },
+      )
+  }, [logs, periodStart, today])
+
   const todayLog = logs.find((item) => item.date === today)
-  const weekMinutes = logs.reduce((sum, item) => sum + (item.minutes ?? 0), 0)
-  const weekProblems = logs.reduce((sum, item) => sum + (item.problems ?? 0), 0)
+  const todaySplit = splitLog(todayLog)
+  const weekMinutes = logs
+    .filter((log) => log.date >= addDays(today, -6))
+    .reduce((sum, item) => sum + (item.minutes ?? 0), 0)
   const maxMinutes = Math.max(30, ...days.map((day) => day.log?.minutes ?? 0))
+  const percents = splitPercents(totals.academy, totals.homework)
+  const hasSplit = totals.academy + totals.homework > 0
+
+  /* 30일은 상자가 넘쳐서, 열 때 가장 최근(맨 아래)이 보이게 */
+  useEffect(() => {
+    const list = listRef.current
+    if (list) list.scrollTop = list.scrollHeight
+  }, [period, loading])
 
   return (
     <div className="screen bg-gradient-to-b from-blue-soft/70 to-white">
@@ -79,12 +116,14 @@ export function StudentHomeScreen({ student, onStart, onExit, busy = false }: St
           <p className="mt-1 text-[34px] font-extrabold leading-tight tabular">
             {todayLog ? formatMinutes(todayLog.minutes) : '0분'}
           </p>
-          {todayLog && ((todayLog.academy_minutes ?? 0) > 0 || (todayLog.homework_minutes ?? 0) > 0) ? (
-            <p className="mt-1 text-[12px] font-semibold text-white/60">
-              {KIND_EMOJI.academy} {KIND_LABEL.academy} {formatMinutes(todayLog.academy_minutes ?? 0)} · {KIND_EMOJI.homework}{' '}
-              {KIND_LABEL.homework} {formatMinutes(todayLog.homework_minutes ?? 0)}
-            </p>
-          ) : null}
+          <div className="mt-2 flex flex-wrap gap-1.5 text-[12px] font-bold">
+            <span className="rounded-full bg-white/12 px-2.5 py-1">
+              {KIND_EMOJI.academy} {KIND_LABEL.academy} {formatMinutes(todaySplit.academyMinutes)}
+            </span>
+            <span className="rounded-full bg-[#6D3BD6]/45 px-2.5 py-1">
+              {KIND_EMOJI.homework} {KIND_LABEL.homework} {formatMinutes(todaySplit.homeworkMinutes)}
+            </span>
+          </div>
           <div className="mt-3 flex items-center gap-2 text-[13px] text-white/70">
             <span className="rounded-full bg-white/10 px-2.5 py-1">푼 문제 {todayLog?.problems ?? 0}개</span>
             <span className="rounded-full bg-white/10 px-2.5 py-1">이번 주 {formatMinutes(weekMinutes)}</span>
@@ -92,46 +131,135 @@ export function StudentHomeScreen({ student, onStart, onExit, busy = false }: St
         </section>
 
         <section className="mt-4 card">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-[15px] font-bold text-navy">최근 7일</h2>
-            <span className="text-[11px] font-semibold text-navy/40">
-              이번 주 문제 {weekProblems}개
-            </span>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-[15px] font-bold text-navy">공부 기록</h2>
+            <div className="flex rounded-full bg-blue-soft p-0.5" role="group" aria-label="기간 선택">
+              {PERIODS.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  aria-pressed={period === option}
+                  onClick={() => setPeriod(option)}
+                  className={`rounded-full px-3 py-1 text-[11px] font-bold transition ${
+                    period === option ? 'bg-navy text-white' : 'text-navy/50'
+                  }`}
+                >
+                  최근 {option}일
+                </button>
+              ))}
+            </div>
           </div>
 
           {loading ? (
-            <div className="flex h-28 items-center justify-center">
+            <div className="flex h-40 items-center justify-center">
               <Spinner className="h-6 w-6 border-navy/20 border-t-navy" />
             </div>
           ) : (
-            <ul className="mt-3 space-y-1.5">
-              {days.map(({ date, log }) => (
-                <li key={date} className="flex items-center gap-2.5 text-[12px]">
-                  <span
-                    className={`w-12 shrink-0 font-semibold tabular ${
-                      date === today ? 'text-navy' : weekdayOf(date) === 0 ? 'text-red-400' : 'text-navy/50'
-                    }`}
-                  >
-                    {Number(date.slice(5, 7))}/{Number(date.slice(8, 10))} ({WEEKDAY[weekdayOf(date)]})
-                  </span>
-                  <span className="h-2.5 flex-1 overflow-hidden rounded-full bg-blue-soft">
-                    <span
-                      className={`block h-full rounded-full ${log ? 'bg-blue-brand' : 'bg-transparent'}`}
-                      style={{ width: log ? `${Math.max(6, Math.round(((log.minutes ?? 0) / maxMinutes) * 100))}%` : '0%' }}
-                    />
-                  </span>
-                  <span className={`w-16 shrink-0 text-right font-semibold tabular ${log ? 'text-navy' : 'text-navy/25'}`}>
-                    {log ? formatMinutes(log.minutes) : '—'}
-                  </span>
-                  <span className="w-10 shrink-0 text-right text-[11px] tabular text-navy/40">
-                    {log ? `${log.problems}개` : ''}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <>
+              {/* 인바디처럼 한 줄로 보는 학원·숙제 비율 */}
+              <div className="mt-3 rounded-2xl bg-blue-soft/70 px-3.5 py-3">
+                <div className="flex items-end justify-between gap-2">
+                  <div>
+                    <p className="text-[11px] font-semibold text-navy/45">최근 {period}일 합계</p>
+                    <p className="mt-0.5 text-[22px] font-extrabold leading-none text-navy tabular">
+                      {formatMinutesCompact(totals.minutes)}
+                    </p>
+                  </div>
+                  <div className="text-right text-[11px] font-bold tabular">
+                    <p className={KIND_TEXT_CLASS.academy}>
+                      {KIND_EMOJI.academy} {formatMinutesCompact(totals.academy)}
+                      <span className="ml-1 text-[10px] font-semibold opacity-70">{percents.academy}%</span>
+                    </p>
+                    <p className={`mt-0.5 ${KIND_TEXT_CLASS.homework}`}>
+                      {KIND_EMOJI.homework} {formatMinutesCompact(totals.homework)}
+                      <span className="ml-1 text-[10px] font-semibold opacity-70">{percents.homework}%</span>
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-2 flex h-3 overflow-hidden rounded-full bg-white">
+                  {hasSplit ? (
+                    <>
+                      {percents.academy > 0 ? (
+                        <span
+                          className={`block h-full ${KIND_BAR_CLASS.academy}`}
+                          style={{ width: `${percents.academy}%` }}
+                        />
+                      ) : null}
+                      {percents.homework > 0 ? (
+                        <span
+                          className={`block h-full ${KIND_BAR_CLASS.homework}`}
+                          style={{ width: `${percents.homework}%` }}
+                        />
+                      ) : null}
+                    </>
+                  ) : null}
+                </div>
+                <p className="mt-1.5 text-[10px] font-semibold text-navy/35">
+                  {hasSplit
+                    ? `푼 문제 ${totals.problems}개 · ${formatDateKo(periodStart)} ~ ${formatDateKo(today)}`
+                    : '아직 이 기간 기록이 없어요. 공부를 시작해 볼까요?'}
+                </p>
+              </div>
+
+              <ul
+                ref={listRef}
+                className={`mt-3 space-y-1.5 ${period === 30 ? 'max-h-[248px] overflow-y-auto pr-1' : ''}`}
+              >
+                {days.map(({ date, log }) => {
+                  const split = splitLog(log)
+                  const minutes = log?.minutes ?? 0
+                  const width = minutes > 0 ? Math.max(6, Math.round((minutes / maxMinutes) * 100)) : 0
+                  const academyShare = minutes > 0 ? (split.academyMinutes / minutes) * 100 : 0
+                  const isToday = date === today
+                  return (
+                    <li key={date} className="flex items-center gap-2 text-[12px]">
+                      <span
+                        className={`w-12 shrink-0 font-semibold tabular ${
+                          isToday ? 'text-navy' : weekdayOf(date) === 0 ? 'text-red-400' : 'text-navy/45'
+                        }`}
+                      >
+                        {Number(date.slice(5, 7))}/{Number(date.slice(8, 10))} ({WEEKDAY[weekdayOf(date)]})
+                      </span>
+                      <span className="h-3 flex-1 overflow-hidden rounded-full bg-blue-soft">
+                        {width > 0 ? (
+                          <span className="flex h-full overflow-hidden rounded-full" style={{ width: `${width}%` }}>
+                            {split.academyMinutes > 0 ? (
+                              <span className={`block h-full ${KIND_BAR_CLASS.academy}`} style={{ width: `${academyShare}%` }} />
+                            ) : null}
+                            {split.homeworkMinutes > 0 ? (
+                              <span
+                                className={`block h-full ${KIND_BAR_CLASS.homework}`}
+                                style={{ width: `${100 - academyShare}%` }}
+                              />
+                            ) : null}
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className={`w-14 shrink-0 text-right font-semibold tabular ${log ? 'text-navy' : 'text-navy/25'}`}>
+                        {log ? formatMinutesCompact(minutes) : '—'}
+                      </span>
+                      <span className="w-9 shrink-0 text-right text-[11px] tabular text-navy/40">
+                        {log ? `${log.problems}개` : ''}
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+
+              <div className="mt-2.5 flex flex-wrap items-center gap-3 text-[10px] font-semibold text-navy/45">
+                <span className={`flex items-center gap-1 ${KIND_TEXT_CLASS.academy}`}>
+                  <span className={`inline-block h-2.5 w-2.5 rounded-full ${KIND_BAR_CLASS.academy}`} />
+                  {KIND_LABEL.academy}
+                </span>
+                <span className={`flex items-center gap-1 ${KIND_TEXT_CLASS.homework}`}>
+                  <span className={`inline-block h-2.5 w-2.5 rounded-full ${KIND_BAR_CLASS.homework}`} />
+                  {KIND_LABEL.homework}
+                </span>
+              </div>
+            </>
           )}
 
-          <p className="mt-3 text-[11px] text-navy/35">{formatDateKo(today)} 기준</p>
+          <p className="mt-2 text-[11px] text-navy/35">{formatDateKo(today)} 기준</p>
         </section>
 
         {error ? (

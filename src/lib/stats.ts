@@ -250,6 +250,19 @@ export function dailyTotals(
   })
 }
 
+/**
+ * 학원·숙제 비율(%) — 합이 항상 100이 되도록 반올림한다.
+ * 둘 다 0이면 0/0을 돌려준다.
+ */
+export function splitPercents(academy: number, homework: number): { academy: number; homework: number } {
+  const a = Math.max(0, academy)
+  const h = Math.max(0, homework)
+  const total = a + h
+  if (total <= 0) return { academy: 0, homework: 0 }
+  const academyPercent = Math.round((a / total) * 100)
+  return { academy: academyPercent, homework: 100 - academyPercent }
+}
+
 /** 학생별 통계의 학원·숙제 합계 (학년별 요약 등에서 재사용) */
 export function sumSplits(stats: StudentStat[]): KindSplit & { minutes: number; problems: number; otherMinutes: number } {
   return stats.reduce(

@@ -24,6 +24,7 @@ import {
   sumSplits,
   type StudentStat,
 } from '../lib/stats'
+import { KIND_BAR_CLASS } from '../lib/kinds'
 import type { Student, StudyLog } from '../lib/types'
 import { HorizontalBars, KindLegend, SplitBar } from './Charts'
 import { LogEditorModal } from './LogEditorModal'
@@ -129,12 +130,12 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
       segments: [
         {
           value: metric === 'minutes' ? stat.academyMinutes : stat.academyProblems,
-          className: 'bg-navy',
+          className: KIND_BAR_CLASS.academy,
           label: '🏫 학원',
         },
         {
           value: metric === 'minutes' ? stat.homeworkMinutes : stat.homeworkProblems,
-          className: 'bg-sky-400',
+          className: KIND_BAR_CLASS.homework,
           label: '🏠 숙제',
         },
       ],
@@ -365,7 +366,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                                     className="mt-0.5 w-[30px]"
                                     trackClass="bg-white/30"
                                     academyClass="bg-white"
-                                    homeworkClass="bg-sky-300"
+                                    homeworkClass="bg-[#B9A6DE]"
                                   />
                                 ) : null}
                               </>
@@ -381,7 +382,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                       <span className="block text-[9px] font-semibold text-navy/55">
                         🏫 {formatMinutesCompact(stat.academyMinutes)}
                       </span>
-                      <span className="block text-[9px] font-semibold text-sky-600/80">
+                      <span className="block text-[9px] font-semibold text-[#5B2FC0]/85">
                         🏠 {formatMinutesCompact(stat.homeworkMinutes)}
                       </span>
                       {stat.otherMinutes > 0 ? (
@@ -448,7 +449,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                       <span className="mt-0.5 block text-[10px] font-bold">
                         <span className="text-navy/60">🏫 {formatMinutesCompact(count ? sectionTotals.academyMinutes / count : 0)}</span>
                         <span className="text-navy/20"> · </span>
-                        <span className="text-sky-600/80">🏠 {formatMinutesCompact(count ? sectionTotals.homeworkMinutes / count : 0)}</span>
+                        <span className="text-[#5B2FC0]/85">🏠 {formatMinutesCompact(count ? sectionTotals.homeworkMinutes / count : 0)}</span>
                       </span>
                     </span>
                   </button>
@@ -478,7 +479,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                             <span className="text-right font-semibold tabular text-navy/80">
                               {formatMinutes(stat.academyMinutes)}
                             </span>
-                            <span className="text-right font-semibold tabular text-sky-600/90">
+                            <span className="text-right font-semibold tabular text-[#5B2FC0]">
                               {formatMinutes(stat.homeworkMinutes)}
                             </span>
                             <span className="text-right tabular">
@@ -506,7 +507,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                             </div>
                             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10.5px] font-semibold tabular">
                               <span className="text-navy/75">🏫 학원 {formatMinutesCompact(stat.academyMinutes)}</span>
-                              <span className="text-sky-600/85">🏠 숙제 {formatMinutesCompact(stat.homeworkMinutes)}</span>
+                              <span className="text-[#5B2FC0]/85">🏠 숙제 {formatMinutesCompact(stat.homeworkMinutes)}</span>
                               <span className="text-navy/40">
                                 {stat.problems}문제 · {stat.submittedDays}일
                               </span>

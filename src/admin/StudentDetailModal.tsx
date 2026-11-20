@@ -84,9 +84,9 @@ export function StudentDetailModal({ open, student, endDate, onClose, onChanged 
                 <p className="text-[10px] font-semibold text-navy/45">🏫 학원 공부</p>
                 <p className="text-[14px] font-extrabold text-navy tabular">{formatMinutesCompact(totalAcademyMinutes)}</p>
               </div>
-              <div className="rounded-xl bg-sky-50 px-2 py-2">
-                <p className="text-[10px] font-semibold text-sky-800/55">🏠 숙제 공부</p>
-                <p className="text-[14px] font-extrabold text-sky-600 tabular">{formatMinutesCompact(totalHomeworkMinutes)}</p>
+              <div className="rounded-xl bg-[#EDE4FF]/70 px-2 py-2">
+                <p className="text-[10px] font-semibold text-[#5B2FC0]/60">🏠 숙제 공부</p>
+                <p className="text-[14px] font-extrabold text-[#5B2FC0] tabular">{formatMinutesCompact(totalHomeworkMinutes)}</p>
               </div>
               <div className="rounded-xl bg-blue-soft px-2 py-2">
                 <p className="text-[10px] font-semibold text-navy/45">푼 문제 · 제출</p>

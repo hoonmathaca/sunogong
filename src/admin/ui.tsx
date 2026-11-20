@@ -48,12 +48,12 @@ const STAT_TONES = {
     value: 'text-navy',
     sub: 'text-navy/40',
   },
-  /** 🏠 숙제 공부 */
+  /** 🏠 숙제 공부 — 숙제 시작 버튼과 같은 보라색 */
   homework: {
-    box: 'border border-sky-100 bg-sky-50/80 text-navy',
-    label: 'text-sky-800/60',
-    value: 'text-sky-600',
-    sub: 'text-sky-800/45',
+    box: 'border border-[#6D3BD6]/15 bg-[#EDE4FF]/60 text-navy',
+    label: 'text-[#5B2FC0]/60',
+    value: 'text-[#5B2FC0]',
+    sub: 'text-[#5B2FC0]/50',
   },
 } as const
 

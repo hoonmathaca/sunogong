@@ -1,3 +1,4 @@
+import { KIND_BAR_CLASS, KIND_TEXT_CLASS } from '../lib/kinds'
 import { formatMinutes, formatDateShort } from '../lib/time'
 
 export interface BarSegment {
@@ -78,8 +79,8 @@ export function SplitBar({
   homework,
   className = '',
   trackClass = 'bg-navy/10',
-  academyClass = 'bg-navy',
-  homeworkClass = 'bg-sky-400',
+  academyClass = KIND_BAR_CLASS.academy,
+  homeworkClass = KIND_BAR_CLASS.homework,
 }: {
   academy: number
   homework: number
@@ -104,11 +105,11 @@ export function SplitBar({
 export function KindLegend({ className = '' }: { className?: string }): JSX.Element {
   return (
     <div className={`flex flex-wrap items-center gap-3 text-[10px] font-semibold text-navy/50 ${className}`}>
-      <span className="flex items-center gap-1">
-        <span className="inline-block h-2.5 w-2.5 rounded-full bg-navy" /> 🏫 학원 공부
+      <span className={`flex items-center gap-1 ${KIND_TEXT_CLASS.academy}`}>
+        <span className={`inline-block h-2.5 w-2.5 rounded-full ${KIND_BAR_CLASS.academy}`} /> 🏫 학원 공부
       </span>
-      <span className="flex items-center gap-1">
-        <span className="inline-block h-2.5 w-2.5 rounded-full bg-sky-400" /> 🏠 숙제 공부
+      <span className={`flex items-center gap-1 ${KIND_TEXT_CLASS.homework}`}>
+        <span className={`inline-block h-2.5 w-2.5 rounded-full ${KIND_BAR_CLASS.homework}`} /> 🏠 숙제 공부
       </span>
     </div>
   )

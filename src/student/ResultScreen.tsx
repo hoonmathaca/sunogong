@@ -1,5 +1,6 @@
 import { BrandFooter, Mascot } from '../components/Brand'
 import { KIND_EMOJI, KIND_LABEL, normalizeKind } from '../lib/kinds'
+import { splitLog } from '../lib/stats'
 import { formatMinutes } from '../lib/time'
 import type { FinishResult, Student } from '../lib/types'
 import type { FinishReason } from './useStudyTimer'
@@ -17,6 +18,8 @@ interface ResultScreenProps {
 export function ResultScreen({ student, result, reason, onHome, onAgain, busy = false }: ResultScreenProps): JSX.Element {
   const sessionMinutes = Math.max(0, Math.round(result.seconds / 60))
   const kind = normalizeKind(result.kind)
+  const todaySplit = splitLog(result.log)
+  const hasSplit = todaySplit.academyMinutes + todaySplit.homeworkMinutes > 0
 
   return (
     <div className="screen bg-gradient-to-b from-navy to-blue-brand text-white">
@@ -36,6 +39,18 @@ export function ResultScreen({ student, result, reason, onHome, onAgain, busy = 
             <span className="text-white/60">오늘 합계</span>
             <span className="font-bold tabular">{formatMinutes(result.total_minutes)}</span>
           </div>
+          {hasSplit ? (
+            <>
+              <div className="mt-2 flex items-center justify-between text-sm">
+                <span className="text-white/60">{KIND_EMOJI.academy} 오늘 학원 공부</span>
+                <span className="font-bold tabular">{formatMinutes(todaySplit.academyMinutes)}</span>
+              </div>
+              <div className="mt-2 flex items-center justify-between text-sm">
+                <span className="text-white/60">{KIND_EMOJI.homework} 오늘 숙제 공부</span>
+                <span className="font-bold tabular">{formatMinutes(todaySplit.homeworkMinutes)}</span>
+              </div>
+            </>
+          ) : null}
           <div className="mt-2 flex items-center justify-between text-sm">
             <span className="text-white/60">푼 문제</span>
             <span className="font-bold tabular">{result.problems}개</span>

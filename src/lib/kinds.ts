@@ -20,6 +20,24 @@ export function pausesOnLeave(value: unknown): boolean {
   return normalizeKind(value) === 'homework'
 }
 
+/** 그래프·막대 색 — 학원은 남색, 숙제는 보라색(숙제 시작 버튼과 같은 색) */
+export const KIND_BAR_CLASS: Record<SessionKind, string> = {
+  academy: 'bg-navy',
+  homework: 'bg-[#6D3BD6]',
+}
+
+/** 그래프에 쓰는 진한 글자색 */
+export const KIND_TEXT_CLASS: Record<SessionKind, string> = {
+  academy: 'text-navy',
+  homework: 'text-[#5B2FC0]',
+}
+
+/** 칩·카드 배경 (아주 연한 색) */
+export const KIND_SOFT_CLASS: Record<SessionKind, string> = {
+  academy: 'bg-blue-soft',
+  homework: 'bg-[#EDE4FF]',
+}
+
 /** '🏫 학원 공부' 같은 표시용 문구 */
 export function kindText(value: unknown): string {
   const kind = normalizeKind(value)
