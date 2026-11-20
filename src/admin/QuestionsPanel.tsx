@@ -427,7 +427,11 @@ export function QuestionsPanel({ onUnansweredChange }: QuestionsPanelProps): JSX
                           {formatQuestionTime(question.answered_at)}
                         </p>
                       </div>
-                      <p className="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed text-navy">{question.answer}</p>
+                      {question.answer ? (
+                        <p className="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed text-navy">{question.answer}</p>
+                      ) : (
+                        <p className="mt-1 text-[12px] font-semibold text-[#4A28A0]/60">풀이 사진·영상만 보냈어요.</p>
+                      )}
                       {question.answer_media_path ? (
                         answerMediaUrl ? (
                           answerMediaKind === 'video' ? (

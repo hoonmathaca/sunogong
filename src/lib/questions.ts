@@ -104,7 +104,7 @@ export const countUnreadAnswers = (studentId: string) =>
       .from('study_questions')
       .select('id', { count: 'exact', head: true })
       .eq('student_id', studentId)
-      .not('answer', 'is', null)
+      .not('answered_at', 'is', null)
       .is('student_read_at', null)
       .then((res) => ({ data: res.count ?? 0, error: res.error })),
   )
@@ -115,7 +115,7 @@ export const countUnansweredQuestions = () =>
     supabase
       .from('study_questions')
       .select('id', { count: 'exact', head: true })
-      .is('answer', null)
+      .is('answered_at', null)
       .then((res) => ({ data: res.count ?? 0, error: res.error })),
   )
 

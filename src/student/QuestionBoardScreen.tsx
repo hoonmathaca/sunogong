@@ -197,9 +197,15 @@ export function QuestionBoardScreen({ student, onBack, onUnreadChange }: Questio
                             {formatQuestionTime(question.answered_at)}
                           </span>
                         </div>
-                        <p className="mt-1.5 whitespace-pre-wrap text-[14px] leading-relaxed text-navy">
-                          {question.answer}
-                        </p>
+                        {question.answer ? (
+                          <p className="mt-1.5 whitespace-pre-wrap text-[14px] leading-relaxed text-navy">
+                            {question.answer}
+                          </p>
+                        ) : (
+                          <p className="mt-1.5 text-[13px] font-semibold text-[#4A28A0]/70">
+                            풀이 사진·영상을 보내줬어요.
+                          </p>
+                        )}
                         {question.answer_media_path ? (
                           answerMediaUrl ? (
                             answerMediaKind === 'video' ? (

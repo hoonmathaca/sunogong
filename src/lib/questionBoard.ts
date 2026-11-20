@@ -31,8 +31,9 @@ export type MediaKind = 'image' | 'video'
 const IMAGE_EXT = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif']
 const VIDEO_EXT = ['mp4', 'webm', 'mov', 'm4v', 'ogv', '3gp']
 
-/** 답변이 달렸는지 (빈 글은 답변으로 보지 않는다) */
+/** 답변이 달렸는지 — 글이 없어도 해설지 사진·영상만 보낸 답변은 답변 완료로 본다 */
 export function isAnswered(question: StudyQuestion): boolean {
+  if (question.answered_at) return true
   return Boolean(question.answer && question.answer.trim())
 }
 

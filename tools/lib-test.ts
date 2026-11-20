@@ -386,6 +386,7 @@ const questionList = [readQuestion, questionBase, answeredQuestion]
 eq('질문: 답변 없음', isAnswered(questionBase), false)
 eq('질문: 빈 답변은 답변 아님', isAnswered({ ...questionBase, answer: '   ' }), false)
 eq('질문: 답변 있음', isAnswered(answeredQuestion), true)
+eq('질문: 사진만 보낸 답변도 답변 완료', isAnswered({ ...questionBase, answer: null, answered_at: '2026-11-21T00:00:00Z' }), true)
 eq('질문: 새 답변(안 읽음)', isUnreadAnswer(answeredQuestion), true)
 eq('질문: 읽은 답변은 배지 없음', isUnreadAnswer(readQuestion), false)
 eq('질문: 답변 대기에는 새 답변 없음', isUnreadAnswer(questionBase), false)

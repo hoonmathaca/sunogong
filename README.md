@@ -231,7 +231,7 @@ npx vite build --ssr tools/ssr-smoke.tsx --outDir .smoke && node .smoke/ssr-smok
 python3 -c "import pglast; pglast.parse_sql(open('supabase/schema.sql').read())"
 ```
 
-결과: 단위 테스트 전부 통과(158건 — 날짜·집계·학원/숙제 분리 집계·기록 수정 계산·비율·랭킹·타이머·기기 판별·질문(Q&A) 계산 포함), 16개 화면 모두 렌더 성공, `schema.sql`/`seed.sql`/`migrate-2026-11-21-questions.sql` 문법 오류 없음.
+결과: 단위 테스트 전부 통과(159건 — 날짜·집계·학원/숙제 분리 집계·기록 수정 계산·비율·랭킹·타이머·기기 판별·질문(Q&A) 계산 포함), 16개 화면 모두 렌더 성공, `schema.sql`/`seed.sql`/`migrate-2026-11-21-questions.sql` 문법 오류 없음.
 기기 판별(학생 화면 PC 차단) 테스트 16건도 함께 통과합니다 — 아이폰·아이패드·안드로이드 허용, 윈도우·맥·리눅스·크롬북(터치 노트북 포함) 차단.
 화면 점검에는 `선오공에게 질문하기` 홈·타이머 버튼, 학생 질문 화면, 질문 올리기 폼, 관리자 질문함(자동 정리 안내 포함)이 모두 들어 있습니다.
 `'선오공이에게'` 대신 `'선오공에게'` 로만 표기되는지도 테스트로 확인합니다.
