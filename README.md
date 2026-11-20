@@ -163,6 +163,10 @@ sunogong/
 
 ## 8. 배포 메모
 
+- 글꼴: 앱 전체가 **나눔스퀘어 라운드(NanumSquareRound)** 를 씁니다. 웹폰트 파일(`400·700·800`)은
+  `public/fonts/` 에 함께 들어 있어 외부 CDN 없이 서비스에서 바로 받습니다(`src/index.css` 의 `@font-face`).
+  라이선스는 SIL Open Font License 1.1 이며 같은 폴더의 `OFL.txt` 에 있습니다. 글꼴을 바꾸려면
+  `tailwind.config.js` 의 `fontFamily` 와 `src/index.css` 의 `@font-face` 를 같이 고치면 됩니다.
 - 정적 호스팅(Vercel, Netlify, Cloudflare Pages 등)에 `dist/` 를 올리고, 빌드 명령은 `npm run build`.
 - `/admin` 으로 바로 들어오는 주소가 404가 되지 않도록 **SPA rewrite** 를 켜 주세요.
   - Vercel: `{ "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }] }`
