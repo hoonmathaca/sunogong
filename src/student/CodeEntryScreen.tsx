@@ -67,7 +67,7 @@ export function CodeEntryScreen({ onSubmit, onAdmin }: CodeEntryScreenProps): JS
       <div className="flex-1 px-5 pb-2 pt-[max(1.25rem,env(safe-area-inset-top))]">
         <header className="flex items-center gap-2.5">
           <Mascot variant="full" className="h-11 w-11 shrink-0" />
-          <h1 className="font-round text-[28px] leading-none tracking-tight text-navy">선오공</h1>
+          <h1 className="font-round text-[28px] font-extrabold leading-none tracking-tight text-navy">선오공</h1>
         </header>
         <p className="mt-2 text-[15px] font-semibold text-navy/55">선생님, 오늘도 공부했어요!</p>
 

@@ -58,7 +58,7 @@ export function AdminApp({ onBack }: AdminAppProps): JSX.Element {
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
           <Mascot variant="face" className="h-10 w-10" />
           <div className="min-w-0 flex-1">
-            <h1 className="font-round text-[20px] leading-none text-navy">선오공 관리자</h1>
+            <h1 className="font-round text-[20px] font-extrabold leading-none text-navy">선오공 관리자</h1>
             <p className="mt-1 text-[11px] font-semibold text-navy/45">훈수학학원 · 선생님 오늘도 공부했어요!</p>
           </div>
           <button type="button" className="btn-ghost border border-blue-line text-[12px]" onClick={onBack}>

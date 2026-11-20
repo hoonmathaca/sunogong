@@ -16,9 +16,9 @@ export default {
         },
       },
       fontFamily: {
+        // 앱 전체 기본 글꼴: 나눔스퀘어 라운드 (웹폰트는 src/index.css 의 @font-face)
         sans: [
-          'Pretendard Variable',
-          'Pretendard',
+          'NanumSquareRound',
           '-apple-system',
           'BlinkMacSystemFont',
           'system-ui',
@@ -27,7 +27,15 @@ export default {
           '"Apple SD Gothic Neo"',
           'sans-serif',
         ],
-        round: ['Jua', 'Pretendard Variable', 'Pretendard', 'sans-serif'],
+        round: [
+          'NanumSquareRound',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          'system-ui',
+          '"Malgun Gothic"',
+          '"Apple SD Gothic Neo"',
+          'sans-serif',
+        ],
       },
       boxShadow: {
         soft: '0 8px 24px -12px rgba(18, 41, 107, 0.25)',

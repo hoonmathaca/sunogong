@@ -2,9 +2,49 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 나눔스퀘어 라운드(NanumSquareRound) — 앱 전체 기본 글꼴
+   네이버가 배포하는 웹폰트(OFL 1.1)이며, public/fonts 에 파일을 함께 넣어
+   외부 CDN 없이 서비스에서 바로 받도록 했다. */
+@font-face {
+  font-family: 'NanumSquareRound';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/NanumSquareRoundR.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'NanumSquareRound';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/NanumSquareRoundB.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'NanumSquareRound';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('/fonts/NanumSquareRoundEB.woff2') format('woff2');
+}
+
 @layer base {
   :root {
     color-scheme: light;
+  }
+
+  /* 나눔스퀘어 라운드에 없는 굵기(300·500·600)는 가장 가까운 굵기로 붙는다. */
+  html {
+    font-family:
+      'NanumSquareRound',
+      -apple-system,
+      BlinkMacSystemFont,
+      system-ui,
+      Roboto,
+      'Malgun Gothic',
+      'Apple SD Gothic Neo',
+      sans-serif;
   }
 
   html,
@@ -17,6 +57,14 @@
     @apply bg-white text-navy antialiased;
     -webkit-tap-highlight-color: transparent;
     overscroll-behavior-y: none;
+  }
+
+  /* 입력칸·버튼도 같은 글꼴을 쓰도록 (브라우저 기본 글꼴 방지) */
+  button,
+  input,
+  textarea,
+  select {
+    font-family: inherit;
   }
 
   /* 모바일 주소창 변화에도 화면이 흔들리지 않게 */
