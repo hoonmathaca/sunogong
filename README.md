@@ -79,6 +79,11 @@ npm run preview    # 빌드 결과 확인
 ## 5. 화면 구성
 
 ### 학생 (`/`)
+0. **컴퓨터(PC)에서는 열리지 않습니다** — `스마트폰 또는 태블릿에서만 이용할 수 있어요` 안내 화면이 뜨고,
+   아래 `관리자 페이지` 버튼으로 `/admin` 에 갈 수 있습니다(`src/lib/device.ts` 판별, `src/components/DesktopBlockScreen.tsx`).
+   - 허용: 아이폰·아이패드·안드로이드 폰/태블릿 User-Agent, 그리고 아이패드가 맥처럼 보낼 때(`Macintosh` + `maxTouchPoints > 1`)
+   - 차단: 그 밖의 데스크톱 User-Agent(윈도우·맥·리눅스·크롬북). 터치스크린 윈도우 노트북도 컴퓨터라서 차단합니다.
+   - `/admin` 은 컴퓨터에서도 그대로 열립니다.
 1. **코드 입력** — 4자리 숫자 키패드. 코드는 문자열이라 `0575`처럼 앞자리 0이 유지됩니다.
    같은 코드를 쓰는 학생이 여럿이면 `누구세요?` 이름 선택 화면이 뜹니다.
 2. **홈** — 오늘 누적 공부시간·푼 문제 수, 최근 7일 기록, `공부 시작`
@@ -153,8 +158,8 @@ sunogong/
 ├─ tools/ssr-smoke.tsx        # 모든 화면 렌더 확인(개발용)
 └─ src/
    ├─ main.tsx, App.tsx, index.css
-   ├─ lib/                    # supabase.ts, api.ts, time.ts, session.ts, stats.ts, grades.ts, csv.ts, types.ts
-   ├─ components/             # ErrorBoundary, Brand(마스코트·로고·푸터), Keypad, Modal, InstallBanner
+   ├─ lib/                    # supabase.ts, api.ts, time.ts, session.ts, stats.ts, grades.ts, csv.ts, device.ts, types.ts
+   ├─ components/             # ErrorBoundary, Brand(마스코트·로고·푸터), Keypad, Modal, InstallBanner, DesktopBlockScreen(PC 안내)
    ├─ student/                # StudentApp, CodeEntry, ChooseStudent, Home, Timer, Result, useStudyTimer
    └─ admin/                  # AdminApp, AdminLogin, Dashboard, StudentsPanel, RankingPanel, Charts, 모달들
 ```
@@ -200,5 +205,6 @@ npx vite build --ssr tools/ssr-smoke.tsx --outDir .smoke && node .smoke/ssr-smok
 python3 -c "import pglast; pglast.parse_sql(open('supabase/schema.sql').read())"
 ```
 
-결과: 단위 테스트 전부 통과, 10개 화면 모두 렌더 성공, `schema.sql`/`seed.sql` 문법 오류 없음.
+결과: 단위 테스트 전부 통과, 11개 화면 모두 렌더 성공, `schema.sql`/`seed.sql` 문법 오류 없음.
+기기 판별(학생 화면 PC 차단) 테스트 17건도 함께 통과합니다 — 아이폰·아이패드·안드로이드 허용, 윈도우·맥·리눅스·크롬북(터치 노트북 포함) 차단.
 실제 Supabase 프로젝트에 붙여 라이브로 돌려보는 확인은 프로젝트 키를 넣은 뒤에 할 수 있습니다.

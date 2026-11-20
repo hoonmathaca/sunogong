@@ -3,6 +3,7 @@ import { addDays, formatHMS, formatMinutes, kstDateString, monthRange, rangeDate
 import { buildStats, indexLogs, longestStreakAllTime, longestStreakInRange, rankEntries } from '../src/lib/stats'
 import { computeElapsedSeconds, isHeartbeatStale } from '../src/lib/session'
 import { normalizeKind, pausesOnLeave } from '../src/lib/kinds'
+import { isMobileOrTablet, isStudentScreenBlocked, readDeviceFingerprint } from '../src/lib/device'
 import {
   detectPlatform,
   fullscreenHint,
@@ -180,5 +181,51 @@ eq('한 번 실패했을 때', fullscreenHint({ platform: 'android', supported: 
 eq('SSR: 전체화면 미지원으로 처리', supportsFullscreen(undefined), false)
 eq('SSR: 전체화면 아님', isFullscreenActive(undefined), false)
 eq('SSR: 홈 화면 앱 아님', isStandaloneApp(), false)
+
+/* 학생 화면 기기 확인(스마트폰·태블릿만 허용, 컴퓨터는 차단) */
+const UA = {
+  iphone:
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+  ipad: 'Mozilla/5.0 (iPad; CPU OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+  ipadDesktop:
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
+  iphoneKakao:
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 KAKAOTALK 10.4.2',
+  androidPhone:
+    'Mozilla/5.0 (Linux; Android 14; SM-S911N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
+  androidTablet:
+    'Mozilla/5.0 (Linux; Android 13; SM-X700) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  mac: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  windows:
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  linux: 'Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0',
+  chromeos:
+    'Mozilla/5.0 (X11; CrOS x86_64 14541.0.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+}
+
+eq('기기 허용(아이폰)', isStudentScreenBlocked({ userAgent: UA.iphone, maxTouchPoints: 5 }), false)
+eq('기기 허용(아이패드)', isStudentScreenBlocked({ userAgent: UA.ipad, maxTouchPoints: 5 }), false)
+eq(
+  '기기 허용(아이패드가 맥처럼 보일 때)',
+  isStudentScreenBlocked({ userAgent: UA.ipadDesktop, maxTouchPoints: 5, platform: 'MacIntel' }),
+  false,
+)
+eq('기기 허용(아이폰 카톡 안)', isStudentScreenBlocked({ userAgent: UA.iphoneKakao, maxTouchPoints: 5 }), false)
+eq('기기 허용(안드로이드 폰)', isStudentScreenBlocked({ userAgent: UA.androidPhone, maxTouchPoints: 5 }), false)
+eq('기기 허용(안드로이드 태블릿)', isStudentScreenBlocked({ userAgent: UA.androidTablet, maxTouchPoints: 5 }), false)
+eq('기기 허용(User-Agent 줄어든 안드로이드)', isStudentScreenBlocked({ userAgent: 'Mozilla/5.0 (Linux; Android 10; K)', maxTouchPoints: 5 }), false)
+eq('기기 차단(맥)', isStudentScreenBlocked({ userAgent: UA.mac, maxTouchPoints: 0, platform: 'MacIntel' }), true)
+eq('기기 차단(윈도우)', isStudentScreenBlocked({ userAgent: UA.windows, maxTouchPoints: 0, platform: 'Win32' }), true)
+eq(
+  '기기 차단(터치스크린 윈도우 노트북)',
+  isStudentScreenBlocked({ userAgent: UA.windows, maxTouchPoints: 10, platform: 'Win32' }),
+  true,
+)
+eq('기기 차단(리눅스)', isStudentScreenBlocked({ userAgent: UA.linux, maxTouchPoints: 0 }), true)
+eq('기기 차단(크롬북)', isStudentScreenBlocked({ userAgent: UA.chromeos, maxTouchPoints: 0 }), true)
+eq('기기 차단(User-Agent 없음)', isStudentScreenBlocked({}), true)
+eq('기기 허용(터치 없는 아이패드 User-Agent)', isStudentScreenBlocked({ userAgent: UA.ipad, maxTouchPoints: 0 }), false)
+eq('기기(맥 + 터치 1개는 컴퓨터)', isMobileOrTablet({ userAgent: UA.mac, maxTouchPoints: 1 }), false)
+eq('SSR: 브라우저 정보 없음 → 컴퓨터로 처리', isStudentScreenBlocked(readDeviceFingerprint()), true)
 
 console.log(failed === 0 ? 'ALL LIB TESTS PASSED' : `${failed} FAILED`)

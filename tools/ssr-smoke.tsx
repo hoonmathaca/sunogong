@@ -4,6 +4,7 @@
  * 서버 없이 첫 렌더만 확인합니다(데이터 요청은 useEffect 라서 실행되지 않음).
  */
 import { renderToString } from 'react-dom/server'
+import { MemoryRouter } from 'react-router-dom'
 import { AdminLogin } from '../src/admin/AdminLogin'
 import { AdminApp } from '../src/admin/AdminApp'
 import { Dashboard } from '../src/admin/Dashboard'
@@ -15,6 +16,7 @@ import { StudentHomeScreen } from '../src/student/StudentHomeScreen'
 import { ResultScreen } from '../src/student/ResultScreen'
 import { TimerScreen } from '../src/student/TimerScreen'
 import { ErrorBoundary } from '../src/components/ErrorBoundary'
+import { DesktopBlockScreen } from '../src/components/DesktopBlockScreen'
 import type { FinishResult, Student, StudySession } from '../src/lib/types'
 
 const student: Student = {
@@ -102,6 +104,14 @@ const cases: [string, () => JSX.Element][] = [
   ['StudentsPanel', () => <StudentsPanel students={[student]} loading={false} error={null} reload={() => {}} />],
   ['RankingPanel', () => <RankingPanel students={[student]} studentsLoading={false} studentsError={null} reloadStudents={() => {}} />],
   ['ErrorBoundary(자식)', () => <ErrorBoundary><CodeEntryScreen onSubmit={async () => ({ ok: true })} onAdmin={() => {}} /></ErrorBoundary>],
+  [
+    'DesktopBlockScreen(PC 안내)',
+    () => (
+      <MemoryRouter>
+        <DesktopBlockScreen />
+      </MemoryRouter>
+    ),
+  ],
 ]
 
 let failed = 0
@@ -131,6 +141,8 @@ const checks: [string, boolean][] = [
   ['학원: 화면 꺼져도 계속 간다는 안내', academyHtml.includes('학원 공부는 화면이 꺼져도 계속 가요')],
   ['학원: 화면보호 모드 버튼 없음', !academyHtml.includes('화면보호 모드')],
   ['숙제: 홈 안내 문구', (rendered['StudentHomeScreen'] ?? '').includes('숙제 공부는 화면을 끄거나 나가면 멈춰요')],
+  ['PC 안내: 스마트폰·태블릿에서만 안내', (rendered['DesktopBlockScreen(PC 안내)'] ?? '').includes('스마트폰 또는 태블릿에서만')],
+  ['PC 안내: 관리자 페이지 링크', (rendered['DesktopBlockScreen(PC 안내)'] ?? '').includes('href="/admin"')],
 ]
 for (const [name, ok] of checks) {
   if (!ok) failed += 1
