@@ -262,7 +262,7 @@ export function KintounPanel({ students, studentsLoading, studentsError, reloadS
               <li key={item.id} className="flex items-center justify-between gap-2 py-1.5">
                 <span className="min-w-0 flex-1 truncate font-bold text-navy">
                   {api.grantStudentName(item)}
-                  <span className="ml-1.5 rounded-full bg-blue-soft px-1.5 py-0.5 text-[10px] font-bold text-navy/50">
+                  <span className="mx-1.5 inline-block align-middle rounded-full bg-blue-soft px-1.5 py-0.5 text-[10px] font-bold text-navy/50">
                     {GRANT_MODE_LABEL[item.mode] ?? item.mode}
                   </span>
                 </span>
