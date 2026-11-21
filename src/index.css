@@ -312,3 +312,68 @@
     animation: none !important;
   }
 }
+
+/* 무지개 신룡 소환 — 칠성구를 합치면 '짜잔!' 하고 나타난다 */
+@keyframes shenron-pop {
+  0% {
+    transform: scale(0.35) rotate(-10deg);
+    opacity: 0;
+  }
+  55% {
+    transform: scale(1.08) rotate(3deg);
+    opacity: 1;
+  }
+  75% {
+    transform: scale(0.97) rotate(-1.5deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+@keyframes shenron-glow {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.07);
+  }
+}
+
+@keyframes shenron-spark {
+  0% {
+    opacity: 0;
+    transform: scale(0.2) rotate(0deg);
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.25) rotate(90deg);
+  }
+}
+
+.shenron-summon {
+  animation: shenron-pop 0.9s cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
+}
+
+.shenron-glow {
+  animation: shenron-glow 2.6s ease-in-out infinite;
+}
+
+.shenron-spark {
+  animation: shenron-spark 1.4s ease-out 0.25s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shenron-summon,
+  .shenron-glow,
+  .shenron-spark {
+    animation: none !important;
+  }
+}

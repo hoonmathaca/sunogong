@@ -19,8 +19,12 @@ export const NICKNAME_MAX = 10
 export const DEFAULT_NICKNAME = '수련생'
 /** 한 번에 쏠 수 있는 드래곤볼 최대 개수 (DB 제약과 같다) */
 export const DRAGONBALL_MAX_AMOUNT = 99
-/** 드래곤볼 한 세트 (교환 정책은 아직 미정 — 표시에만 쓴다) */
+/** 드래곤볼 한 세트 (1~7성구 하나씩) */
 export const DRAGONBALL_SET_SIZE = 7
+/** 무지개 볼 아이콘 — 칠성구를 합쳐서 만든다 */
+export const RAINBOW_BALL_ICON = '/dragonballs/rainbow.png'
+/** 무지개 신룡 아이콘 — 칠성구를 합칠 때 '짜잔!' 하고 소환된다 */
+export const SHENRON_ICON = '/dragonballs/shenron.png'
 
 /* ------------------------------------------------------------------ */
 /* 1~7성구 도감                                                         */
@@ -55,6 +59,8 @@ export interface LiveRow {
   is_me?: boolean
   /** 그 학생의 성구별 보유 개수 맵 (1~7성구) */
   dragonballs?: DragonballMap | null
+  /** 만든 무지개 볼 개수 */
+  rainbow_ball_count?: number | null
 }
 
 /** 서버(live_study_board)의 응답 */
@@ -357,6 +363,55 @@ export function dragonballDex(raw: unknown): DragonballDexSlot[] {
 export function dragonballIcon(stars: number): string {
   const value = Math.min(7, Math.max(1, Math.floor(Number(stars) || 1)))
   return `/dragonballs/${value}.png`
+}
+
+/* ------------------------------------------------------------------ */
+/* 무지개 볼 — 칠성구를 합쳐서 만든다                                    */
+/* ------------------------------------------------------------------ */
+
+/** 무지개 볼 개수 (0 이상 정수) */
+export function normalizeRainbowCount(raw: unknown): number {
+  const value = Math.floor(Number(raw ?? 0))
+  return Number.isFinite(value) && value > 0 ? value : 0
+}
+
+/** 1~7성구를 모두 하나씩 갖고 있는지 — 합치기 버튼이 열리는 조건 */
+export function canCraftRainbowBall(raw: unknown): boolean {
+  const map = normalizeDragonballMap(raw)
+  return DRAGONBALL_STARS.every((star) => map[star] >= 1)
+}
+
+/** 합칠 때 사라지는 성구 수 (칠성구 하나씩 = 7개) */
+export const RAINBOW_CRAFT_COST = DRAGONBALL_SET_SIZE
+
+/**
+ * 드래곤볼 힘 — 무지개 볼 1개를 성구 7개로 쳐서 남은 성구와 더한다.
+ * (관리자 랭킹 정렬에 쓴다: 무지개 볼이 있으면 그만큼 앞선다)
+ */
+export function dragonballPower(profile: {
+  dragonballs?: unknown
+  rainbow_ball_count?: unknown
+  dragonball_count?: unknown
+}): number {
+  const rainbow = normalizeRainbowCount(profile.rainbow_ball_count)
+  const map = normalizeDragonballMap(profile.dragonballs)
+  const mapTotal = DRAGONBALL_STARS.reduce((sum, star) => sum + map[star], 0)
+  const total = Math.max(mapTotal, Math.floor(Number(profile.dragonball_count ?? 0)) || 0)
+  return rainbow * DRAGONBALL_SET_SIZE + total
+}
+
+/** '무지개 볼 2개' */
+export function rainbowBallText(raw: unknown): string {
+  return `무지개 볼 ${normalizeRainbowCount(raw)}개`
+}
+
+/** 합치기 결과 안내 — '짜잔! 무지개 신룡이 나타났어요!' */
+export const SHENRON_SUMMON_TITLE = '짜잔! 무지개 신룡 소환!'
+
+export function summonMessage(rainbowCount: number, total: number): string {
+  const rainbow = normalizeRainbowCount(rainbowCount)
+  const rest = Math.max(0, Math.floor(Number(total) || 0))
+  return `칠성구를 합쳐 무지개 볼 ${rainbow}개째를 만들었어요. 남은 성구는 ${rest}개!`
 }
 
 /** '4성구' */

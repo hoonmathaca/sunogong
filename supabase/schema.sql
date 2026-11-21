@@ -633,6 +633,8 @@ alter table public.students add column if not exists dragonball_count integer no
 -- 1~7성구 도감 (2026-11-21 추가) — 키 '1'~'7', 값은 보유 개수
 alter table public.students add column if not exists dragonballs jsonb not null
   default '{"1":0,"2":0,"3":0,"4":0,"5":0,"6":0,"7":0}'::jsonb;
+-- 칠성구를 합쳐 만든 무지개 볼 개수 (2026-11-21 추가)
+alter table public.students add column if not exists rainbow_ball_count integer not null default 0;
 
 -- 예전에 개수만 있던 드래곤볼은 1~7성구로 무작위로 나눠 담는다 (합계는 그대로)
 do $$
@@ -672,6 +674,10 @@ begin
   if not exists (select 1 from pg_constraint where conname = 'students_dragonball_count_check') then
     alter table public.students
       add constraint students_dragonball_count_check check (dragonball_count >= 0);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'students_rainbow_ball_count_check') then
+    alter table public.students
+      add constraint students_rainbow_ball_count_check check (rainbow_ball_count >= 0);
   end if;
   if not exists (select 1 from pg_constraint where conname = 'students_dragonballs_check') then
     alter table public.students
@@ -757,9 +763,10 @@ begin
     raise exception 'student_not_found' using errcode = 'P0002';
   end if;
   return jsonb_build_object(
-    'nickname',         v_row.nickname,
-    'dragonball_count', coalesce(v_row.dragonball_count, 0),
-    'dragonballs',      coalesce(v_row.dragonballs, '{"1":0,"2":0,"3":0,"4":0,"5":0,"6":0,"7":0}'::jsonb)
+    'nickname',           v_row.nickname,
+    'dragonball_count',   coalesce(v_row.dragonball_count, 0),
+    'dragonballs',        coalesce(v_row.dragonballs, '{"1":0,"2":0,"3":0,"4":0,"5":0,"6":0,"7":0}'::jsonb),
+    'rainbow_ball_count', coalesce(v_row.rainbow_ball_count, 0)
   );
 end;
 $$;
@@ -773,10 +780,16 @@ stable
 set search_path = public
 as $$
   select jsonb_build_object(
-           'dragonballs',   coalesce(s.dragonballs, '{"1":0,"2":0,"3":0,"4":0,"5":0,"6":0,"7":0}'::jsonb),
-           'total',         coalesce(s.dragonball_count, 0),
-           'collected',     (select count(*) from jsonb_each_text(coalesce(s.dragonballs, '{}'::jsonb)) as e(key, value)
-                              where e.value::int > 0)
+           'dragonballs',        coalesce(s.dragonballs, '{"1":0,"2":0,"3":0,"4":0,"5":0,"6":0,"7":0}'::jsonb),
+           'total',              coalesce(s.dragonball_count, 0),
+           'collected',          (select count(*) from jsonb_each_text(coalesce(s.dragonballs, '{}'::jsonb)) as e(key, value)
+                                    where e.value::int > 0),
+           'rainbow_ball_count', coalesce(s.rainbow_ball_count, 0),
+           'rainbow_ready',      not exists (
+                                   select 1 from jsonb_each_text(coalesce(s.dragonballs, '{}'::jsonb)) as e(key, value)
+                                    where e.value::int < 1
+                                 )
+                                 and (select count(*) from jsonb_each_text(coalesce(s.dragonballs, '{}'::jsonb))) = 7
          )
     from public.students s
    where s.id = p_student_id;
@@ -811,6 +824,7 @@ begin
   for r in
     select s.student_id, s.status, s.started_at, s.paused_at, s.ended_at, s.paused_seconds,
            coalesce(st.dragonballs, v_empty) as dragonballs,
+           coalesce(st.rainbow_ball_count, 0) as rainbow_ball_count,
            coalesce(nullif(btrim(st.nickname), ''), '수련생') as nickname
       from public.study_sessions s
       join public.students st on st.id = s.student_id
@@ -830,12 +844,13 @@ begin
 
     v_rows := v_rows || jsonb_build_array(
       jsonb_build_object(
-        'nickname',   r.nickname,
-        'status',     r.status,
-        'started_at', r.started_at,
-        'seconds',    v_secs,
-        'is_me',      (p_student_id is not null and r.student_id = p_student_id),
-        'dragonballs', r.dragonballs
+        'nickname',           r.nickname,
+        'status',             r.status,
+        'started_at',         r.started_at,
+        'seconds',            v_secs,
+        'is_me',              (p_student_id is not null and r.student_id = p_student_id),
+        'dragonballs',        r.dragonballs,
+        'rainbow_ball_count', r.rainbow_ball_count
       )
     );
   end loop;
@@ -844,6 +859,67 @@ begin
     'server_now',    v_now,
     'running_count', v_running,
     'students',      v_rows
+  );
+end;
+$$;
+
+-- 칠성구 합치기 — 1~7성구를 하나씩(모두 있을 때) 합쳐 무지개 볼 1개
+create or replace function public.craft_rainbow_ball(p_student_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_row     public.students;
+  v_empty   jsonb := '{"1":0,"2":0,"3":0,"4":0,"5":0,"6":0,"7":0}'::jsonb;
+  v_map     jsonb;
+  v_total   integer;
+  v_rainbow integer;
+  v_need    integer := 0;
+  star      integer;
+begin
+  -- 같은 학생이 두 번 눌러도 한 번만 합쳐지도록 줄을 잠그고 읽는다
+  select * into v_row from public.students where id = p_student_id for update;
+  if not found then
+    raise exception 'student_not_found' using errcode = 'P0002';
+  end if;
+
+  v_map     := coalesce(v_row.dragonballs, v_empty);
+  v_total   := coalesce(v_row.dragonball_count, 0);
+  v_rainbow := coalesce(v_row.rainbow_ball_count, 0);
+
+  for star in 1 .. 7 loop
+    if coalesce((v_map ->> star::text)::int, 0) < 1 then
+      v_need := v_need + 1;
+    end if;
+  end loop;
+
+  if v_need > 0 then
+    raise exception 'dragonballs_incomplete' using errcode = '22023';
+  end if;
+
+  for star in 1 .. 7 loop
+    v_map := jsonb_set(
+      v_map,
+      array[star::text],
+      to_jsonb(greatest(0, coalesce((v_map ->> star::text)::int, 0) - 1))
+    );
+  end loop;
+
+  update public.students
+     set dragonballs         = v_map,
+         dragonball_count    = greatest(0, v_total - 7),
+         rainbow_ball_count  = v_rainbow + 1
+   where id = p_student_id;
+
+  return jsonb_build_object(
+    'crafted',            true,
+    'rainbow_ball_count', v_rainbow + 1,
+    'dragonballs',        v_map,
+    'total',              greatest(0, v_total - 7),
+    'collected',          (select count(*) from jsonb_each_text(v_map) as e(key, value)
+                            where e.value::int > 0)
   );
 end;
 $$;
@@ -1015,4 +1091,5 @@ grant execute on function public.set_student_nickname(uuid, text) to anon, authe
 grant execute on function public.student_profile(uuid) to anon, authenticated;
 grant execute on function public.student_dragonballs(uuid) to anon, authenticated;
 grant execute on function public.live_study_board(uuid) to anon, authenticated;
+grant execute on function public.craft_rainbow_ball(uuid) to anon, authenticated;
 grant execute on function public.grant_dragonballs(uuid[], integer, text, text) to anon, authenticated;

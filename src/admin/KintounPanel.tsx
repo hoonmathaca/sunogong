@@ -10,6 +10,7 @@ import {
   grantTargets,
   LIVE_REFRESH_MS,
   normalizeGrantAmount,
+  RAINBOW_BALL_ICON,
   starListText,
 } from '../lib/kintounBoard'
 import type { Student } from '../lib/types'
@@ -216,7 +217,7 @@ export function KintounPanel({ students, studentsLoading, studentsError, reloadS
         {studentsError ? <ErrorBlock message={studentsError} onRetry={reloadStudents} /> : null}
       </AdminSection>
 
-      <AdminSection title="지금 공부 중인 학생" description={`${LIVE_REFRESH_MS / 1000}초마다 새로 읽어요. 이름 옆 회색 글씨가 근두운에 보이는 닉네임이에요.`}>
+      <AdminSection title="지금 공부 중인 학생" description={`${LIVE_REFRESH_MS / 1000}초마다 새로 읽어요. 이름 옆 회색 글씨가 근두운에 보이는 닉네임이에요. 🌈 는 칠성구를 합쳐 만든 무지개 볼이에요.`}>
         {studentsLoading || (loading && rows.length === 0) ? (
           <LoadingBlock />
         ) : liveRows.length === 0 ? (
@@ -248,6 +249,21 @@ export function KintounPanel({ students, studentsLoading, studentsError, reloadS
                   <span className="text-[11px] font-extrabold text-[#8A5400] tabular">
                     {row.dragonballCount}개
                     <span className="ml-1 text-[10px] font-bold text-[#B07200]/70">{dragonballKinds(row.dragonballs)}/7종</span>
+                  </span>
+                </span>
+                <span
+                  className={`flex items-center gap-1 rounded-full px-2 py-1 ${
+                    row.rainbowBallCount > 0 ? 'bg-[#F2EEFF]' : 'bg-blue-soft/70'
+                  }`}
+                  title="칠성구를 합쳐 만든 무지개 볼"
+                >
+                  <img src={RAINBOW_BALL_ICON} alt="" className="h-4 w-4" aria-hidden="true" />
+                  <span
+                    className={`text-[11px] font-extrabold tabular ${
+                      row.rainbowBallCount > 0 ? 'text-[#5B4B8A]' : 'text-navy/35'
+                    }`}
+                  >
+                    🌈 {row.rainbowBallCount}개
                   </span>
                 </span>
                 <button
@@ -297,7 +313,7 @@ export function KintounPanel({ students, studentsLoading, studentsError, reloadS
           </ul>
         )}
         <p className="mt-2 text-[10px] text-navy/40">
-          학생 {students.length}명 · 드래곤볼은 제한 없이 쌓이고, 성구 7종을 모으면 도감이 완성돼요(교환은 아직 없음).
+          학생 {students.length}명 · 드래곤볼은 제한 없이 쌓이고, 1~7성구를 하나씩 모으면 학생이 직접 무지개 볼을 만들어요.
         </p>
       </AdminSection>
     </div>

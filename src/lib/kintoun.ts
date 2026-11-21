@@ -37,6 +37,7 @@ export function describeKintounError(error: unknown): string {
     lower.includes('student_profile') ||
     lower.includes('set_student_nickname') ||
     lower.includes('grant_dragonballs') ||
+    lower.includes('craft_rainbow_ball') ||
     lower.includes('dragonball') ||
     lower.includes('could not find the function') ||
     (lower.includes('relation') && lower.includes('does not exist'))
@@ -47,6 +48,7 @@ export function describeKintounError(error: unknown): string {
   if (raw.includes('nickname_invalid')) return '닉네임에 줄바꿈은 쓸 수 없어요.'
   if (raw.includes('invalid_amount')) return '드래곤볼은 한 번에 1~99개까지 쏠 수 있어요.'
   if (raw.includes('no_students')) return '드래곤볼을 받을 학생이 없어요.'
+  if (raw.includes('dragonballs_incomplete')) return '1~7성구를 하나씩 다 모아야 무지개 볼을 만들 수 있어요.'
   return friendlyError(raw)
 }
 
@@ -79,6 +81,8 @@ export interface StudentProfile {
   dragonball_count: number
   /** 성구별 보유 개수 맵 — {"1":0,...,"7":0} */
   dragonballs?: Record<string, number> | null
+  /** 만든 무지개 볼 개수 */
+  rainbow_ball_count?: number
 }
 
 /** 내 닉네임·드래곤볼 개수 */
@@ -99,6 +103,23 @@ export const setStudentNickname = (studentId: string, nickname: string | null) =
 export const liveStudyBoard = (studentId?: string | null) =>
   rpc<LiveBoard>('live_study_board', studentId ? { p_student_id: studentId } : {})
 
+/** 칠성구 합치기 결과 — 무지개 볼 하나가 생긴다 */
+export interface CraftRainbowResult {
+  crafted: boolean
+  /** 합친 뒤 무지개 볼 개수 */
+  rainbow_ball_count: number
+  /** 합친 뒤 남은 성구 맵 */
+  dragonballs: Record<string, number>
+  /** 합친 뒤 남은 성구 총 개수 */
+  total: number
+  /** 합친 뒤 모은 성구 종류 수 */
+  collected: number
+}
+
+/** 1~7성구를 하나씩 합쳐 무지개 볼 만들기 (서버가 한 번에 처리) */
+export const craftRainbowBall = (studentId: string) =>
+  rpc<CraftRainbowResult>('craft_rainbow_ball', { p_student_id: studentId })
+
 /* ------------------------------------------------------------------ */
 /* 관리자                                                              */
 /* ------------------------------------------------------------------ */
@@ -114,6 +135,8 @@ export interface AdminLiveSession {
   displayName: string
   /** 성구별 보유 개수 맵 */
   dragonballs: Record<string, number>
+  /** 만든 무지개 볼 개수 */
+  rainbowBallCount: number
   status: LiveStatus
   kind: SessionKind
   startedAt: string
@@ -128,6 +151,7 @@ type JoinedStudent = {
   nickname: string | null
   dragonball_count: number | null
   dragonballs: Record<string, number> | null
+  rainbow_ball_count: number | null
 }
 
 interface SessionWithStudent extends StudySession {
@@ -149,7 +173,7 @@ export async function listLiveSessions(): Promise<ApiResult<{ rows: AdminLiveSes
     supabase
       .from('study_sessions')
       .select(
-        'id,student_id,status,kind,started_at,paused_at,ended_at,last_heartbeat_at,paused_seconds,date,minutes,problems,created_at,students(id,name,grade,nickname,dragonball_count,dragonballs)',
+        'id,student_id,status,kind,started_at,paused_at,ended_at,last_heartbeat_at,paused_seconds,date,minutes,problems,created_at,students(id,name,grade,nickname,dragonball_count,dragonballs,rainbow_ball_count)',
       )
       .neq('status', 'finished')
       .eq('date', todayKst())
@@ -176,6 +200,7 @@ export async function listLiveSessions(): Promise<ApiResult<{ rows: AdminLiveSes
       seconds: state.seconds,
       dragonballCount: Math.max(0, Number(student.dragonball_count ?? 0)),
       dragonballs: student.dragonballs ?? {},
+      rainbowBallCount: Math.max(0, Number(student.rainbow_ball_count ?? 0)),
     })
   }
   return { ok: true, data: { rows, nowMs } }

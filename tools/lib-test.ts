@@ -42,6 +42,7 @@ import {
   dragonballIcon,
   dragonballIconCount,
   dragonballKinds,
+  dragonballPower,
   dragonballSets,
   dragonballSummaryText,
   dragonballTotal,
@@ -58,6 +59,14 @@ import {
   myLivePosition,
   normalizeGrantAmount,
   normalizeNickname,
+  normalizeRainbowCount,
+  RAINBOW_BALL_ICON,
+  RAINBOW_CRAFT_COST,
+  SHENRON_ICON,
+  SHENRON_SUMMON_TITLE,
+  summonMessage,
+  canCraftRainbowBall,
+  rainbowBallText,
   NICKNAME_MAX,
   pausedLabels,
   tickSeconds,
@@ -467,6 +476,26 @@ eq('성구: 목록 글(두 개)', starListText([7, 4]), '7성구 · 4성구')
 eq('성구: 목록 글(없음)', starListText([]), '')
 eq('성구: 목록 글은 네 종까지', starListText([1, 2, 3, 4, 5]), '1성구 · 2성구 · 3성구 · 4성구 외 1종')
 eq('드래곤볼: 이력 표시', [GRANT_MODE_LABEL.all, GRANT_MODE_LABEL.single], ['전체 일괄', '개별'])
+
+/* 무지개 볼 — 칠성구를 합친다 */
+const fullSet = { '1': 1, '2': 2, '3': 1, '4': 1, '5': 1, '6': 1, '7': 1 }
+eq('무지개: 1~7성구를 다 모으면 합칠 수 있다', canCraftRainbowBall(fullSet), true)
+eq('무지개: 한 종류라도 없으면 못 합친다', canCraftRainbowBall({ ...fullSet, '3': 0 }), false)
+eq('무지개: 빈 도감은 못 합친다', canCraftRainbowBall(EMPTY_DRAGONBALLS), false)
+eq('무지개: 이상한 값은 못 합친다', canCraftRainbowBall(null), false)
+eq('무지개: 합치는 값은 성구 7개', RAINBOW_CRAFT_COST, 7)
+eq('무지개: 개수 정리', [normalizeRainbowCount(2), normalizeRainbowCount(-1), normalizeRainbowCount('3'), normalizeRainbowCount(null)], [2, 0, 3, 0])
+eq('무지개: 개수 표시', rainbowBallText(2), '무지개 볼 2개')
+eq('무지개: 합친 뒤 안내', summonMessage(2, 5), '칠성구를 합쳐 무지개 볼 2개째를 만들었어요. 남은 성구는 5개!')
+eq('무지개: 소환 제목', SHENRON_SUMMON_TITLE, '짜잔! 무지개 신룡 소환!')
+eq('무지개: 아이콘 주소', [RAINBOW_BALL_ICON, SHENRON_ICON], ['/dragonballs/rainbow.png', '/dragonballs/shenron.png'])
+eq('무지개: 힘(무지개 1 + 남은 3 = 10)', dragonballPower({ dragonballs: { '1': 1, '2': 2 }, rainbow_ball_count: 1 }), 10)
+eq('무지개: 힘(무지개 없으면 남은 성구)', dragonballPower({ dragonballs: { '1': 1, '2': 2 } }), 3)
+eq('무지개: 힘(성구 맵이 없으면 개수로)', dragonballPower({ dragonball_count: 4, rainbow_ball_count: 1 }), 11)
+eq('무지개: 랭킹은 무지개 볼을 성구 7개로 센다', rankByKind([
+  { ...rankStats[0], student: { ...rankStats[0].student, dragonball_count: 4, dragonballs: { '1': 4 } } },
+  { ...rankStats[1], student: { ...rankStats[1].student, dragonball_count: 0, dragonballs: EMPTY_DRAGONBALLS, rainbow_ball_count: 1 } },
+], 'dragonball').map((row) => row.student.name), ['나학생', '가학생'])
 
 eq('관리자: 학원 공부는 그대로 공부 중', adminSessionState({ ...baseSession, kind: 'academy' }, at('2026-11-19T01:10:00Z')).status, 'running')
 eq(

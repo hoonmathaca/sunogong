@@ -4,6 +4,7 @@ import { Modal } from '../components/Modal'
 import { Spinner } from '../components/Keypad'
 import * as api from '../lib/kintoun'
 import {
+  canCraftRainbowBall,
   cloudItems,
   displayNickname,
   dragonballDex,
@@ -15,7 +16,13 @@ import {
   liveRanking,
   myLivePosition,
   NICKNAME_MAX,
+  normalizeRainbowCount,
   pausedLabels,
+  RAINBOW_BALL_ICON,
+  RAINBOW_CRAFT_COST,
+  SHENRON_ICON,
+  SHENRON_SUMMON_TITLE,
+  summonMessage,
   tickRows,
   validateNickname,
   type LiveBoard,
@@ -38,6 +45,12 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
   const [dragonballs, setDragonballs] = useState(0)
   /* 1~7성구 도감 — 성구별 보유 개수 */
   const [dexMap, setDexMap] = useState<Record<string, number>>(EMPTY_DRAGONBALLS)
+  /* 칠성구를 합쳐 만든 무지개 볼 개수 */
+  const [rainbow, setRainbow] = useState(0)
+  const [crafting, setCrafting] = useState(false)
+  const [craftError, setCraftError] = useState<string | null>(null)
+  /* 합치는 순간 뜨는 무지개 신룡 소환 */
+  const [summon, setSummon] = useState<{ rainbow: number; total: number } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [fetchedAt, setFetchedAt] = useState(() => Date.now())
@@ -66,6 +79,7 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
       setNickname(profile.data.nickname ?? null)
       setDragonballs(Math.max(0, Number(profile.data.dragonball_count ?? 0)))
       setDexMap(profile.data.dragonballs ?? EMPTY_DRAGONBALLS)
+      setRainbow(normalizeRainbowCount(profile.data.rainbow_ball_count))
     }
     setLoading(false)
   }, [studentId])
@@ -104,6 +118,28 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
   const dexTotal = useMemo(() => dragonballTotal(dexMap), [dexMap])
   /* 도감에 담긴 합계와 총 개수가 다르면(서버가 아직 성구를 안 보낸 경우) 총 개수를 따른다 */
   const totalBalls = Math.max(dragonballs, dexTotal)
+  /* 1~7성구를 하나씩 다 모았으면 무지개 볼을 만들 수 있다 */
+  const readyForRainbow = useMemo(() => canCraftRainbowBall(dexMap), [dexMap])
+  const missingStars = useMemo(() => dex.filter((slot) => !slot.owned).map((slot) => `${slot.stars}성구`), [dex])
+
+  /** 칠성구를 합쳐 무지개 볼 하나 — 성공하면 무지개 신룡이 나타난다 */
+  const craftRainbow = async () => {
+    if (crafting || !readyForRainbow) return
+    setCrafting(true)
+    setCraftError(null)
+    const res = await api.craftRainbowBall(studentId)
+    setCrafting(false)
+    if (res.ok) {
+      setDragonballs(Math.max(0, Number(res.data.total ?? 0)))
+      setDexMap(res.data.dragonballs ?? EMPTY_DRAGONBALLS)
+      setRainbow(normalizeRainbowCount(res.data.rainbow_ball_count))
+      setSummon({ rainbow: res.data.rainbow_ball_count, total: res.data.total })
+      void load()
+    } else {
+      setCraftError(res.error)
+      void load()
+    }
+  }
 
   const openNickname = () => {
     setNicknameInput(nickname ?? '')
@@ -277,6 +313,20 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
           <span className="rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-bold text-[#9A6400]">1~7성구 도감</span>
         </div>
 
+        {/* 🌈 무지개 볼 — 칠성구를 합쳐 만든 것 */}
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 shadow-sm ring-1 ring-[#E2D8FF]">
+            <img src={RAINBOW_BALL_ICON} alt="" className="h-5 w-5" aria-hidden="true" />
+            <span className="text-[11.5px] font-extrabold text-[#5B4B8A]">🌈 무지개 볼 {rainbow}개</span>
+          </span>
+          {rainbow > 0 ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-[#F7F3FF] px-2 py-1 text-[10.5px] font-bold text-[#7A6AA6]">
+              <img src={SHENRON_ICON} alt="" className="h-4 w-4" aria-hidden="true" />
+              무지개 신룡 {rainbow}마리
+            </span>
+          ) : null}
+        </div>
+
         <div className="mt-2 flex flex-wrap items-end gap-x-2 gap-y-1">
           <p className="font-round text-[34px] font-extrabold leading-none text-[#7A4A00] tabular">{totalBalls}</p>
           <p className="pb-1 text-[13px] font-bold text-[#9A6400]">개</p>
@@ -310,8 +360,29 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
           ))}
         </ul>
 
+        {/* ✨ 칠성구 합치기 — 다 모으면 버튼이 열린다 */}
+        <button
+          type="button"
+          onClick={() => void craftRainbow()}
+          disabled={!readyForRainbow || crafting}
+          className={`mt-3 flex w-full items-center justify-center gap-1.5 rounded-2xl px-3 py-2.5 text-[12.5px] font-extrabold transition active:scale-[0.99] ${
+            readyForRainbow
+              ? 'bg-gradient-to-r from-[#F08C00] to-[#E1578A] text-white shadow-soft'
+              : 'bg-white/60 text-[#A97516]/70 ring-1 ring-white/70'
+          } disabled:opacity-70`}
+        >
+          <span aria-hidden="true">✨</span>
+          {crafting ? '무지개 볼을 만드는 중…' : '칠성구 합쳐서 무지개 볼 만들기'}
+        </button>
+        {!readyForRainbow && missingStars.length > 0 ? (
+          <p className="mt-1.5 text-center text-[10.5px] font-semibold text-[#A97516]/80">
+            {missingStars.join(' · ')}만 더 모으면 돼요 · 성구 {RAINBOW_CRAFT_COST}개가 무지개 볼 1개로!
+          </p>
+        ) : null}
+        {craftError ? <p className="mt-1.5 text-center text-[11px] font-bold text-red-500">{craftError}</p> : null}
+
         <p className="mt-2 text-[10.5px] font-semibold text-[#A97516]/80">
-          공부를 이어 가면 선오공이가 드래곤볼을 랜덤으로 쏴 줘요 · 7종을 다 모아 보세요!
+          공부를 이어 가면 선오공이가 드래곤볼을 랜덤으로 쏴 줘요 · 7종을 다 모아 무지개 볼을 만들어 보세요!
         </p>
       </section>
 
@@ -370,6 +441,47 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
           비워 두면 <b>수련생</b> 으로 보여요. 같은 이름을 쓴 친구가 있으면 A·B 로 구분해 보여 줘요.
         </p>
         {nicknameError ? <p className="mt-1.5 text-[11px] font-bold text-red-500">{nicknameError}</p> : null}
+      </Modal>
+
+      {/* 🌈 짜잔! 무지개 신룡 소환 */}
+      <Modal
+        open={summon !== null}
+        title={SHENRON_SUMMON_TITLE}
+        onClose={() => setSummon(null)}
+        footer={
+          <button type="button" className="btn-navy px-5" onClick={() => setSummon(null)}>
+            좋아!
+          </button>
+        }
+      >
+        <div className="relative flex flex-col items-center pb-1 pt-2">
+          <span
+            aria-hidden="true"
+            className="shenron-glow pointer-events-none absolute top-6 h-40 w-40 rounded-full bg-gradient-to-br from-[#FFD9E2] via-[#FFF3C4] to-[#DCE9FF] blur-2xl"
+          />
+          <span aria-hidden="true" className="shenron-spark pointer-events-none absolute left-5 top-2 text-[22px]">
+            ✨
+          </span>
+          <span aria-hidden="true" className="shenron-spark pointer-events-none absolute right-6 top-8 text-[26px]">
+            🌟
+          </span>
+          <img
+            src={SHENRON_ICON}
+            alt="무지개 신룡"
+            className="shenron-summon relative h-52 w-52 drop-shadow-[0_10px_24px_rgba(140,110,190,0.28)]"
+          />
+          <p className="relative mt-2 text-center font-round text-[15px] font-extrabold text-[#5B4B8A]">
+            칠성구가 빛나며 무지개 신룡이 나타났어요!
+          </p>
+          <p className="relative mt-1 text-center text-[12px] font-semibold text-navy/55">
+            {summon ? summonMessage(summon.rainbow, summon.total) : ''}
+          </p>
+          <div className="relative mt-3 flex items-center gap-2 rounded-2xl bg-[#F7F3FF] px-3 py-2">
+            <img src={RAINBOW_BALL_ICON} alt="" className="h-7 w-7" aria-hidden="true" />
+            <span className="text-[12px] font-extrabold text-[#5B4B8A]">무지개 볼 {summon?.rainbow ?? 0}개 보유</span>
+            <img src={SHENRON_ICON} alt="" className="h-7 w-7" aria-hidden="true" />
+          </div>
+        </div>
       </Modal>
     </>
   )

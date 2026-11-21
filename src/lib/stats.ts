@@ -1,4 +1,5 @@
 import { compareName, gradeRank } from './grades'
+import { dragonballPower } from './kintounBoard'
 import { addDays, diffDays, rangeDates } from './time'
 import type { Student, StudyLog } from './types'
 
@@ -183,12 +184,12 @@ export type RankKind = 'all' | 'academy' | 'homework' | 'dragonball'
 
 /**
  * 학생 한 명의 랭킹 값.
- * 드래곤볼은 기간과 무관한 '지금 보유 개수'다.
+ * 드래곤볼은 기간과 무관한 '지금 보유' — 무지개 볼 1개를 성구 7개로 쳐서 합산한다.
  */
 export function rankValue(stat: StudentStat, kind: RankKind): number {
   if (kind === 'academy') return Math.max(0, stat.academyMinutes)
   if (kind === 'homework') return Math.max(0, stat.homeworkMinutes)
-  if (kind === 'dragonball') return Math.max(0, Math.floor(Number(stat.student.dragonball_count ?? 0)))
+  if (kind === 'dragonball') return Math.max(0, dragonballPower(stat.student))
   return Math.max(0, stat.minutes)
 }
 

@@ -12,6 +12,8 @@ export interface Student {
   dragonball_count?: number
   /** 성구별 보유 개수 맵 — {"1":0,...,"7":0} (2026-11-21 추가) */
   dragonballs?: Record<string, number> | null
+  /** 칠성구를 합쳐 만든 무지개 볼 개수 (2026-11-21 추가) */
+  rainbow_ball_count?: number
 }
 
 export type SessionStatus = 'running' | 'paused' | 'finished'

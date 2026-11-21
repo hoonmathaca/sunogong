@@ -19,7 +19,13 @@ import {
   sortStudents,
   type RankedEntry,
 } from '../lib/stats'
-import { displayNickname, dragonballKinds, normalizeNickname } from '../lib/kintounBoard'
+import {
+  displayNickname,
+  dragonballKinds,
+  dragonballTotal,
+  normalizeNickname,
+  normalizeRainbowCount,
+} from '../lib/kintounBoard'
 import type { Student, StudyLog } from '../lib/types'
 import { AdminSection, EmptyBlock, ErrorBlock, GradeFilterSelect, LoadingBlock } from './ui'
 
@@ -147,7 +153,7 @@ export function RankingPanel({ students, studentsLoading, studentsError, reloadS
     title: string,
     subtitle: string,
     entries: RankedEntry[],
-    format: (value: number) => string,
+    format: (value: number, entry: RankedEntry) => string,
     emptyText = '아직 기록이 없어요',
     note?: (entry: RankedEntry) => string | null,
   ): JSX.Element => (
@@ -180,7 +186,7 @@ export function RankingPanel({ students, studentsLoading, studentsError, reloadS
               {note ? (
                 <span className="shrink-0 text-[10px] font-bold text-[#B07200]/70">{note(entry)}</span>
               ) : null}
-              <span className="shrink-0 text-[12px] font-extrabold tabular text-blue-brand">{format(entry.value)}</span>
+              <span className="shrink-0 text-[12px] font-extrabold tabular text-blue-brand">{format(entry.value, entry)}</span>
             </li>
           ))}
         </ol>
@@ -257,11 +263,12 @@ export function RankingPanel({ students, studentsLoading, studentsError, reloadS
           {renderRanking('🏠 숙제 공부 TOP3', '기간 합계', homeworkMinuteRanking, (value) => formatMinutes(value))}
           {renderRanking(
             '🐉 드래곤볼 TOP3',
-            '지금 보유 · 기간과 무관',
+            '지금 보유 · 무지개 볼 1개 = 성구 7개',
             dragonballRanking,
-            (value) => `${value}개`,
+            (_value, entry) => `${dragonballTotal(entry.student.dragonballs)}개`,
             '아직 드래곤볼을 받은 학생이 없어요',
-            (entry) => `${dragonballKinds(entry.student.dragonballs)}/7종`,
+            (entry) =>
+              `🌈 ${normalizeRainbowCount(entry.student.rainbow_ball_count)} · ${dragonballKinds(entry.student.dragonballs)}/7종`,
           )}
           {renderRanking('문제 풀이 TOP3', '기간 합계', problemRanking, (value) => `${value}개`)}
 
