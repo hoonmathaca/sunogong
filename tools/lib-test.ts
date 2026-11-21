@@ -83,6 +83,21 @@ import {
   pixelShift,
   supportsFullscreen,
 } from '../src/lib/fullscreen'
+import {
+  ADMIN_TAB_ORDER,
+  SWIPE_BLOCKING_SELECTOR,
+  SWIPE_MIN_DISTANCE,
+  SWIPE_SCROLL_SLACK,
+  SWIPE_SLOPE_RATIO,
+  gestureFrom,
+  isHorizontalScroller,
+  isSingleTouch,
+  resolveTabSwipe,
+  swipeBlockReason,
+  swipeDirection,
+  tabAfterSwipe,
+  type SwipeNode,
+} from '../src/lib/adminSwipe'
 import type { Student, StudyLog } from '../src/lib/types'
 import type { StudyQuestion } from '../src/lib/types'
 
@@ -686,5 +701,89 @@ eq(
   ],
 )
 eq('알림: 제목·본문 상수', [PUSH_TITLE, PUSH_TEST_BODY.length > 0], ['선오공 새 질문', true])
+
+/* 관리자 모바일 좌우 스와이프 탭 이동 */
+eq('스와이프: 탭 순서', ADMIN_TAB_ORDER.join(','), 'dashboard,kintoun,questions,students,ranking')
+eq('스와이프: 기준값', [SWIPE_MIN_DISTANCE, SWIPE_SLOPE_RATIO, SWIPE_SCROLL_SLACK], [60, 1.5, 4])
+eq('스와이프: 손가락 하나만', [isSingleTouch(1), isSingleTouch(0), isSingleTouch(2)], [true, false, false])
+eq('스와이프: 이동 거리', gestureFrom({ x: 200, y: 100 }, { x: 120, y: 108 }), { dx: -80, dy: 8 })
+
+eq('스와이프 방향: 왼쪽으로 밀면 다음 탭', swipeDirection({ dx: -80, dy: 10 }), 'next')
+eq('스와이프 방향: 오른쪽으로 밀면 이전 탭', swipeDirection({ dx: 80, dy: -10 }), 'prev')
+eq('스와이프 방향: 60px 은 넘어감', swipeDirection({ dx: -60, dy: 0 }), 'next')
+eq('스와이프 방향: 59px 은 그대로', swipeDirection({ dx: -59, dy: 0 }), null)
+eq('스와이프 방향: 세로로 40px 넘게 움직이면 그대로', swipeDirection({ dx: 90, dy: 60 }), null)
+eq('스와이프 방향: 61px 이면 넘어감', swipeDirection({ dx: 61, dy: 40 }), 'prev')
+eq('스와이프 방향: 세로 스크롤은 그대로', swipeDirection({ dx: -20, dy: -300 }), null)
+eq('스와이프 방향: 비스듬해도 가로가 확실하면 넘어감', swipeDirection({ dx: 120, dy: 40 }), 'prev')
+eq('스와이프 방향: 값이 없으면 그대로', [swipeDirection({ dx: Number.NaN, dy: 0 }), swipeDirection({ dx: 100, dy: Number.NaN })], [null, null])
+eq('스와이프 방향: 기준값을 바꿀 수 있음', [swipeDirection({ dx: -30, dy: 0 }, 25), swipeDirection({ dx: -30, dy: 40 }, 25, 1)], ['next', null])
+
+eq('스와이프 탭 위치: 첫 탭에서 이전은 없음', tabAfterSwipe(0, 'prev'), null)
+eq('스와이프 탭 위치: 다음', [tabAfterSwipe(0, 'next'), tabAfterSwipe(3, 'next'), tabAfterSwipe(4, 'prev')], [1, 4, 3])
+eq('스와이프 탭 위치: 끝 탭에서 다음은 없음', tabAfterSwipe(4, 'next'), null)
+eq('스와이프 탭 위치: 탭 개수를 넘는 위치는 없음', [tabAfterSwipe(9, 'next'), tabAfterSwipe(-1, 'next'), tabAfterSwipe(2, 'next', 2)], [null, null, null])
+
+eq('스와이프 결과: 왼쪽으로 밀면 다음 탭', resolveTabSwipe({ dx: -100, dy: 5, index: 1 }), 2)
+eq('스와이프 결과: 오른쪽으로 밀면 이전 탭', resolveTabSwipe({ dx: 100, dy: 5, index: 1 }), 0)
+eq('스와이프 결과: 끝 탭에서는 그대로', [resolveTabSwipe({ dx: -100, dy: 0, index: 4 }), resolveTabSwipe({ dx: 100, dy: 0, index: 0 })], [null, null])
+eq('스와이프 결과: 막힌 곳에서 시작하면 그대로', resolveTabSwipe({ dx: -300, dy: 0, index: 2, blocked: true }), null)
+eq('스와이프 결과: 이동이 모자라면 그대로', resolveTabSwipe({ dx: -20, dy: 0, index: 2 }), null)
+eq('스와이프 결과: 탭 개수를 줄여 쓸 수 있음', resolveTabSwipe({ dx: -100, dy: 0, index: 1, count: 2 }), null)
+
+eq('가로 넘김 상자: 넘칠 때만', [isHorizontalScroller({ scrollWidth: 505, clientWidth: 500 }), isHorizontalScroller({ scrollWidth: 504, clientWidth: 500 })], [true, false])
+eq('가로 넘김 상자: 값이 없으면 아님', [isHorizontalScroller(null), isHorizontalScroller({}), isHorizontalScroller({ scrollWidth: 900 })], [false, false, false])
+
+type FakeNode = SwipeNode
+const fakeNode = (spec: Omit<FakeNode, 'parentElement'> = {}, parent: FakeNode | null = null): FakeNode => ({
+  ...spec,
+  parentElement: parent,
+})
+/** 태그 이름으로 선택자에 걸리는 가짜 노드 */
+const tagNode = (tag: string, parent: FakeNode | null = null, extra: Omit<FakeNode, 'parentElement'> = {}): FakeNode =>
+  fakeNode(
+    {
+      matches: (selector: string) =>
+        selector
+          .split(',')
+          .map((part) => part.trim())
+          .includes(tag),
+      ...extra,
+    },
+    parent,
+  )
+/* 화면 전체(컨테이너 바깥)에 걸린 가로 넘김 상자 — 스와이프와 상관없다 */
+const outerScroller = fakeNode({ scrollWidth: 1200, clientWidth: 360, matches: () => false })
+const wrapper = fakeNode({ matches: () => false }, outerScroller)
+const background = fakeNode({ matches: () => false }, wrapper)
+const inputNode = tagNode('input', background)
+const textareaNode = tagNode('textarea', background)
+const dialogNode = tagNode('[role="dialog"]', background)
+const editableNode = tagNode('[contenteditable="true"]', background)
+const ignoreNode = tagNode('[data-swipe-ignore]', background)
+const tableScroller = fakeNode({ scrollWidth: 900, clientWidth: 360, matches: () => false }, background)
+const tableCell = fakeNode({ scrollWidth: 0, clientWidth: 0, matches: () => false }, tableScroller)
+const verticalScroller = fakeNode({ scrollWidth: 360, clientWidth: 360, matches: () => false }, background)
+const verticalChild = fakeNode({ matches: () => false }, verticalScroller)
+
+eq('스와이프 예외: 입력창', swipeBlockReason(inputNode, wrapper), 'blocked')
+eq('스와이프 예외: 여러 줄 입력·수정 가능한 곳', [swipeBlockReason(textareaNode, wrapper), swipeBlockReason(editableNode, wrapper)], ['blocked', 'blocked'])
+eq('스와이프 예외: 모달', swipeBlockReason(dialogNode, wrapper), 'blocked')
+eq('스와이프 예외: 표시해 둔 곳', swipeBlockReason(ignoreNode, wrapper), 'blocked')
+eq('스와이프 예외: 안쪽 입력창도 조상까지 봄', swipeBlockReason(fakeNode({ matches: () => false }, inputNode), wrapper), 'blocked')
+eq('스와이프 예외: 가로로 넘치는 표', swipeBlockReason(tableCell, wrapper), 'scroller')
+eq('스와이프 예외: 세로로만 넘치는 상자는 통과', swipeBlockReason(verticalChild, wrapper), null)
+eq('스와이프 예외: 그냥 빈 곳은 통과', swipeBlockReason(background, wrapper), null)
+eq('스와이프 예외: 컨테이너 바깥 상자는 보지 않음', [swipeBlockReason(background, wrapper), swipeBlockReason(background, null)], [null, 'scroller'])
+eq('스와이프 예외: 컨테이너 자신은 예외 아님', swipeBlockReason(wrapper, wrapper), null)
+eq('스와이프 예외: 손가락 위치를 못 읽으면 통과', [swipeBlockReason(null, wrapper), swipeBlockReason(undefined)], [null, null])
+
+/* 실제 흐름: 표를 옆으로 넘기면 탭은 그대로, 빈 곳을 밀면 탭이 넘어간다 */
+const swipeOnTable = swipeBlockReason(tableCell, wrapper)
+eq('스와이프 흐름: 표 안에서 밀면 탭 그대로', resolveTabSwipe({ dx: -140, dy: 6, index: 3, blocked: swipeOnTable !== null }), null)
+eq('스와이프 흐름: 빈 곳에서 왼쪽으로 밀면 다음 탭', resolveTabSwipe({ dx: -140, dy: 6, index: 3, blocked: swipeBlockReason(background, wrapper) !== null }), 4)
+eq('스와이프 흐름: 랭킹에서 더 밀어도 그대로', resolveTabSwipe({ dx: -140, dy: 6, index: 4, blocked: false }), null)
+eq('스와이프 흐름: 학생 관리 표에서 오른쪽으로 밀면 질문함으로', resolveTabSwipe({ dx: 140, dy: -6, index: 3, blocked: false }), 2)
+eq('스와이프 예외 목록에 입력·모달·표시 항목이 모두 있음', ['input', 'textarea', 'select', '[role="dialog"]', '[data-swipe-ignore]'].every((part) => SWIPE_BLOCKING_SELECTOR.split(',').includes(part)), true)
 
 console.log(failed === 0 ? 'ALL LIB TESTS PASSED' : `${failed} FAILED`)

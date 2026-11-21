@@ -28,8 +28,9 @@ export function Modal({ open, title, description, onClose, children, footer, wid
 
   if (!open) return null
 
+  /* data-swipe-ignore: 모달이 떠 있는 동안 관리자 화면 좌우 스와이프(탭 이동)를 막는다 */
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-navy/40 p-0 backdrop-blur-[2px] sm:items-center sm:p-6">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-navy/40 p-0 backdrop-blur-[2px] sm:items-center sm:p-6" data-swipe-ignore="modal">
       <button type="button" aria-label="닫기" className="absolute inset-0 cursor-default" onClick={onClose} />
       <div
         role="dialog"

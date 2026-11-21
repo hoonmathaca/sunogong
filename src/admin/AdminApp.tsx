@@ -1,6 +1,15 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type TouchEvent } from 'react'
 import { BrandFooter, Mascot } from '../components/Brand'
 import { ErrorBoundary } from '../components/ErrorBoundary'
+import {
+  ADMIN_TAB_ORDER,
+  gestureFrom,
+  isSingleTouch,
+  resolveTabSwipe,
+  swipeBlockReason,
+  type AdminTab,
+  type SwipeNode,
+} from '../lib/adminSwipe'
 import * as questionsApi from '../lib/questions'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { AdminLogin } from './AdminLogin'
@@ -13,9 +22,11 @@ import { useStudents } from './useStudents'
 
 const STORAGE_KEY = 'sunogong.admin-signed-in'
 
-type Tab = 'dashboard' | 'kintoun' | 'questions' | 'students' | 'ranking'
+type Tab = AdminTab
 
-const TABS: Tab[] = ['dashboard', 'kintoun', 'questions', 'students', 'ranking']
+const TABS: Tab[] = [...ADMIN_TAB_ORDER]
+
+type SwipeStart = { x: number; y: number; identifier: number; target: SwipeNode | null }
 
 function readSignedIn(): boolean {
   try {
@@ -40,12 +51,16 @@ export interface AdminAppProps {
   onBack: () => void
 }
 
-/** 관리자 화면: 대시보드 · 학생 관리 · 랭킹 */
+/** 관리자 화면: 대시보드 · 실시간 · 질문함 · 학생 관리 · 랭킹 (모바일에서는 좌우로 밀어 탭 이동) */
 export function AdminApp({ onBack }: AdminAppProps): JSX.Element {
   const [signedIn, setSignedIn] = useState(readSignedIn)
   const [tab, setTab] = useState<Tab>(readInitialTab)
   const [unanswered, setUnanswered] = useState(0)
   const { students, loading, error, reload } = useStudents()
+
+  /* 모바일 좌우 스와이프로 탭 이동 — 손가락이 닿은 곳과 뗀 곳만 본다 */
+  const swipeRef = useRef<HTMLDivElement | null>(null)
+  const swipeStart = useRef<SwipeStart | null>(null)
 
   /** 질문함 탭 배지 — 답변 대기 질문 수 (질문 기능이 없어도 조용히 0) */
   const refreshUnanswered = useCallback(() => {
@@ -70,6 +85,41 @@ export function AdminApp({ onBack }: AdminAppProps): JSX.Element {
     setSignedIn(true)
   }
 
+  const changeTab = (next: Tab) => {
+    setTab(next)
+    if (next === 'questions') refreshUnanswered()
+  }
+
+  const onTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+    if (!isSingleTouch(event.touches.length)) {
+      swipeStart.current = null
+      return
+    }
+    const touch = event.touches[0]
+    swipeStart.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+      identifier: touch.identifier,
+      target: (event.target as SwipeNode | null) ?? null,
+    }
+  }
+
+  const onTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
+    const start = swipeStart.current
+    swipeStart.current = null
+    if (!start) return
+    const touch =
+      Array.from(event.changedTouches).find((item) => item.identifier === start.identifier) ?? event.changedTouches[0]
+    if (!touch) return
+    const next = resolveTabSwipe({
+      ...gestureFrom(start, { x: touch.clientX, y: touch.clientY }),
+      index: TABS.indexOf(tab),
+      blocked: swipeBlockReason(start.target, swipeRef.current) !== null,
+    })
+    if (next === null) return
+    changeTab(TABS[next])
+  }
+
   const signOut = () => {
     try {
       localStorage.removeItem(STORAGE_KEY)
@@ -84,7 +134,16 @@ export function AdminApp({ onBack }: AdminAppProps): JSX.Element {
   }
 
   return (
-    <div className="screen bg-blue-soft/40">
+    <div
+      ref={swipeRef}
+      className="screen bg-blue-soft/40"
+      data-admin-swipe="tab"
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={() => {
+        swipeStart.current = null
+      }}
+    >
       <header className="sticky top-0 z-30 border-b border-blue-line bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
           <Mascot variant="face" className="h-10 w-10" />
@@ -117,10 +176,7 @@ export function AdminApp({ onBack }: AdminAppProps): JSX.Element {
             <button
               key={item.key}
               type="button"
-              onClick={() => {
-                setTab(item.key)
-                if (item.key === 'questions') refreshUnanswered()
-              }}
+              onClick={() => changeTab(item.key)}
               className={`relative shrink-0 rounded-full px-4 py-1.5 text-[12px] font-bold transition ${
                 tab === item.key ? 'bg-navy text-white shadow-soft' : 'text-navy/55 hover:bg-blue-soft'
               }`}

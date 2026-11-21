@@ -143,6 +143,7 @@ npm run preview    # 빌드 결과 확인
   - 켜면 학생이 질문을 올릴 때마다 휴대폰에 `선오공 새 질문` 알림이 오고, 누르면 `/admin?tab=questions`(질문함)이 바로 열린다.
   - 기기마다 따로 켜야 한다(원장님 폰·태블릿 각각). 아이폰은 홈 화면에 추가한 선오공에서만 켤 수 있다(iOS 16.4+).
 - **학생 관리**: 추가/수정/삭제, 학년(초1~고3, 미지정), 같은 코드면 `동일코드` 배지, 이름·코드·닉네임 검색, 학생별 기록 관리. **닉네임 열**에서 학생이 정한 근두운 닉네임(없으면 `수련생`)을 보고, `바꾸기` 로 원장님이 직접 고치거나 `비우기` 로 되돌린다(장난·사칭 닉네임 정리용, 최대 10자, `set_student_nickname` RPC 사용).
+- **모바일 좌우 스와이프로 탭 이동** (2026-11-21): 관리자 화면을 **왼쪽으로 밀면 다음 탭, 오른쪽으로 밀면 이전 탭**(대시보드 → 실시간 → 질문함 → 학생 관리 → 랭킹). 손가락이 **60px 넘게** 움직였고 **가로 이동이 세로 이동의 1.5배보다 클 때만** 탭이 넘어가서 세로 스크롤과 섞이지 않습니다. **입력창·선택 상자·글자 수정 영역, 모달·사진 확대, 가로로 넘치는 표**(학생 관리 표·탭 줄) 안에서는 표를 넘기는 동작이 우선이라 탭이 바뀌지 않습니다(두 손가락 확대도 제외). 판정은 `src/lib/adminSwipe.ts` 의 순수 함수, 화면 처리는 `AdminApp` 의 `onTouchStart`/`onTouchEnd`.
 - **랭킹**: 이번 달(기본) / 지난달 / 월 선택 / 전체 누적, 학년 필터, **연속 공부 TOP3**, **공부시간은 `전체 공부시간`(학원+숙제) · `🏫 학원 공부` · `🏠 숙제 공부` 세 가지로 따로** TOP3, **🐉 드래곤볼 TOP3**(`students.dragonball_count`, 기간과 무관한 현재 보유), **문제 풀이 TOP3**. 관리자 랭킹은 `실명 + 학년 + 닉네임(있으면)` 으로 보여 주고, 동점은 같은 순위(제출 일수 많은 학생 먼저), **이미지로 저장**(html2canvas)
 
 ### 홈 화면 설치(PWA) 및 새 질문 알림(웹 푸시)
@@ -219,14 +220,15 @@ sunogong/
 │  ├─ migrate-2026-11-21-kintoun-dragonball.sql  # 닉네임·근두운·드래곤볼 함수·표
 │  └─ verify-2026-11-21-kintoun-dragonball.sql   # 근두운·드래곤볼 SQL 검증(되돌림)
 ├─ tools/make_placeholders.py # 자리표시자 이미지 생성(선택)
-├─ tools/lib-test.ts          # 날짜·집계·랭킹·타이머·기기 판별·질문(Q&A)·알림 계산 테스트(개발용)
+├─ tools/lib-test.ts          # 날짜·집계·랭킹·타이머·기기 판별·질문(Q&A)·알림·스와이프 계산 테스트(개발용)
 ├─ tools/ssr-smoke.tsx        # 모든 화면 렌더 확인(개발용)
 └─ src/
    ├─ main.tsx, App.tsx, index.css
    ├─ lib/                    # supabase.ts, api.ts, time.ts, session.ts, stats.ts, logEdit.ts(기록 수정 계산), grades.ts, csv.ts, device.ts, types.ts,
    │                          # questions.ts(Q&A DB·Storage), questionBoard.ts(질문 순수 함수), imageCompress.ts(사진 줄이기),
    │                          # push.ts(알림 켜기/끄기·구독 저장), pushBoard.ts(알림 순수 함수·VAPID 공개 키),
-   │                          # kintoun.ts(근두운·드래곤볼 DB 함수), kintounBoard.ts(근두운 순수 함수 — 닉네임·순위·구름·드래곤볼)
+   │                          # kintoun.ts(근두운·드래곤볼 DB 함수), kintounBoard.ts(근두운 순수 함수 — 닉네임·순위·구름·드래곤볼),
+   │                          # adminSwipe.ts(관리자 좌우 스와이프 탭 이동 판정 — 거리·기울기·예외 영역)
    ├─ components/             # ErrorBoundary, Brand(마스코트·로고·푸터), Keypad, Modal, ImageViewer(사진 확대), InstallBanner, DesktopBlockScreen(PC 안내), KintounCloud(구름·드래곤볼)
    ├─ student/                # StudentApp, CodeEntry, ChooseStudent, Home, Timer, Result, useStudyTimer,
    │                          # QuestionBoardScreen(질문 화면), QuestionAskForm(질문 올리기 폼), LiveKintounCard(근두운·내 드래곤볼)
@@ -282,7 +284,7 @@ python3 -c "import pglast; pglast.parse_sql(open('supabase/schema.sql').read())"
 #    Supabase SQL Editor 에 supabase/verify-2026-11-21-kintoun-dragonball.sql 을 붙여넣고 실행
 ```
 
-결과: 단위 테스트 전부 통과(**225건** — 날짜·집계·학원/숙제 분리 집계·기록 수정 계산·비율·랭킹·타이머·기기 판별·질문(Q&A)·알림(VAPID 키·기기 판별·구독 저장 모양·오류 문구)·근두운(닉네임·시간·구름·실시간 순위·타이머 근두운 줄·드래곤볼) 계산, 랭킹 전체/학원/숙제 분리·드래곤볼 순위·동점 처리 포함), **20개 화면** 모두 렌더 성공(관리자 알림 카드·근두운 패널 포함), `schema.sql`/`seed.sql`/`migrate-2026-11-21-questions.sql`/`migrate-2026-11-21-push.sql`/`migrate-2026-11-21-kintoun-dragonball.sql` 문법 오류 없음, 근두운 SQL 검증 7건 통과(검증 데이터는 되돌림 — 남은 검증용 학생 0명).
+결과: 단위 테스트 전부 통과(**267건** — 날짜·집계·학원/숙제 분리 집계·기록 수정 계산·비율·랭킹·타이머·기기 판별·질문(Q&A)·알림(VAPID 키·기기 판별·구독 저장 모양·오류 문구)·근두운(닉네임·시간·구름·실시간 순위·타이머 근두운 줄·드래곤볼) 계산, 랭킹 전체/학원/숙제 분리·드래곤볼 순위·동점 처리 포함, 관리자 좌우 스와이프 42건(60px·1.5배 기준, 첫/끝 탭, 입력창·모달·가로 스크롤 예외, 컨테이너 바깥 무시)), **20개 화면** 모두 렌더 성공(관리자 알림 카드·근두운 패널 포함), `schema.sql`/`seed.sql`/`migrate-2026-11-21-questions.sql`/`migrate-2026-11-21-push.sql`/`migrate-2026-11-21-kintoun-dragonball.sql` 문법 오류 없음, 근두운 SQL 검증 7건 통과(검증 데이터는 되돌림 — 남은 검증용 학생 0명).
 기기 판별(학생 화면 PC 차단) 테스트 16건도 함께 통과합니다 — 아이폰·아이패드·안드로이드 허용, 윈도우·맥·리눅스·크롬북(터치 노트북 포함) 차단.
 화면 점검에는 `선오공에게 질문하기` 홈·타이머 버튼, 학생 질문 화면, 질문 올리기 폼, 관리자 질문함(자동 정리 안내 포함), 관리자 상단 탭 이름(`실시간`), 숙제 타이머의 근두운 줄(학원 타이머에는 없음), 학생 관리의 닉네임 열·`바꾸기` 버튼이 모두 들어 있습니다.
 `'선오공이에게'` 대신 `'선오공에게'` 로만 표기되는지도 테스트로 확인합니다.

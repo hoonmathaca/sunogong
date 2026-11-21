@@ -195,6 +195,8 @@ const questionChecks: [string, boolean][] = [
   ['질문: 관리자 자동 정리 안내', questionsPanelHtml.includes('오래된 질문 자동 정리')],
   ['질문: 관리자 7일 보관 안내', questionsPanelHtml.includes('7일')],
   ['질문: 관리자 질문함 탭', adminHtml.includes('질문함')],
+  ['스와이프: 관리자 화면에 좌우 스와이프 탭 이동', adminHtml.includes('data-admin-swipe="tab"')],
+  ['스와이프: 관리자 탭 다섯 개', ['대시보드', '실시간', '질문함', '학생 관리', '랭킹'].every((label) => adminHtml.includes(`>${label}<`) || adminHtml.includes(label))],
   ['알림: 관리자 질문함에 알림 설정', questionsPanelHtml.includes('새 질문 알림')],
   ['알림: 알림 켜기 버튼', (rendered['PushNotifyPanel(새 질문 알림)'] ?? '').includes('알림 켜기')],
   ['알림: 테스트 알림 버튼', (rendered['PushNotifyPanel(새 질문 알림)'] ?? '').includes('테스트 알림 보내기')],
