@@ -17,11 +17,20 @@ import {
 import {
   buildStats,
   groupByGrade,
+  hasScopedLog,
   indexLogs,
+  scopeLabel,
+  scopeShortLabel,
+  scopedDays,
+  scopedLogMinutes,
+  scopedLogProblems,
+  scopedMinutes,
+  scopedProblems,
   sortStudents,
   splitLog,
-  studentsWithoutLogs,
+  studentsWithoutKind,
   sumSplits,
+  type StatScope,
   type StudentStat,
 } from '../lib/stats'
 import { KIND_BAR_CLASS } from '../lib/kinds'
@@ -34,6 +43,7 @@ import {
   EmptyBlock,
   ErrorBlock,
   GradeFilterSelect,
+  KindScopeSwitch,
   LoadingBlock,
   StatCard,
 } from './ui'
@@ -59,6 +69,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
   const [error, setError] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const [metric, setMetric] = useState<'minutes' | 'problems'>('minutes')
+  const [scope, setScope] = useState<StatScope>('all')
   const [showAllBars, setShowAllBars] = useState(false)
   const [emptyPeriod, setEmptyPeriod] = useState<EmptyPeriod>('today')
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
@@ -96,8 +107,14 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
   const totals = useMemo(() => sumSplits(stats), [stats])
   const totalMinutes = totals.minutes
   const totalProblems = totals.problems
-  const submittedStudents = stats.filter((stat) => stat.submittedDays > 0).length
-  const maxMinutes = Math.max(1, ...stats.map((stat) => stat.minutes))
+  /* 선택한 구분(전체 / 학원 / 숙제)만의 합계 — 요약 카드·학생 비교·미제출에 함께 쓴다 */
+  const scopeMinutesTotal = useMemo(() => stats.reduce((sum, stat) => sum + scopedMinutes(stat, scope), 0), [stats, scope])
+  const scopeProblemsTotal = useMemo(
+    () => stats.reduce((sum, stat) => sum + scopedProblems(stat, scope), 0),
+    [stats, scope],
+  )
+  const submittedStudents = stats.filter((stat) => scopedDays(stat, scope) > 0).length
+  const maxCellMinutes = Math.max(1, ...stats.map((stat) => scopedMinutes(stat, scope)))
 
   const emptyDates = useMemo(() => {
     if (emptyPeriod === 'today') return { start: today, end: today }
@@ -109,38 +126,59 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
     return monthRange(currentMonthKst())
   }, [emptyPeriod, today])
 
-  const missing = useMemo(
-    () => studentsWithoutLogs(filteredStudents, index, emptyDates.start, emptyDates.end).slice(0, 60),
+  const missingCounts = useMemo(
+    () => ({
+      all: studentsWithoutKind(filteredStudents, index, emptyDates.start, emptyDates.end, 'all').length,
+      academy: studentsWithoutKind(filteredStudents, index, emptyDates.start, emptyDates.end, 'academy').length,
+      homework: studentsWithoutKind(filteredStudents, index, emptyDates.start, emptyDates.end, 'homework').length,
+    }),
     [filteredStudents, index, emptyDates],
+  )
+
+  const missing = useMemo(
+    () => studentsWithoutKind(filteredStudents, index, emptyDates.start, emptyDates.end, scope).slice(0, 60),
+    [filteredStudents, index, emptyDates, scope],
   )
 
   const sections = useMemo(() => groupByGrade(filteredStudents), [filteredStudents])
 
   const barItems = useMemo(() => {
-    const sorted = [...stats].sort((a, b) => {
-      const diff = metric === 'minutes' ? b.minutes - a.minutes : b.problems - a.problems
-      return diff !== 0 ? diff : compareName(a.student.name, b.student.name)
-    })
+    const valueOf = (stat: StudentStat) => (metric === 'minutes' ? scopedMinutes(stat, scope) : scopedProblems(stat, scope))
+    const sorted = [...stats]
+      .filter((stat) => scope === 'all' || valueOf(stat) > 0)
+      .sort((a, b) => {
+        const diff = valueOf(b) - valueOf(a)
+        return diff !== 0 ? diff : compareName(a.student.name, b.student.name)
+      })
     const list = showAllBars ? sorted : sorted.slice(0, 15)
     return list.map((stat) => ({
       key: stat.student.id,
       label: stat.student.name,
       sublabel: stat.student.grade.replace('미지정', '—'),
-      value: metric === 'minutes' ? stat.minutes : stat.problems,
-      segments: [
-        {
-          value: metric === 'minutes' ? stat.academyMinutes : stat.academyProblems,
-          className: KIND_BAR_CLASS.academy,
-          label: '🏫 학원',
-        },
-        {
-          value: metric === 'minutes' ? stat.homeworkMinutes : stat.homeworkProblems,
-          className: KIND_BAR_CLASS.homework,
-          label: '🏠 숙제',
-        },
-      ],
+      value: valueOf(stat),
+      segments:
+        scope === 'all'
+          ? [
+              {
+                value: metric === 'minutes' ? stat.academyMinutes : stat.academyProblems,
+                className: KIND_BAR_CLASS.academy,
+                label: '🏫 학원',
+              },
+              {
+                value: metric === 'minutes' ? stat.homeworkMinutes : stat.homeworkProblems,
+                className: KIND_BAR_CLASS.homework,
+                label: '🏠 숙제',
+              },
+            ]
+          : [
+              {
+                value: valueOf(stat),
+                className: KIND_BAR_CLASS[scope],
+                label: scopeShortLabel(scope),
+              },
+            ],
     }))
-  }, [stats, metric, showAllBars])
+  }, [stats, metric, showAllBars, scope])
 
   const downloadCsv = (shape: 'long' | 'matrix') => {
     const rows: (string | number)[][] = []
@@ -207,7 +245,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
 
   const cellColor = (minutes: number): string => {
     if (minutes <= 0) return 'transparent'
-    const alpha = 0.14 + 0.78 * Math.min(1, minutes / Math.max(60, maxMinutes))
+    const alpha = 0.14 + 0.78 * Math.min(1, minutes / Math.max(60, maxCellMinutes))
     return `rgba(18, 41, 107, ${alpha.toFixed(3)})`
   }
 
@@ -215,7 +253,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
     <div className="space-y-4">
       <AdminSection
         title="조회 조건"
-        description="기간과 학년을 바꾸면 표와 그래프에 함께 적용돼요."
+        description="기간·학년·구분을 바꾸면 아래 표와 모든 통계에 함께 적용돼요."
         actions={
           <>
             <button type="button" className="btn-ghost border border-blue-line" onClick={() => setRefreshKey((n) => n + 1)}>
@@ -260,11 +298,20 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
           </div>
           <GradeFilterSelect value={grade} onChange={setGrade} />
         </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-blue-line pt-3">
+          <span className="text-[12px] font-semibold text-navy/60">구분</span>
+          <KindScopeSwitch value={scope} onChange={setScope} label="통계 구분" />
+          <span className="text-[10.5px] font-semibold text-navy/40">
+            {scope === 'all'
+              ? '학원·숙제를 합쳐 집계해요. 한쪽만 보려면 골라 주세요.'
+              : `${scopeLabel(scope)} 기록만 집계해요.`}
+          </span>
+        </div>
       </AdminSection>
 
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
         <StatCard label="학생" value={`${filteredStudents.length}명`} sub={`기록 있음 ${submittedStudents}명`} tone="navy" />
-        <StatCard label="총 공부시간" value={formatMinutes(totalMinutes)} sub={`${safeStart} ~ ${safeEnd}`} />
         <StatCard
           label="🏫 학원 공부"
           value={formatMinutes(totals.academyMinutes)}
@@ -277,11 +324,16 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
           sub={`문제 ${totals.homeworkProblems}개`}
           tone="homework"
         />
-        <StatCard label="총 푼 문제" value={`${totalProblems}개`} sub={filteredStudents.length ? `1인당 ${Math.round(totalProblems / filteredStudents.length)}개` : undefined} />
+        <StatCard label="합계" value={formatMinutes(totalMinutes)} sub={`문제 ${totalProblems}개`} />
         <StatCard
-          label="1인당 평균"
-          value={formatMinutes(filteredStudents.length ? totalMinutes / filteredStudents.length : 0)}
-          sub="기간 전체"
+          label={`${scopeShortLabel(scope)} 문제`}
+          value={`${scopeProblemsTotal}개`}
+          sub={filteredStudents.length ? `1인당 ${Math.round(scopeProblemsTotal / filteredStudents.length)}개` : undefined}
+        />
+        <StatCard
+          label={`${scopeShortLabel(scope)} 1인당`}
+          value={formatMinutes(filteredStudents.length ? scopeMinutesTotal / filteredStudents.length : 0)}
+          sub={scope === 'all' ? '기간 전체' : '선택한 구분'}
         />
       </div>
 
@@ -290,7 +342,12 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
 
       <AdminSection
         title="학생 × 날짜 표"
-        description="칸을 누르면 그 날 기록을 고칠 수 있어요. 시간이 길수록 진하게 표시되고, 칸 아래 막대는 학원·숙제 비율이에요."
+        description={
+          scope === 'all'
+            ? '칸을 누르면 그 날 기록을 고칠 수 있어요. 시간이 길수록 진하게 표시되고, 칸 아래 막대는 학원·숙제 비율이에요.'
+            : `${scopeLabel(scope)} 기록만 보여줘요. 시간이 길수록 진하게 표시되고, 칸을 누르면 그 날 기록을 고칠 수 있어요.`
+        }
+        actions={<KindScopeSwitch value={scope} onChange={setScope} label="표 구분" />}
       >
         {studentsLoading || loading ? (
           <LoadingBlock />
@@ -316,7 +373,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                     </th>
                   ))}
                   <th className="sticky right-0 z-20 border-b border-l border-blue-line bg-white px-2 py-1.5 text-right text-[11px] font-bold text-navy">
-                    합계
+                    {scope === 'all' ? '합계' : `${scopeShortLabel(scope)} 합계`}
                   </th>
                 </tr>
               </thead>
@@ -337,29 +394,29 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                       const log = stat.byDate.get(date)
                       const split = splitLog(log)
                       const weekend = isWeekend(date)
+                      const filled = hasScopedLog(log, scope)
+                      const cellMinutes = scopedLogMinutes(log, scope)
+                      const cellProblems = scopedLogProblems(log, scope)
                       return (
-                        <td key={date} className={`border-b border-blue-line p-0 text-center ${weekend && !log ? 'bg-blue-soft/60' : ''}`}>
+                        <td key={date} className={`border-b border-blue-line p-0 text-center ${weekend && !filled ? 'bg-blue-soft/60' : ''}`}>
                           <button
                             type="button"
                             onClick={() => setEditingCell({ student: stat.student, date, log: log ?? null })}
                             title={`${stat.student.name} ${date}${
                               log
-                                ? ` · ${formatMinutes(log.minutes)} · ${log.problems}문제` +
-                                  ((log.academy_minutes ?? 0) > 0 || (log.homework_minutes ?? 0) > 0
-                                    ? ` (🏫 ${log.academy_minutes ?? 0}분 · 🏠 ${log.homework_minutes ?? 0}분)`
-                                    : '')
+                                ? ` · 🏫 ${split.academyMinutes}분 ${split.academyProblems}문제 · 🏠 ${split.homeworkMinutes}분 ${split.homeworkProblems}문제`
                                 : ' · 기록 없음'
                             }`}
                             className={`flex h-[42px] w-[46px] flex-col items-center justify-center transition hover:outline hover:outline-1 hover:outline-blue-brand ${
-                              log ? 'text-white' : 'text-navy/25'
+                              filled ? 'text-white' : 'text-navy/25'
                             }`}
-                            style={{ backgroundColor: log ? cellColor(log.minutes) : weekend ? 'transparent' : '#F3F4F6' }}
+                            style={{ backgroundColor: filled ? cellColor(cellMinutes) : weekend ? 'transparent' : '#F3F4F6' }}
                           >
-                            {log ? (
+                            {filled ? (
                               <>
-                                <span className="text-[10px] font-bold leading-tight tabular">{log.minutes}분</span>
-                                <span className="text-[9px] leading-tight opacity-85 tabular">{log.problems}문제</span>
-                                {split.homeworkMinutes > 0 ? (
+                                <span className="text-[10px] font-bold leading-tight tabular">{cellMinutes}분</span>
+                                <span className="text-[9px] leading-tight opacity-85 tabular">{cellProblems}문제</span>
+                                {scope === 'all' && split.homeworkMinutes > 0 ? (
                                   <SplitBar
                                     academy={split.academyMinutes}
                                     homework={split.homeworkMinutes}
@@ -370,6 +427,10 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                                   />
                                 ) : null}
                               </>
+                            ) : log ? (
+                              <span className="text-[11px] text-navy/30" title={`${scopeLabel(scope)} 기록 없음`}>
+                                –
+                              </span>
                             ) : (
                               <span className="text-[11px]">·</span>
                             )}
@@ -379,19 +440,29 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                     })}
                     <td className="sticky right-0 z-10 min-w-[92px] whitespace-nowrap border-b border-l border-blue-line bg-white px-2 pb-1.5 pt-1 text-right leading-tight tabular">
                       <span className="block text-[10px] font-bold text-navy">
-                        {formatMinutes(stat.minutes)}
-                        <span className="ml-1 text-[9px] font-medium text-navy/40">{stat.problems}문제</span>
+                        {formatMinutes(scopedMinutes(stat, scope))}
+                        <span className="ml-1 text-[9px] font-medium text-navy/40">{scopedProblems(stat, scope)}문제</span>
                       </span>
-                      {stat.academyMinutes + stat.homeworkMinutes > 0 ? (
+                      {scope === 'all' ? (
+                        stat.academyMinutes + stat.homeworkMinutes > 0 ? (
+                          <>
+                            <span className="block text-[9px] font-semibold text-navy/55">
+                              🏫 {formatMinutesCompact(stat.academyMinutes)}
+                            </span>
+                            <span className="block text-[9px] font-semibold text-[#5B2FC0]/85">
+                              🏠 {formatMinutesCompact(stat.homeworkMinutes)}
+                            </span>
+                          </>
+                        ) : null
+                      ) : (
                         <>
-                          <span className="block text-[9px] font-semibold text-navy/55">
-                            🏫 {formatMinutesCompact(stat.academyMinutes)}
+                          <span className="block text-[9px] font-semibold text-navy/50">
+                            {scope === 'academy' ? '🏠' : '🏫'}{' '}
+                            {formatMinutesCompact(scope === 'academy' ? stat.homeworkMinutes : stat.academyMinutes)}
                           </span>
-                          <span className="block text-[9px] font-semibold text-[#5B2FC0]/85">
-                            🏠 {formatMinutesCompact(stat.homeworkMinutes)}
-                          </span>
+                          <span className="block text-[9px] font-medium text-navy/35">합계 {formatMinutesCompact(stat.minutes)}</span>
                         </>
-                      ) : null}
+                      )}
                       {stat.otherMinutes > 0 ? (
                         <span className="block text-[9px] font-medium text-navy/35">직접 수정 {stat.otherMinutes}분</span>
                       ) : null}
@@ -419,7 +490,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
         </div>
       </AdminSection>
 
-      <AdminSection title="학생별 요약" description="학년별로 묶어 평균을 보여줘요. 이름을 누르면 한 달 추이를 볼 수 있어요.">
+      <AdminSection title="학생별 요약" description="학년별로 묶어 평균을 보여줘요. 학생마다 🏫 학원 · 🏠 숙제 시간을 따로 보여주고, 이름을 누르면 한 달 추이를 볼 수 있어요.">
         {loading ? (
           <LoadingBlock />
         ) : sections.length === 0 ? (
@@ -430,8 +501,11 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
               const sectionStats = section.students.map((student) => statById.get(student.id)).filter(Boolean) as StudentStat[]
               const count = sectionStats.length
               const sectionTotals = sumSplits(sectionStats)
-              const avgMinutes = count ? sectionTotals.minutes / count : 0
-              const avgProblems = count ? sectionTotals.problems / count : 0
+              const avgMinutes = count ? sectionStats.reduce((sum, stat) => sum + scopedMinutes(stat, scope), 0) / count : 0
+              const avgProblems = count
+                ? sectionStats.reduce((sum, stat) => sum + scopedProblems(stat, scope), 0) / count
+                : 0
+              const problemHeading = scope === 'all' ? '문제' : scope === 'academy' ? '🏫 문제' : '🏠 문제'
               const isCollapsed = Boolean(collapsed[section.grade])
               return (
                 <div key={section.grade} className="overflow-hidden rounded-2xl border border-blue-line">
@@ -451,11 +525,16 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                       <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-navy/60">{count}명</span>
                     </span>
                     <span className="text-right text-[11px] font-semibold text-navy/55 tabular">
-                      평균 {formatMinutes(avgMinutes)} · {Math.round(avgProblems)}문제
+                      {scope === 'all' ? '평균' : `${scopeShortLabel(scope)} 평균`} {formatMinutes(avgMinutes)} ·{' '}
+                      {Math.round(avgProblems)}문제
                       <span className="mt-0.5 block text-[10px] font-bold">
-                        <span className="text-navy/60">🏫 {formatMinutesCompact(count ? sectionTotals.academyMinutes / count : 0)}</span>
+                        <span className={scope === 'homework' ? 'text-navy/30' : 'text-navy/60'}>
+                          🏫 {formatMinutesCompact(count ? sectionTotals.academyMinutes / count : 0)}
+                        </span>
                         <span className="text-navy/20"> · </span>
-                        <span className="text-[#5B2FC0]/85">🏠 {formatMinutesCompact(count ? sectionTotals.homeworkMinutes / count : 0)}</span>
+                        <span className={scope === 'academy' ? 'text-[#5B2FC0]/30' : 'text-[#5B2FC0]/85'}>
+                          🏠 {formatMinutesCompact(count ? sectionTotals.homeworkMinutes / count : 0)}
+                        </span>
                       </span>
                     </span>
                   </button>
@@ -468,7 +547,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                         <span className="text-right">🏫 학원</span>
                         <span className="text-right">🏠 숙제</span>
                         <span className="text-right">합계</span>
-                        <span className="text-right">문제</span>
+                        <span className="text-right">{problemHeading}</span>
                         <span className="text-right">제출</span>
                       </div>
                       {sectionStats.map((stat) => (
@@ -482,20 +561,24 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                             >
                               {stat.student.name}
                             </button>
-                            <span className="text-right font-semibold tabular text-navy/80">
+                            <span className={`text-right font-semibold tabular ${scope === 'homework' ? 'text-navy/30' : 'text-navy/80'}`}>
                               {formatMinutes(stat.academyMinutes)}
                             </span>
-                            <span className="text-right font-semibold tabular text-[#5B2FC0]">
+                            <span className={`text-right font-semibold tabular ${scope === 'academy' ? 'text-[#5B2FC0]/30' : 'text-[#5B2FC0]'}`}>
                               {formatMinutes(stat.homeworkMinutes)}
                             </span>
                             <span className="text-right tabular">
-                              <span className="font-bold text-navy">{formatMinutes(stat.minutes)}</span>
+                              <span className={`font-bold ${scope === 'all' ? 'text-navy' : 'text-navy/50'}`}>
+                                {formatMinutes(stat.minutes)}
+                              </span>
                               <span className="block text-[9px] font-medium text-navy/40">
                                 하루 {stat.submittedDays ? formatMinutesCompact(stat.minutes / stat.submittedDays) : '—'}
                               </span>
                             </span>
-                            <span className="text-right tabular text-navy/70">{stat.problems}개</span>
-                            <span className="text-right tabular text-navy/50">{stat.submittedDays}일</span>
+                            <span className={`text-right tabular ${scope === 'all' ? 'text-navy/70' : 'font-bold text-navy'}`}>
+                              {scopedProblems(stat, scope)}개
+                            </span>
+                            <span className="text-right tabular text-navy/50">{scopedDays(stat, scope)}일</span>
                           </div>
                           {/* 스마트폰: 한 줄에 이름·합계, 아래에 학원/숙제 */}
                           <div className="px-3 py-2 sm:hidden">
@@ -508,14 +591,23 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                                 {stat.student.name}
                               </button>
                               <span className="shrink-0 text-[12px] font-extrabold tabular text-navy">
-                                {formatMinutes(stat.minutes)}
+                                {formatMinutes(scopedMinutes(stat, scope))}
+                                {scope === 'all' ? null : (
+                                  <span className="ml-1 text-[9px] font-semibold text-navy/40">
+                                    합계 {formatMinutesCompact(stat.minutes)}
+                                  </span>
+                                )}
                               </span>
                             </div>
                             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10.5px] font-semibold tabular">
-                              <span className="text-navy/75">🏫 학원 {formatMinutesCompact(stat.academyMinutes)}</span>
-                              <span className="text-[#5B2FC0]/85">🏠 숙제 {formatMinutesCompact(stat.homeworkMinutes)}</span>
+                              <span className={scope === 'homework' ? 'text-navy/35' : 'text-navy/75'}>
+                                🏫 학원 {formatMinutesCompact(stat.academyMinutes)}
+                              </span>
+                              <span className={scope === 'academy' ? 'text-[#5B2FC0]/35' : 'text-[#5B2FC0]/85'}>
+                                🏠 숙제 {formatMinutesCompact(stat.homeworkMinutes)}
+                              </span>
                               <span className="text-navy/40">
-                                {stat.problems}문제 · {stat.submittedDays}일
+                                {scopedProblems(stat, scope)}문제 · {scopedDays(stat, scope)}일
                               </span>
                             </div>
                             <SplitBar
@@ -537,7 +629,11 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
 
       <AdminSection
         title="학생 비교"
-        description="기간 동안의 기록을 학생별로 비교해요. 막대는 학원 공부(남색)와 숙제 공부(보라색)로 나뉘어 쌓입니다."
+        description={
+          scope === 'all'
+            ? '기간 동안의 기록을 학생별로 비교해요. 막대는 학원 공부(남색)와 숙제 공부(보라색)로 나뉘어 쌓입니다.'
+            : `${scopeLabel(scope)} 기록만으로 학생을 비교해요. 구분을 바꾸면 학원 공부와 숙제 공부를 따로 비교할 수 있어요.`
+        }
         actions={
           <>
             <div className="flex rounded-full bg-blue-soft p-0.5">
@@ -556,8 +652,9 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                 문제수
               </button>
             </div>
+            <KindScopeSwitch value={scope} onChange={setScope} label="학생 비교 구분" />
             <button type="button" className="btn-ghost border border-blue-line text-[11px]" onClick={() => setShowAllBars((v) => !v)}>
-              {showAllBars ? '상위 15명만' : '전체 보기'}
+              {showAllBars ? '상위 15명만' : '모두 보기'}
             </button>
           </>
         }
@@ -569,52 +666,103 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
             <HorizontalBars
               items={barItems}
               format={(value) => (metric === 'minutes' ? formatMinutes(value) : `${value}개`)}
+              emptyText={scope === 'all' ? '표시할 기록이 없어요' : `${scopeLabel(scope)} 기록이 없어요`}
             />
-            <KindLegend className="mt-3" />
+            {scope === 'all' ? (
+              <KindLegend className="mt-3" />
+            ) : (
+              <p className="mt-3 text-[10px] font-semibold text-navy/45">
+                {scope === 'academy' ? '🏫 학원 공부' : '🏠 숙제 공부'} 기록이 있는 학생만 보여줘요.
+              </p>
+            )}
           </>
         )}
       </AdminSection>
 
       <AdminSection
         title="미제출 학생"
-        description="선택한 기간에 기록이 하나도 없는 학생이에요."
+        description={
+          scope === 'all'
+            ? '선택한 기간에 기록이 하나도 없는 학생이에요. 아래 숫자로 학원·숙제를 따로 볼 수 있어요.'
+            : `선택한 기간에 ${scopeLabel(scope)} 기록이 하나도 없는 학생이에요.`
+        }
         actions={
-          <div className="flex rounded-full bg-blue-soft p-0.5">
-            {(
-              [
-                { key: 'today', label: '오늘' },
-                { key: 'week', label: '이번 주' },
-                { key: 'month', label: '이번 달' },
-              ] as { key: EmptyPeriod; label: string }[]
-            ).map((option) => (
-              <button
-                key={option.key}
-                type="button"
-                onClick={() => setEmptyPeriod(option.key)}
-                className={`rounded-full px-3 py-1 text-[11px] font-bold ${
-                  emptyPeriod === option.key ? 'bg-navy text-white' : 'text-navy/50'
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
+          <>
+            <KindScopeSwitch value={scope} onChange={setScope} label="미제출 구분" />
+            <div className="flex rounded-full bg-blue-soft p-0.5">
+              {(
+                [
+                  { key: 'today', label: '오늘' },
+                  { key: 'week', label: '이번 주' },
+                  { key: 'month', label: '이번 달' },
+                ] as { key: EmptyPeriod; label: string }[]
+              ).map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => setEmptyPeriod(option.key)}
+                  className={`rounded-full px-3 py-1 text-[11px] font-bold ${
+                    emptyPeriod === option.key ? 'bg-navy text-white' : 'text-navy/50'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </>
         }
       >
         {loading ? (
           <LoadingBlock />
-        ) : missing.length === 0 ? (
-          <EmptyBlock message="모두 기록을 남겼어요." />
         ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {missing.map((student) => (
-              <span key={student.id} className="rounded-full border border-blue-line px-2.5 py-1 text-[11px] font-semibold text-navy/70">
-                {student.name}
-                <span className="ml-1 text-[9px] text-navy/35">{student.grade}</span>
-              </span>
-            ))}
-            {missing.length >= 60 ? <span className="text-[11px] text-navy/40">외 더 있음</span> : null}
-          </div>
+          <>
+            <div className="mb-2.5 flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
+              <button
+                type="button"
+                onClick={() => setScope('all')}
+                className={`rounded-full px-2.5 py-1 ${
+                  scope === 'all' ? 'bg-navy text-white' : 'bg-blue-soft text-navy/50'
+                }`}
+              >
+                기록 없음 {missingCounts.all}명
+              </button>
+              <button
+                type="button"
+                onClick={() => setScope('academy')}
+                className={`rounded-full px-2.5 py-1 ${
+                  scope === 'academy' ? 'bg-navy text-white' : 'bg-blue-soft text-navy/50'
+                }`}
+              >
+                🏫 학원 미제출 {missingCounts.academy}명
+              </button>
+              <button
+                type="button"
+                onClick={() => setScope('homework')}
+                className={`rounded-full px-2.5 py-1 ${
+                  scope === 'homework' ? 'bg-[#6D3BD6] text-white' : 'bg-[#EDE4FF]/70 text-[#5B2FC0]/60'
+                }`}
+              >
+                🏠 숙제 미제출 {missingCounts.homework}명
+              </button>
+            </div>
+
+            {missing.length === 0 ? (
+              <EmptyBlock message={scope === 'all' ? '모두 기록을 남겼어요.' : `모두 ${scopeLabel(scope)} 기록이 있어요.`} />
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {missing.map((student) => (
+                  <span
+                    key={student.id}
+                    className="rounded-full border border-blue-line px-2.5 py-1 text-[11px] font-semibold text-navy/70"
+                  >
+                    {student.name}
+                    <span className="ml-1 text-[9px] text-navy/35">{student.grade}</span>
+                  </span>
+                ))}
+                {missing.length >= 60 ? <span className="text-[11px] text-navy/40">외 더 있음</span> : null}
+              </div>
+            )}
+          </>
         )}
         <p className="mt-2 text-[10px] text-navy/40">
           {emptyDates.start === emptyDates.end ? emptyDates.start : `${emptyDates.start} ~ ${emptyDates.end}`} 기준

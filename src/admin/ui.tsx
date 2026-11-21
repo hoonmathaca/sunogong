@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { GRADE_FILTERS, type GradeFilter } from '../lib/grades'
+import type { StatScope } from '../lib/stats'
 
 export function AdminSection({
   title,
@@ -102,6 +103,55 @@ export function GradeFilterSelect({
         ))}
       </select>
     </label>
+  )
+}
+
+const SCOPE_OPTIONS: { scope: StatScope; label: string }[] = [
+  { scope: 'all', label: '전체' },
+  { scope: 'academy', label: '🏫 학원 공부' },
+  { scope: 'homework', label: '🏠 숙제 공부' },
+]
+
+/**
+ * 통계 구분 고르기 — 전체 / 🏫 학원 공부 / 🏠 숙제 공부.
+ * 대시보드·랭킹·학생 상세에서 같은 모양으로 쓴다.
+ */
+export function KindScopeSwitch({
+  value,
+  onChange,
+  className = '',
+  label,
+}: {
+  value: StatScope
+  onChange: (next: StatScope) => void
+  className?: string
+  /** 화면 읽기용 이름 (예: '학생 비교 구분') */
+  label?: string
+}): JSX.Element {
+  return (
+    <div
+      role="group"
+      aria-label={label ?? '공부 구분'}
+      className={`inline-flex rounded-full bg-blue-soft p-0.5 ${className}`}
+    >
+      {SCOPE_OPTIONS.map((option) => {
+        const active = value === option.scope
+        const activeClass = option.scope === 'homework' ? 'bg-[#6D3BD6] text-white shadow-soft' : 'bg-navy text-white shadow-soft'
+        return (
+          <button
+            key={option.scope}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(option.scope)}
+            className={`whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-bold transition ${
+              active ? activeClass : 'text-navy/50 hover:text-navy/70'
+            }`}
+          >
+            {option.label}
+          </button>
+        )
+      })}
+    </div>
   )
 }
 

@@ -2,11 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Modal } from '../components/Modal'
 import { Spinner } from '../components/Keypad'
 import * as api from '../lib/api'
-import { splitLog } from '../lib/stats'
+import { hasScopedLog, scopedLogMinutes, scopedLogProblems, splitLog, type StatScope } from '../lib/stats'
 import { addDays, formatDateKo, formatMinutes, formatMinutesCompact, rangeDates } from '../lib/time'
 import type { Student, StudyLog } from '../lib/types'
 import { TrendLineChart, type LinePoint } from './Charts'
 import { LogEditorModal } from './LogEditorModal'
+import { KindScopeSwitch } from './ui'
 
 interface StudentDetailModalProps {
   open: boolean
@@ -23,6 +24,7 @@ export function StudentDetailModal({ open, student, endDate, onClose, onChanged 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState<{ date: string; log: StudyLog | null } | null>(null)
+  const [scope, setScope] = useState<StatScope>('all')
   const [refreshKey, setRefreshKey] = useState(0)
 
   const start = addDays(endDate, -29)
@@ -48,9 +50,9 @@ export function StudentDetailModal({ open, student, endDate, onClose, onChanged 
     const byDate = new Map(logs.map((log) => [log.date, log]))
     return rangeDates(start, endDate).map((date) => {
       const log = byDate.get(date)
-      return { date, value: log?.minutes ?? 0, problems: log?.problems ?? 0 }
+      return { date, value: scopedLogMinutes(log, scope), problems: scopedLogProblems(log, scope) }
     })
-  }, [logs, start, endDate])
+  }, [logs, start, endDate, scope])
 
   if (!open || !student) return null
 
@@ -58,6 +60,9 @@ export function StudentDetailModal({ open, student, endDate, onClose, onChanged 
   const totalProblems = logs.reduce((sum, log) => sum + log.problems, 0)
   const totalAcademyMinutes = logs.reduce((sum, log) => sum + splitLog(log).academyMinutes, 0)
   const totalHomeworkMinutes = logs.reduce((sum, log) => sum + splitLog(log).homeworkMinutes, 0)
+  const totalAcademyProblems = logs.reduce((sum, log) => sum + splitLog(log).academyProblems, 0)
+  const totalHomeworkProblems = logs.reduce((sum, log) => sum + splitLog(log).homeworkProblems, 0)
+  const submittedDays = logs.filter((log) => hasScopedLog(log, scope)).length
   const recent = [...logs].sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 14)
 
   return (
@@ -79,24 +84,42 @@ export function StudentDetailModal({ open, student, endDate, onClose, onChanged 
               <div className="rounded-xl bg-blue-soft px-2 py-2">
                 <p className="text-[10px] font-semibold text-navy/45">총 공부시간</p>
                 <p className="text-[14px] font-extrabold text-navy tabular">{formatMinutesCompact(totalMinutes)}</p>
+                <p className="text-[10px] font-semibold text-navy/35 tabular">{totalProblems}문제</p>
               </div>
               <div className="rounded-xl bg-blue-soft px-2 py-2">
                 <p className="text-[10px] font-semibold text-navy/45">🏫 학원 공부</p>
                 <p className="text-[14px] font-extrabold text-navy tabular">{formatMinutesCompact(totalAcademyMinutes)}</p>
+                <p className="text-[10px] font-semibold text-navy/35 tabular">{totalAcademyProblems}문제</p>
               </div>
               <div className="rounded-xl bg-[#EDE4FF]/70 px-2 py-2">
                 <p className="text-[10px] font-semibold text-[#5B2FC0]/60">🏠 숙제 공부</p>
-                <p className="text-[14px] font-extrabold text-[#5B2FC0] tabular">{formatMinutesCompact(totalHomeworkMinutes)}</p>
+                <p className="text-[14px] font-extrabold text-[#5B2FC0] tabular">
+                  {formatMinutesCompact(totalHomeworkMinutes)}
+                </p>
+                <p className="text-[10px] font-semibold text-[#5B2FC0]/45 tabular">{totalHomeworkProblems}문제</p>
               </div>
               <div className="rounded-xl bg-blue-soft px-2 py-2">
-                <p className="text-[10px] font-semibold text-navy/45">푼 문제 · 제출</p>
+                <p className="text-[10px] font-semibold text-navy/45">기록한 날</p>
                 <p className="text-[14px] font-extrabold text-navy tabular">
-                  {totalProblems}개 · {logs.length}일
+                  {submittedDays}일
+                </p>
+                <p className="text-[10px] font-semibold text-navy/35">
+                  {scope === 'all' ? '학원·숙제 모두' : scope === 'academy' ? '🏫 학원 기록' : '🏠 숙제 기록'}
                 </p>
               </div>
             </div>
 
-            <TrendLineChart points={points} metric="minutes" />
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-[13px] font-bold text-navy">최근 30일 추이</h3>
+              <KindScopeSwitch value={scope} onChange={setScope} label="추이 구분" />
+            </div>
+            <TrendLineChart
+              points={points}
+              metric="minutes"
+              accent={scope === 'homework' ? '#6D3BD6' : '#1D4A9B'}
+              dotColor={scope === 'homework' ? '#5B2FC0' : '#12296B'}
+              areaId={`sunogong-area-${scope}`}
+            />
 
             <h3 className="mt-4 text-[13px] font-bold text-navy">최근 기록</h3>
             {recent.length === 0 ? (

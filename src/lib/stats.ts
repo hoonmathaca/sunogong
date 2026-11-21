@@ -55,6 +55,71 @@ export function splitLog(log: StudyLog | null | undefined): KindSplit {
   return { academyMinutes, academyProblems, homeworkMinutes, homeworkProblems }
 }
 
+/** 통계 구분 — 전체(학원+숙제) / 학원 공부 / 숙제 공부 */
+export type StatScope = 'all' | 'academy' | 'homework'
+
+export const STAT_SCOPES: StatScope[] = ['all', 'academy', 'homework']
+
+/** '🏫 학원 공부' 처럼 화면에 쓰는 이름 */
+export function scopeLabel(scope: StatScope): string {
+  if (scope === 'academy') return '🏫 학원 공부'
+  if (scope === 'homework') return '🏠 숙제 공부'
+  return '전체'
+}
+
+/** '🏫 학원' 처럼 짧게 쓰는 이름 */
+export function scopeShortLabel(scope: StatScope): string {
+  if (scope === 'academy') return '🏫 학원'
+  if (scope === 'homework') return '🏠 숙제'
+  return '합계'
+}
+
+/** 학생별 통계에서 고른 구분의 공부 시간 */
+export function scopedMinutes(stat: StudentStat, scope: StatScope): number {
+  if (scope === 'academy') return Math.max(0, stat.academyMinutes)
+  if (scope === 'homework') return Math.max(0, stat.homeworkMinutes)
+  return Math.max(0, stat.minutes)
+}
+
+/** 학생별 통계에서 고른 구분의 푼 문제 수 */
+export function scopedProblems(stat: StudentStat, scope: StatScope): number {
+  if (scope === 'academy') return Math.max(0, stat.academyProblems)
+  if (scope === 'homework') return Math.max(0, stat.homeworkProblems)
+  return Math.max(0, stat.problems)
+}
+
+/** 하루 기록에서 고른 구분의 공부 시간 */
+export function scopedLogMinutes(log: StudyLog | null | undefined, scope: StatScope): number {
+  if (!log) return 0
+  if (scope === 'all') return Math.max(0, log.minutes ?? 0)
+  const split = splitLog(log)
+  return scope === 'academy' ? split.academyMinutes : split.homeworkMinutes
+}
+
+/** 하루 기록에서 고른 구분의 푼 문제 수 */
+export function scopedLogProblems(log: StudyLog | null | undefined, scope: StatScope): number {
+  if (!log) return 0
+  if (scope === 'all') return Math.max(0, log.problems ?? 0)
+  const split = splitLog(log)
+  return scope === 'academy' ? split.academyProblems : split.homeworkProblems
+}
+
+/** 그 날 고른 구분의 기록이 있는지 (시간이나 문제가 0보다 큼) */
+export function hasScopedLog(log: StudyLog | null | undefined, scope: StatScope): boolean {
+  if (!log) return false
+  return scopedLogMinutes(log, scope) > 0 || scopedLogProblems(log, scope) > 0
+}
+
+/** 학생 한 명이 그 구분으로 기록한 날 수 */
+export function scopedDays(stat: StudentStat, scope: StatScope): number {
+  if (scope === 'all') return stat.submittedDays
+  let days = 0
+  for (const log of stat.byDate.values()) {
+    if (hasScopedLog(log, scope)) days += 1
+  }
+  return days
+}
+
 export type LogIndex = Map<string, Map<string, StudyLog>> // student_id → date → log
 
 export function indexLogs(logs: StudyLog[]): LogIndex {
@@ -241,11 +306,29 @@ export function studentsWithoutLogs(
   start: string,
   end: string,
 ): Student[] {
+  return studentsWithoutKind(students, index, start, end, 'all')
+}
+
+/**
+ * 기간 안에 그 구분의 기록이 하나도 없는 학생.
+ * scope 'all' 은 기록이 아예 없는 학생, 'academy'·'homework' 는 그 종류만 없는 학생이다.
+ */
+export function studentsWithoutKind(
+  students: Student[],
+  index: LogIndex,
+  start: string,
+  end: string,
+  scope: StatScope,
+): Student[] {
+  const dates = [...rangeDates(start, end)]
   return sortStudents(students).filter((student) => {
-    const dates = [...rangeDates(start, end)]
     const byDate = index.get(student.id)
     if (!byDate) return true
-    return !dates.some((date) => byDate.has(date))
+    return !dates.some((date) => {
+      const log = byDate.get(date)
+      if (!log) return false
+      return scope === 'all' ? true : hasScopedLog(log, scope)
+    })
   })
 }
 

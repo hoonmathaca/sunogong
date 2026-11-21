@@ -125,9 +125,17 @@ export interface LinePoint {
 export function TrendLineChart({
   points,
   metric,
+  accent = '#1D4A9B',
+  dotColor = '#12296B',
+  areaId = 'sunogong-area',
 }: {
   points: LinePoint[]
   metric: 'minutes' | 'problems'
+  /** 선 색 — 학원 공부는 남색, 숙제 공부는 보라색 */
+  accent?: string
+  dotColor?: string
+  /** 한 화면에 여러 그래프를 그릴 때 그라데이션 id가 겹치지 않게 */
+  areaId?: string
 }): JSX.Element {
   const width = 640
   const height = 240
@@ -157,9 +165,9 @@ export function TrendLineChart({
     <div className="w-full overflow-hidden">
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full" role="img" aria-label="공부 추이 그래프">
         <defs>
-          <linearGradient id="sunogong-area" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#1D4A9B" stopOpacity="0.24" />
-            <stop offset="100%" stopColor="#1D4A9B" stopOpacity="0.02" />
+          <linearGradient id={areaId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={accent} stopOpacity="0.24" />
+            <stop offset="100%" stopColor={accent} stopOpacity="0.02" />
           </linearGradient>
         </defs>
 
@@ -175,15 +183,15 @@ export function TrendLineChart({
           )
         })}
 
-        {area ? <polygon points={area} fill="url(#sunogong-area)" /> : null}
+        {area ? <polygon points={area} fill={`url(#${areaId})`} /> : null}
         {coords.length > 1 ? (
-          <polyline points={line} fill="none" stroke="#1D4A9B" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+          <polyline points={line} fill="none" stroke={accent} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
         ) : null}
 
         {coords.map((coord, index) => (
           <g key={coord.point.date}>
             {coord.point.value > 0 ? (
-              <circle cx={coord.x} cy={coord.y} r={3.2} fill="#12296B">
+              <circle cx={coord.x} cy={coord.y} r={3.2} fill={dotColor}>
                 <title>
                   {formatDateShort(coord.point.date)} · {format(coord.point.value)}
                 </title>

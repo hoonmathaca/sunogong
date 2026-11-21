@@ -1,6 +1,6 @@
 /** 순수 함수(날짜·집계·랭킹) 점검용 테스트 (개발용) */
 import { addDays, formatHMS, formatMinutes, formatMinutesCompact, kstDateString, monthRange, rangeDates, weekRange, weekdayOf, kstDayEndMs, kstMidnightMs } from '../src/lib/time'
-import { buildStats, indexLogs, longestStreakAllTime, longestStreakInRange, rankByKind, rankEntries, rankValue, splitLog, splitPercents, sumSplits } from '../src/lib/stats'
+import { buildStats, hasScopedLog, indexLogs, longestStreakAllTime, longestStreakInRange, rankByKind, rankEntries, rankValue, scopeLabel, scopeShortLabel, scopedDays, scopedLogMinutes, scopedLogProblems, scopedMinutes, scopedProblems, splitLog, splitPercents, studentsWithoutKind, sumSplits } from '../src/lib/stats'
 import { editTotals, editValuesFromLog, normalizeEditValues } from '../src/lib/logEdit'
 import { computeElapsedSeconds, isHeartbeatStale } from '../src/lib/session'
 import { normalizeKind, pausesOnLeave } from '../src/lib/kinds'
@@ -229,6 +229,53 @@ eq('합계 집계', [summed.minutes, summed.academyMinutes, summed.homeworkMinut
 const editedStats = buildStats([students[0]], indexLogs([{ ...mixedLog, minutes: 140 }]), '2026-11-17', '2026-11-20')
 eq('합계만 고친 기록은 기타로', editedStats[0].otherMinutes, 40)
 eq('기타 합계 집계', sumSplits(editedStats).otherMinutes, 40)
+
+/* 통계 구분 — 모든 통계를 전체 / 학원 공부 / 숙제 공부로 따로 */
+eq('구분 이름', [scopeLabel('all'), scopeLabel('academy'), scopeLabel('homework')], ['전체', '🏫 학원 공부', '🏠 숙제 공부'])
+eq('짧은 구분 이름', [scopeShortLabel('all'), scopeShortLabel('academy'), scopeShortLabel('homework')], [
+  '합계',
+  '🏫 학원',
+  '🏠 숙제',
+])
+eq('학생별 학원만', [scopedMinutes(splitStats[0], 'academy'), scopedProblems(splitStats[0], 'academy')], [130, 35])
+eq('학생별 숙제만', [scopedMinutes(splitStats[0], 'homework'), scopedProblems(splitStats[0], 'homework')], [30, 15])
+eq('학생별 합계', [scopedMinutes(splitStats[0], 'all'), scopedProblems(splitStats[0], 'all')], [160, 50])
+eq('하루 기록 학원만', [scopedLogMinutes(mixedLog, 'academy'), scopedLogProblems(mixedLog, 'academy')], [70, 25])
+eq('하루 기록 숙제만', [scopedLogMinutes(mixedLog, 'homework'), scopedLogProblems(mixedLog, 'homework')], [30, 15])
+eq('하루 기록 합계', [scopedLogMinutes(mixedLog, 'all'), scopedLogProblems(mixedLog, 'all')], [100, 40])
+eq('하루 기록 없음', [scopedLogMinutes(null, 'academy'), scopedLogProblems(undefined, 'homework')], [0, 0])
+eq('예전 기록(종류 없음)은 학원으로', scopedLogMinutes(logs[0], 'academy'), 60)
+eq('그 구분 기록 있는 날', [hasScopedLog(mixedLog, 'academy'), hasScopedLog(mixedLog, 'homework'), hasScopedLog({ ...mixedLog, homework_minutes: 0, homework_problems: 0 }, 'homework'), hasScopedLog(null, 'all')], [true, true, false, false])
+eq('문제만 있는 날도 기록으로', hasScopedLog({ ...mixedLog, minutes: 4, academy_minutes: 0, academy_problems: 0, homework_minutes: 0, homework_problems: 12 }, 'homework'), true)
+eq('구분별 기록한 날 수', [scopedDays(splitStats[0], 'all'), scopedDays(splitStats[0], 'academy'), scopedDays(splitStats[0], 'homework')], [2, 2, 1])
+const kindStudents: Student[] = [
+  { id: 'k1', name: '가학생', code: '0201', grade: '초5', created_at: '' },
+  { id: 'k2', name: '나학생', code: '0202', grade: '중1', created_at: '' },
+  { id: 'k3', name: '다학생', code: '0203', grade: '중2', created_at: '' },
+]
+const kindLogs: StudyLog[] = [
+  { id: 'x1', student_id: 'k1', date: '2026-11-17', minutes: 50, problems: 5, academy_minutes: 50, academy_problems: 5, homework_minutes: 0, homework_problems: 0, updated_at: '' },
+  { id: 'x2', student_id: 'k2', date: '2026-11-18', minutes: 40, problems: 4, academy_minutes: 0, academy_problems: 0, homework_minutes: 40, homework_problems: 4, updated_at: '' },
+]
+const kindIndex = indexLogs(kindLogs)
+eq('미제출: 기록 없음', studentsWithoutKind(kindStudents, kindIndex, '2026-11-17', '2026-11-18', 'all').map((s) => s.name), ['다학생'])
+eq('미제출: 학원 기록 없는 학생', studentsWithoutKind(kindStudents, kindIndex, '2026-11-17', '2026-11-18', 'academy').map((s) => s.name), [
+  '나학생',
+  '다학생',
+])
+eq('미제출: 숙제 기록 없는 학생', studentsWithoutKind(kindStudents, kindIndex, '2026-11-17', '2026-11-18', 'homework').map((s) => s.name), [
+  '가학생',
+  '다학생',
+])
+eq('미제출: 기간 안에 기록이 있으면 제외', studentsWithoutKind(kindStudents, kindIndex, '2026-11-17', '2026-11-17', 'academy').map((s) => s.name), [
+  '나학생',
+  '다학생',
+])
+eq('미제출: 그날 다른 종류만 있으면 그 종류는 미제출', studentsWithoutKind(kindStudents, kindIndex, '2026-11-18', '2026-11-18', 'academy').map((s) => s.name), [
+  '가학생',
+  '나학생',
+  '다학생',
+])
 
 /* 랭킹 — 전체 공부시간 / 학원 공부 / 숙제 공부 / 드래곤볼 따로 */
 const rankStudents: Student[] = [

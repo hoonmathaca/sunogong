@@ -259,4 +259,21 @@ for (const [name, ok] of kintounChecks) {
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)
 }
 
+/* 통계 학원·숙제 분리 (대시보드·랭킹) */
+const dashboardHtml = rendered['Dashboard'] ?? ''
+const rankingHtml = rendered['RankingPanel'] ?? ''
+const statsSplitChecks: [string, boolean][] = [
+  ['분리: 대시보드 구분 필터', dashboardHtml.includes('aria-label="통계 구분"')],
+  ['분리: 대시보드 학원·숙제 카드', dashboardHtml.includes('🏫 학원 공부') && dashboardHtml.includes('🏠 숙제 공부')],
+  ['분리: 대시보드 합계 카드', dashboardHtml.includes('>합계<')],
+  ['분리: 학생 비교 구분 필터', dashboardHtml.includes('aria-label="학생 비교 구분"')],
+  ['분리: 표 구분 필터', dashboardHtml.includes('aria-label="표 구분"')],
+  ['분리: 미제출 학원·숙제 안내', dashboardHtml.includes('아래 숫자로 학원·숙제를 따로 볼 수 있어요')],
+  ['분리: 랭킹 학원·숙제 분리 안내', rankingHtml.includes('전체 / 🏫 학원 / 🏠 숙제로 따로')],
+]
+for (const [name, ok] of statsSplitChecks) {
+  if (!ok) failed += 1
+  console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)
+}
+
 console.log(failed === 0 ? 'ALL SCREENS RENDERED' : `${failed} FAILED`)

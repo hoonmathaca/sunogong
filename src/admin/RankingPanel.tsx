@@ -16,6 +16,8 @@ import {
   longestStreakInRange,
   rankByKind,
   rankEntries,
+  scopedDays,
+  scopedProblems,
   sortStudents,
   type RankedEntry,
 } from '../lib/stats'
@@ -122,8 +124,26 @@ export function RankingPanel({ students, studentsLoading, studentsError, reloadS
   /* 🐉 드래곤볼 랭킹 — students.dragonball_count (기간과 무관한 현재 보유) */
   const dragonballRanking = useMemo(() => rankByKind(stats, 'dragonball'), [stats])
 
-  const problemRanking = useMemo(
-    () => rankEntries(stats.map((stat) => ({ student: stat.student, value: stat.problems, days: stat.submittedDays }))),
+  const problemRankings = useMemo(
+    () => ({
+      all: rankEntries(
+        stats.map((stat) => ({ student: stat.student, value: scopedProblems(stat, 'all'), days: stat.submittedDays })),
+      ),
+      academy: rankEntries(
+        stats.map((stat) => ({
+          student: stat.student,
+          value: scopedProblems(stat, 'academy'),
+          days: scopedDays(stat, 'academy'),
+        })),
+      ),
+      homework: rankEntries(
+        stats.map((stat) => ({
+          student: stat.student,
+          value: scopedProblems(stat, 'homework'),
+          days: scopedDays(stat, 'homework'),
+        })),
+      ),
+    }),
     [stats],
   )
 
@@ -198,7 +218,7 @@ export function RankingPanel({ students, studentsLoading, studentsError, reloadS
     <div className="space-y-4">
       <AdminSection
         title="기간"
-        description="매달 1일에 이번 달 기준으로 자동 바뀌어요."
+        description="매달 1일에 이번 달 기준으로 자동 바뀌어요. 공부시간·문제는 전체 / 🏫 학원 / 🏠 숙제로 따로 뽑아요."
         actions={
           <>
             <button type="button" className="btn-ghost border border-blue-line" onClick={() => setRefreshKey((n) => n + 1)}>
@@ -270,7 +290,9 @@ export function RankingPanel({ students, studentsLoading, studentsError, reloadS
             (entry) =>
               `🌈 ${normalizeRainbowCount(entry.student.rainbow_ball_count)} · ${dragonballKinds(entry.student.dragonballs)}/7종`,
           )}
-          {renderRanking('문제 풀이 TOP3', '기간 합계', problemRanking, (value) => `${value}개`)}
+          {renderRanking('문제 풀이 TOP3', '학원+숙제 합계', problemRankings.all, (value) => `${value}개`)}
+          {renderRanking('🏫 학원 문제 TOP3', '학원 공부에서 푼 문제', problemRankings.academy, (value) => `${value}개`)}
+          {renderRanking('🏠 숙제 문제 TOP3', '숙제 공부에서 푼 문제', problemRankings.homework, (value) => `${value}개`)}
 
           <p className="px-1 text-[10px] text-navy/35">
             동점이면 같은 순위로 표시하고, 그 안에서는 기록을 많이 남긴 학생을 먼저 보여줘요.
