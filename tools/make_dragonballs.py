@@ -135,8 +135,7 @@ def draw_star(base: Image.Image, cx: float, cy: float, radius: float, rotation: 
     gx = (xx - (cx - radius * 0.35)) / (radius * 1.7)
     gy = (yy - (cy - radius * 0.40)) / (radius * 1.8)
     t = np.clip(np.sqrt(np.clip(gx * gx + gy * gy, 0.0, 4.0)) / 1.15, 0.0, 1.0)
-    star_rgb = mix((255, 126, 104), (176, 8, 26), t)
-    star_rgb = mix(star_rgb, (248, 52, 46), 0.42)
+    star_rgb = mix((240, 66, 62), (152, 4, 20), t)
     star_alpha = np.asarray(mask, dtype=np.float32)
     layer = np.dstack([star_rgb, star_alpha]).astype(np.uint8)
     base.alpha_composite(Image.fromarray(layer, 'RGBA'))
@@ -144,7 +143,7 @@ def draw_star(base: Image.Image, cx: float, cy: float, radius: float, rotation: 
     # 진한 테두리
     ImageDraw.Draw(base).line(
         poly + [poly[0]],
-        fill=(138, 6, 20, 220),
+        fill=(122, 4, 16, 235),
         width=max(2, int(radius * 0.05)),
         joint='curve',
     )
@@ -153,12 +152,12 @@ def draw_star(base: Image.Image, cx: float, cy: float, radius: float, rotation: 
     glint = Image.new('RGBA', base.size, (0, 0, 0, 0))
     ImageDraw.Draw(glint).ellipse(
         [
-            cx - radius * 0.46 - radius * 0.19,
-            cy - radius * 0.52 - radius * 0.11,
-            cx - radius * 0.46 + radius * 0.19,
-            cy - radius * 0.52 + radius * 0.11,
+            cx - radius * 0.50 - radius * 0.13,
+            cy - radius * 0.54 - radius * 0.075,
+            cx - radius * 0.50 + radius * 0.13,
+            cy - radius * 0.54 + radius * 0.075,
         ],
-        fill=(255, 232, 224, 200),
+        fill=(255, 240, 232, 120),
     )
     base.alpha_composite(Image.composite(glint.filter(ImageFilter.GaussianBlur(radius * 0.05)),
                                          Image.new('RGBA', base.size, (0, 0, 0, 0)), mask))
