@@ -10,6 +10,8 @@ export interface Student {
   nickname?: string | null
   /** 받은 드래곤볼 개수 (제한 없이 누적) */
   dragonball_count?: number
+  /** 성구별 보유 개수 맵 — {"1":0,...,"7":0} (2026-11-21 추가) */
+  dragonballs?: Record<string, number> | null
 }
 
 export type SessionStatus = 'running' | 'paused' | 'finished'

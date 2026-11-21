@@ -77,6 +77,8 @@ const rpc = <T>(fn: string, args: Record<string, unknown> = {}) =>
 export interface StudentProfile {
   nickname: string | null
   dragonball_count: number
+  /** 성구별 보유 개수 맵 — {"1":0,...,"7":0} */
+  dragonballs?: Record<string, number> | null
 }
 
 /** 내 닉네임·드래곤볼 개수 */
@@ -110,6 +112,8 @@ export interface AdminLiveSession {
   nickname: string | null
   /** 화면에 보여 줄 이름 (닉네임 없으면 '수련생') */
   displayName: string
+  /** 성구별 보유 개수 맵 */
+  dragonballs: Record<string, number>
   status: LiveStatus
   kind: SessionKind
   startedAt: string
@@ -117,11 +121,17 @@ export interface AdminLiveSession {
   dragonballCount: number
 }
 
+type JoinedStudent = {
+  id: string
+  name: string | null
+  grade: string | null
+  nickname: string | null
+  dragonball_count: number | null
+  dragonballs: Record<string, number> | null
+}
+
 interface SessionWithStudent extends StudySession {
-  students?:
-    | { id: string; name: string | null; grade: string | null; nickname: string | null; dragonball_count: number | null }
-    | { id: string; name: string | null; grade: string | null; nickname: string | null; dragonball_count: number | null }[]
-    | null
+  students?: JoinedStudent | JoinedStudent[] | null
 }
 
 function firstStudent(row: SessionWithStudent) {
@@ -139,7 +149,7 @@ export async function listLiveSessions(): Promise<ApiResult<{ rows: AdminLiveSes
     supabase
       .from('study_sessions')
       .select(
-        'id,student_id,status,kind,started_at,paused_at,ended_at,last_heartbeat_at,paused_seconds,date,minutes,problems,created_at,students(id,name,grade,nickname,dragonball_count)',
+        'id,student_id,status,kind,started_at,paused_at,ended_at,last_heartbeat_at,paused_seconds,date,minutes,problems,created_at,students(id,name,grade,nickname,dragonball_count,dragonballs)',
       )
       .neq('status', 'finished')
       .eq('date', todayKst())
@@ -165,9 +175,20 @@ export async function listLiveSessions(): Promise<ApiResult<{ rows: AdminLiveSes
       startedAt: row.started_at,
       seconds: state.seconds,
       dragonballCount: Math.max(0, Number(student.dragonball_count ?? 0)),
+      dragonballs: student.dragonballs ?? {},
     })
   }
   return { ok: true, data: { rows, nowMs } }
+}
+
+export interface GrantAward {
+  student_id: string
+  /** 그 학생이 이번에 받은 성구들 (예: [4, 7]) */
+  stars: number[]
+  /** 지급 후 총 개수 */
+  total: number
+  /** 지급 후 성구별 보유 개수 맵 */
+  dragonballs: Record<string, number>
 }
 
 export interface GrantResult {
@@ -175,6 +196,10 @@ export interface GrantResult {
   amount: number
   mode: 'all' | 'single'
   last_total: number
+  /** 마지막 학생이 받은 성구 (개별 지급 안내에 쓴다) */
+  stars?: number[] | null
+  /** 학생별 획득 성구 */
+  awards?: GrantAward[] | null
 }
 
 /** 선오공이 드래곤볼 쏘기 — 여러 학생에게 같은 개수를 한 번에 준다 */
@@ -199,6 +224,8 @@ export interface DragonballGrant {
   mode: 'all' | 'single'
   note: string | null
   created_at: string
+  /** 그때 지급한 성구들 (예: [4, 7]) */
+  stars?: number[] | null
   students?:
     | { name: string | null; nickname: string | null }
     | { name: string | null; nickname: string | null }[]
@@ -209,7 +236,7 @@ export const listDragonballGrants = (limit = 20) =>
   run<DragonballGrant[]>(() =>
     supabase
       .from('dragonball_grants')
-      .select('id,student_id,amount,mode,note,created_at,students(name,nickname)')
+      .select('id,student_id,amount,mode,note,stars,created_at,students(name,nickname)')
       .order('created_at', { ascending: false })
       .limit(limit),
   )

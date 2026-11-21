@@ -19,7 +19,7 @@ import {
   sortStudents,
   type RankedEntry,
 } from '../lib/stats'
-import { displayNickname, normalizeNickname } from '../lib/kintounBoard'
+import { displayNickname, dragonballKinds, normalizeNickname } from '../lib/kintounBoard'
 import type { Student, StudyLog } from '../lib/types'
 import { AdminSection, EmptyBlock, ErrorBlock, GradeFilterSelect, LoadingBlock } from './ui'
 
@@ -149,6 +149,7 @@ export function RankingPanel({ students, studentsLoading, studentsError, reloadS
     entries: RankedEntry[],
     format: (value: number) => string,
     emptyText = '아직 기록이 없어요',
+    note?: (entry: RankedEntry) => string | null,
   ): JSX.Element => (
     <div className="rounded-2xl border border-blue-line bg-white p-4">
       <div className="flex items-baseline justify-between">
@@ -176,6 +177,9 @@ export function RankingPanel({ students, studentsLoading, studentsError, reloadS
                   <span className="ml-1 text-[10px] font-semibold text-[#8A5400]/70">({displayNickname(entry.student.nickname)})</span>
                 ) : null}
               </span>
+              {note ? (
+                <span className="shrink-0 text-[10px] font-bold text-[#B07200]/70">{note(entry)}</span>
+              ) : null}
               <span className="shrink-0 text-[12px] font-extrabold tabular text-blue-brand">{format(entry.value)}</span>
             </li>
           ))}
@@ -251,7 +255,14 @@ export function RankingPanel({ students, studentsLoading, studentsError, reloadS
           {renderRanking('전체 공부시간 TOP3', '학원+숙제 합계', totalMinuteRanking, (value) => formatMinutes(value))}
           {renderRanking('🏫 학원 공부 TOP3', '기간 합계', academyMinuteRanking, (value) => formatMinutes(value))}
           {renderRanking('🏠 숙제 공부 TOP3', '기간 합계', homeworkMinuteRanking, (value) => formatMinutes(value))}
-          {renderRanking('🐉 드래곤볼 TOP3', '지금 보유 · 기간과 무관', dragonballRanking, (value) => `${value}개`, '아직 드래곤볼을 받은 학생이 없어요')}
+          {renderRanking(
+            '🐉 드래곤볼 TOP3',
+            '지금 보유 · 기간과 무관',
+            dragonballRanking,
+            (value) => `${value}개`,
+            '아직 드래곤볼을 받은 학생이 없어요',
+            (entry) => `${dragonballKinds(entry.student.dragonballs)}/7종`,
+          )}
           {renderRanking('문제 풀이 TOP3', '기간 합계', problemRanking, (value) => `${value}개`)}
 
           <p className="px-1 text-[10px] text-navy/35">

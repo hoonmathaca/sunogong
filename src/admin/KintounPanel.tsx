@@ -3,12 +3,14 @@ import { Dragonball } from '../components/KintounCloud'
 import * as api from '../lib/kintoun'
 import {
   DRAGONBALL_MAX_AMOUNT,
+  dragonballKinds,
   formatLiveClock,
   GRANT_MODE_LABEL,
   grantResultText,
   grantTargets,
   LIVE_REFRESH_MS,
   normalizeGrantAmount,
+  starListText,
 } from '../lib/kintounBoard'
 import type { Student } from '../lib/types'
 import { AdminSection, EmptyBlock, ErrorBlock, LoadingBlock, StatCard } from './ui'
@@ -114,10 +116,12 @@ export function KintounPanel({ students, studentsLoading, studentsError, reloadS
     const res = await api.grantDragonballs(ids, count, mode, mode === 'all' ? '공부 중 전체' : label ?? null)
     setBusy(false)
     if (res.ok) {
-      setMessage(grantResultText(res.data.granted, res.data.amount, res.data.mode))
+      setMessage(grantResultText(res.data.granted, res.data.amount, res.data.mode, res.data.stars))
       setShotKey((key) => key + 1)
       if (ids.length === 1) flash(ids[0])
       await load()
+      /* 랭킹·학생 목록의 드래곤볼 개수도 바로 맞춘다 */
+      reloadStudents()
     } else {
       setError(res.error)
     }
@@ -138,7 +142,7 @@ export function KintounPanel({ students, studentsLoading, studentsError, reloadS
 
       <AdminSection
         title="🐉 선오공이 드래곤볼 쏘기"
-        description="공부 중인 학생에게 드래곤볼을 쏩니다. 전체 일괄과 개별 지급 모두 할 수 있어요."
+        description="공부 중인 학생에게 드래곤볼을 쏩니다. 개수마다 1~7성구가 랜덤으로 나와요. 전체 일괄과 개별 지급 모두 할 수 있어요."
         actions={
           <button type="button" className="btn-ghost border border-blue-line" onClick={() => void load()}>
             새로고침
@@ -199,6 +203,10 @@ export function KintounPanel({ students, studentsLoading, studentsError, reloadS
             </button>
           </div>
 
+          <p className="mt-2 text-[10.5px] font-semibold text-[#A97516]">
+            🎲 한 개마다 <b>1성구~7성구</b>가 랜덤으로 나와요 · 모은 성구는 학생 홈 도감에 쌓입니다
+          </p>
+
           {message ? (
             <p className="mt-2 rounded-xl bg-white/80 px-3 py-2 text-[12px] font-bold text-[#7A4A00]">{message}</p>
           ) : null}
@@ -236,8 +244,11 @@ export function KintounPanel({ students, studentsLoading, studentsError, reloadS
                   </p>
                 </div>
                 <span className="flex items-center gap-1 rounded-full bg-[#FFF3D6] px-2 py-1">
-                  <Dragonball size="sm" />
-                  <span className="text-[11px] font-extrabold text-[#8A5400] tabular">{row.dragonballCount}개</span>
+                  <Dragonball size="sm" stars={4} />
+                  <span className="text-[11px] font-extrabold text-[#8A5400] tabular">
+                    {row.dragonballCount}개
+                    <span className="ml-1 text-[10px] font-bold text-[#B07200]/70">{dragonballKinds(row.dragonballs)}/7종</span>
+                  </span>
                 </span>
                 <button
                   type="button"
@@ -275,13 +286,18 @@ export function KintounPanel({ students, studentsLoading, studentsError, reloadS
                     timeZone: 'Asia/Seoul',
                   })}
                 </span>
-                <span className="shrink-0 font-extrabold text-[#B07200] tabular">+{item.amount}개</span>
+                <span className="shrink-0 text-right">
+                  <span className="block font-extrabold text-[#B07200] tabular">+{item.amount}개</span>
+                  {starListText(item.stars) ? (
+                    <span className="block text-[10px] font-semibold text-[#B07200]/70">{starListText(item.stars)}</span>
+                  ) : null}
+                </span>
               </li>
             ))}
           </ul>
         )}
         <p className="mt-2 text-[10px] text-navy/40">
-          학생 {students.length}명 · 드래곤볼은 제한 없이 쌓입니다(7개 교환은 아직 없음).
+          학생 {students.length}명 · 드래곤볼은 제한 없이 쌓이고, 성구 7종을 모으면 도감이 완성돼요(교환은 아직 없음).
         </p>
       </AdminSection>
     </div>

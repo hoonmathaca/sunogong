@@ -6,8 +6,10 @@ import * as api from '../lib/kintoun'
 import {
   cloudItems,
   displayNickname,
-  dragonballCountText,
-  dragonballIconCount,
+  dragonballDex,
+  dragonballKinds,
+  dragonballTotal,
+  EMPTY_DRAGONBALLS,
   formatLiveClock,
   LIVE_REFRESH_MS,
   liveRanking,
@@ -34,6 +36,8 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
   const [board, setBoard] = useState<LiveBoard | null>(null)
   const [nickname, setNickname] = useState<string | null>(null)
   const [dragonballs, setDragonballs] = useState(0)
+  /* 1~7성구 도감 — 성구별 보유 개수 */
+  const [dexMap, setDexMap] = useState<Record<string, number>>(EMPTY_DRAGONBALLS)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [fetchedAt, setFetchedAt] = useState(() => Date.now())
@@ -61,6 +65,7 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
     if (profile.ok) {
       setNickname(profile.data.nickname ?? null)
       setDragonballs(Math.max(0, Number(profile.data.dragonball_count ?? 0)))
+      setDexMap(profile.data.dragonballs ?? EMPTY_DRAGONBALLS)
     }
     setLoading(false)
   }, [studentId])
@@ -94,7 +99,11 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
   const myPosition = useMemo(() => myLivePosition(rows), [rows])
   const resting = useMemo(() => pausedLabels(rows), [rows])
   const runningCount = board?.running_count ?? 0
-  const icons = dragonballIconCount(dragonballs)
+  const dex = useMemo(() => dragonballDex(dexMap), [dexMap])
+  const collected = useMemo(() => dragonballKinds(dexMap), [dexMap])
+  const dexTotal = useMemo(() => dragonballTotal(dexMap), [dexMap])
+  /* 도감에 담긴 합계와 총 개수가 다르면(서버가 아직 성구를 안 보낸 경우) 총 개수를 따른다 */
+  const totalBalls = Math.max(dragonballs, dexTotal)
 
   const openNickname = () => {
     setNicknameInput(nickname ?? '')
@@ -115,6 +124,7 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
     if (res.ok) {
       setNickname(res.data.nickname ?? null)
       setDragonballs(Math.max(0, Number(res.data.dragonball_count ?? 0)))
+      if (res.data.dragonballs) setDexMap(res.data.dragonballs)
       setNicknameOpen(false)
       void load()
     } else {
@@ -258,34 +268,50 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
         </div>
       </section>
 
-      {/* 내 드래곤볼 — 제한 없이 계속 쌓인다 (7개 교환은 아직 없음) */}
+      {/* 내 드래곤볼 — 1성구~7성구 도감 (제한 없이 계속 쌓인다) */}
       <section className="mt-4 rounded-3xl border border-[#F3C978] bg-gradient-to-br from-[#FFF8E8] via-[#FFEFC9] to-[#FFE1A8] p-4 shadow-card">
         <div className="flex items-center justify-between gap-2">
           <h2 className="flex items-center gap-1.5 font-round text-[15px] font-extrabold text-[#7A4A00]">
             <span aria-hidden="true">🐉</span> 내 드래곤볼
           </h2>
-          <span className="rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-bold text-[#9A6400]">계속 쌓여요</span>
+          <span className="rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-bold text-[#9A6400]">1~7성구 도감</span>
         </div>
-        <div className="mt-2 flex items-end gap-2">
-          <p className="font-round text-[34px] font-extrabold leading-none text-[#7A4A00] tabular">
-            {dragonballs}
-          </p>
+
+        <div className="mt-2 flex flex-wrap items-end gap-x-2 gap-y-1">
+          <p className="font-round text-[34px] font-extrabold leading-none text-[#7A4A00] tabular">{totalBalls}</p>
           <p className="pb-1 text-[13px] font-bold text-[#9A6400]">개</p>
-          {icons.extra > 0 ? (
-            <p className="pb-1 text-[11px] font-bold text-[#A97516]">외 {icons.extra}개</p>
+          <p className="pb-1 text-[11.5px] font-extrabold text-[#A97516]">{`${collected}/7종 수집`}</p>
+          {totalBalls === 0 ? (
+            <p className="pb-1 text-[11px] font-semibold text-[#A97516]">선오공이가 쏘면 여기에 모여요</p>
           ) : null}
         </div>
-        <div className="mt-2 flex flex-wrap items-center gap-1">
-          {icons.filled === 0 ? (
-            <span className="text-[11px] font-semibold text-[#A97516]">
-              선오공이가 드래곤볼을 쏘면 여기에 쌓여요
-            </span>
-          ) : (
-            Array.from({ length: icons.filled }, (_, index) => <Dragonball key={index} size="md" />)
-          )}
-        </div>
+
+        {/* 7칸 도감 — 모은 성구는 컬러, 못 모은 성구는 흐리게 */}
+        <ul className="mt-3 grid grid-cols-7 gap-1">
+          {dex.map((slot) => (
+            <li
+              key={slot.stars}
+              className={`relative flex flex-col items-center rounded-2xl px-0.5 pb-1 pt-1.5 ${
+                slot.owned ? 'bg-white/85 shadow-sm ring-1 ring-[#F3C978]' : 'bg-white/35 ring-1 ring-white/50'
+              }`}
+            >
+              <Dragonball size="lg" stars={slot.stars} filled={slot.owned} />
+              <span className={`mt-0.5 text-[9.5px] font-extrabold ${slot.owned ? 'text-[#7A4A00]' : 'text-[#A97516]/60'}`}>
+                {`${slot.stars}성`}
+              </span>
+              <span
+                className={`mt-0.5 rounded-full px-1 text-[9.5px] font-extrabold tabular ${
+                  slot.owned ? 'bg-[#F08C00] text-white' : 'bg-white/60 text-[#A97516]/60'
+                }`}
+              >
+                {slot.owned ? `×${slot.count}` : '–'}
+              </span>
+            </li>
+          ))}
+        </ul>
+
         <p className="mt-2 text-[10.5px] font-semibold text-[#A97516]/80">
-          공부를 이어 가면 선오공이가 드래곤볼을 쏴 줘요 · {dragonballCountText(dragonballs)}
+          공부를 이어 가면 선오공이가 드래곤볼을 랜덤으로 쏴 줘요 · 7종을 다 모아 보세요!
         </p>
       </section>
 

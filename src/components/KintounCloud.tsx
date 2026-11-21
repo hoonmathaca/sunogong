@@ -3,7 +3,7 @@
  * 모바일 폭에서도 글자가 잘리지 않도록 구름은 한 줄짜리 알약 모양이고,
  * 넘치는 이름은 말줄임으로 줄인다.
  */
-import { cloudMotion, formatLiveClock } from '../lib/kintounBoard'
+import { cloudMotion, dragonballIcon, formatLiveClock } from '../lib/kintounBoard'
 
 interface KintounCloudProps {
   label: string
@@ -35,25 +35,40 @@ export function KintounCloud({ label, seconds, isMe = false, index = 0, classNam
   )
 }
 
-/** 드래곤볼 한 알 (개수 표시·쏘기 애니메이션에 함께 쓴다) */
+/**
+ * 드래곤볼 한 알 — 1~7성구 아이콘(public/dragonballs/*.png).
+ * 개수 표시·도감·쏘기 애니메이션에 함께 쓴다.
+ */
 export function Dragonball({
   size = 'md',
+  stars = 4,
   filled = true,
   label = '',
   className = '',
 }: {
-  size?: 'sm' | 'md' | 'lg'
+  size?: 'sm' | 'md' | 'lg' | 'xl'
+  /** 몇 성구인지 (1~7) */
+  stars?: number
+  /** false 면 흐리게 (아직 못 모은 성구) */
   filled?: boolean
   label?: string
   className?: string
 }): JSX.Element {
-  const box = size === 'lg' ? 'h-8 w-8 text-[10px]' : size === 'sm' ? 'h-4 w-4 text-[8px]' : 'h-6 w-6 text-[9px]'
+  const box =
+    size === 'xl'
+      ? 'h-10 w-10 text-[10px]'
+      : size === 'lg'
+        ? 'h-8 w-8 text-[10px]'
+        : size === 'sm'
+          ? 'h-4 w-4 text-[8px]'
+          : 'h-6 w-6 text-[9px]'
   return (
     <span
-      className={`dragonball ${box} ${filled ? '' : 'dragonball--empty'} ${className}`}
+      className={`dragonball-icon ${box} ${filled ? '' : 'dragonball-icon--empty'} ${className}`}
       aria-hidden={label ? undefined : true}
     >
-      {label}
+      <img src={dragonballIcon(stars)} alt="" loading="lazy" draggable={false} />
+      {label ? <span className="dragonball-icon__label">{label}</span> : null}
     </span>
   )
 }

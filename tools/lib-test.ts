@@ -38,8 +38,16 @@ import {
   DEFAULT_NICKNAME,
   displayNickname,
   dragonballCountText,
+  dragonballDex,
+  dragonballIcon,
   dragonballIconCount,
+  dragonballKinds,
   dragonballSets,
+  dragonballSummaryText,
+  dragonballTotal,
+  EMPTY_DRAGONBALLS,
+  normalizeDragonballMap,
+  starListText,
   formatLiveClock,
   grantResultText,
   GRANT_MODE_LABEL,
@@ -421,8 +429,43 @@ eq('드래곤볼: 개수 표시', dragonballCountText(0), '0개')
 eq('드래곤볼: 쏠 개수는 1~99', [normalizeGrantAmount(0), normalizeGrantAmount(150), normalizeGrantAmount('3.7'), normalizeGrantAmount('abc')], [1, 99, 3, 1])
 eq('드래곤볼: 쏠 대상은 공부 중인 학생', grantTargets(liveRows, false).map((row) => row.status), ['running', 'running', 'running'])
 eq('드래곤볼: 쉬는 중 포함', grantTargets(liveRows, true).length, 4)
-eq('드래곤볼: 결과 안내(전체)', grantResultText(3, 2, 'all'), '공부 중인 3명에게 드래곤볼 2개씩 쏘았어요!')
+eq('드래곤볼: 결과 안내(전체)', grantResultText(3, 2, 'all'), '공부 중인 3명에게 드래곤볼 2개씩 랜덤으로 쏘았어요!')
 eq('드래곤볼: 결과 안내(개별)', grantResultText(1, 1, 'single'), '드래곤볼 1개를 쏘았어요.')
+eq('드래곤볼: 결과 안내(개별·성구)', grantResultText(1, 2, 'single', [7, 4]), '드래곤볼 2개 — 7성구 · 4성구')
+eq('드래곤볼: 받을 학생 없음', grantResultText(0, 1, 'all'), '드래곤볼을 받을 학생이 없어요.')
+
+/* 1~7성구 도감 */
+const dexSample = { '1': 0, '2': 0, '3': 0, '4': 2, '5': 0, '6': 1, '7': 0 }
+eq('성구: 없는 값은 0으로', normalizeDragonballMap(null), { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0 })
+eq('성구: 이상한 값은 0으로', normalizeDragonballMap({ '4': -3, '6': '2', '9': 5, '7': 'abc' })[6], 2)
+eq('성구: 9성구 키는 버린다', Object.keys(normalizeDragonballMap({ '9': 5 })), ['1', '2', '3', '4', '5', '6', '7'])
+eq('성구: 총 개수', dragonballTotal(dexSample), 3)
+eq('성구: 모은 종류 수', dragonballKinds(dexSample), 2)
+eq('성구: 빈 도감', [dragonballTotal(EMPTY_DRAGONBALLS), dragonballKinds(EMPTY_DRAGONBALLS)], [0, 0])
+eq('성구: 요약 문구', dragonballSummaryText(dexSample), '3개 · 2/7종 수집')
+eq('성구: 도감은 일곱 칸', dragonballDex(dexSample).map((slot) => [slot.stars, slot.count, slot.owned]), [
+  [1, 0, false],
+  [2, 0, false],
+  [3, 0, false],
+  [4, 2, true],
+  [5, 0, false],
+  [6, 1, true],
+  [7, 0, false],
+])
+eq('성구: 아이콘 주소', [dragonballIcon(1), dragonballIcon(4), dragonballIcon(7)], [
+  '/dragonballs/1.png',
+  '/dragonballs/4.png',
+  '/dragonballs/7.png',
+])
+eq('성구: 아이콘 주소는 1~7로 제한', [dragonballIcon(0), dragonballIcon(9), dragonballIcon(3.7)], [
+  '/dragonballs/1.png',
+  '/dragonballs/7.png',
+  '/dragonballs/3.png',
+])
+eq('성구: 목록 글(중복은 ×N)', starListText([1, 1, 1, 4, 6]), '1성구 ×3 · 4성구 · 6성구')
+eq('성구: 목록 글(두 개)', starListText([7, 4]), '7성구 · 4성구')
+eq('성구: 목록 글(없음)', starListText([]), '')
+eq('성구: 목록 글은 네 종까지', starListText([1, 2, 3, 4, 5]), '1성구 · 2성구 · 3성구 · 4성구 외 1종')
 eq('드래곤볼: 이력 표시', [GRANT_MODE_LABEL.all, GRANT_MODE_LABEL.single], ['전체 일괄', '개별'])
 
 eq('관리자: 학원 공부는 그대로 공부 중', adminSessionState({ ...baseSession, kind: 'academy' }, at('2026-11-19T01:10:00Z')).status, 'running')

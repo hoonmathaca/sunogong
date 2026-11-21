@@ -193,7 +193,7 @@ export const finishSession = (sessionId: string, problems: number) =>
 
 export const listStudents = () =>
   run<Student[]>(() =>
-    supabase.from('students').select('id,name,code,grade,created_at,nickname,dragonball_count').order('name'),
+    supabase.from('students').select('id,name,code,grade,created_at,nickname,dragonball_count,dragonballs').order('name'),
   )
 
 export const createStudent = (input: { name: string; code: string; grade: string }) =>

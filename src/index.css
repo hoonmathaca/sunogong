@@ -219,6 +219,39 @@
     color: transparent;
   }
 
+  /* 1~7성구 아이콘 (public/dragonballs/*.png) */
+  .dragonball-icon {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .dragonball-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 1px 1px rgba(180, 100, 0, 0.25));
+  }
+
+  .dragonball-icon--empty img {
+    filter: grayscale(1) brightness(1.15);
+    opacity: 0.28;
+  }
+
+  .dragonball-icon__label {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.6em;
+    font-weight: 800;
+    color: #7a3d00;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
+  }
+
   .dragonball-shot {
     animation: kintoun-shot 1.15s ease-out forwards;
   }
