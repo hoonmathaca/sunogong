@@ -150,9 +150,9 @@ def main() -> None:
     d.rectangle((0, 612, 1200, 630), fill=NAVY)
 
     og_mascot = art.copy()
-    ratio = 470 / og_mascot.height
-    og_mascot = og_mascot.resize((round(og_mascot.width * ratio), 470), Image.LANCZOS)
-    og.paste(og_mascot, (735, 118), og_mascot)
+    ratio = 462 / og_mascot.height
+    og_mascot = og_mascot.resize((round(og_mascot.width * ratio), 462), Image.LANCZOS)
+    og.paste(og_mascot, (700, 126), og_mascot)
 
     d.text((72, 118), '선오공', font=font(120), fill=NAVY)
     d.text((76, 268), '선생님, 오늘도 공부했어요!', font=font(46), fill=BLUE)
