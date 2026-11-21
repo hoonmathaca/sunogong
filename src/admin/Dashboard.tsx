@@ -105,8 +105,6 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
   const statById = useMemo(() => new Map(stats.map((stat) => [stat.student.id, stat])), [stats])
 
   const totals = useMemo(() => sumSplits(stats), [stats])
-  const totalMinutes = totals.minutes
-  const totalProblems = totals.problems
   /* 선택한 구분(전체 / 학원 / 숙제)만의 합계 — 요약 카드·학생 비교·미제출에 함께 쓴다 */
   const scopeMinutesTotal = useMemo(() => stats.reduce((sum, stat) => sum + scopedMinutes(stat, scope), 0), [stats, scope])
   const scopeProblemsTotal = useMemo(
@@ -310,7 +308,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
         </div>
       </AdminSection>
 
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
         <StatCard label="학생" value={`${filteredStudents.length}명`} sub={`기록 있음 ${submittedStudents}명`} tone="navy" />
         <StatCard
           label="🏫 학원 공부"
@@ -324,14 +322,13 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
           sub={`문제 ${totals.homeworkProblems}개`}
           tone="homework"
         />
-        <StatCard label="합계" value={formatMinutes(totalMinutes)} sub={`문제 ${totalProblems}개`} />
         <StatCard
-          label={`${scopeShortLabel(scope)} 문제`}
-          value={`${scopeProblemsTotal}개`}
-          sub={filteredStudents.length ? `1인당 ${Math.round(scopeProblemsTotal / filteredStudents.length)}개` : undefined}
+          label={scope === 'all' ? '합계' : `${scopeShortLabel(scope)} 합계`}
+          value={formatMinutes(scopeMinutesTotal)}
+          sub={`문제 ${scopeProblemsTotal}개`}
         />
         <StatCard
-          label={`${scopeShortLabel(scope)} 1인당`}
+          label={scope === 'all' ? '1인당 평균' : `${scopeShortLabel(scope)} 1인당`}
           value={formatMinutes(filteredStudents.length ? scopeMinutesTotal / filteredStudents.length : 0)}
           sub={scope === 'all' ? '기간 전체' : '선택한 구분'}
         />
@@ -394,7 +391,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                       const log = stat.byDate.get(date)
                       const split = splitLog(log)
                       const weekend = isWeekend(date)
-                      const filled = hasScopedLog(log, scope)
+                      const filled = log ? (scope === 'all' ? true : hasScopedLog(log, scope)) : false
                       const cellMinutes = scopedLogMinutes(log, scope)
                       const cellProblems = scopedLogProblems(log, scope)
                       return (
@@ -429,7 +426,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                               </>
                             ) : log ? (
                               <span className="text-[11px] text-navy/30" title={`${scopeLabel(scope)} 기록 없음`}>
-                                –
+                                {scope === 'academy' ? '🏠' : '🏫'}
                               </span>
                             ) : (
                               <span className="text-[11px]">·</span>
