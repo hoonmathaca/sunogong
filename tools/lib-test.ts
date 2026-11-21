@@ -44,6 +44,7 @@ import {
   grantResultText,
   GRANT_MODE_LABEL,
   grantTargets,
+  hasRunningRow,
   liveRanking,
   liveStrip,
   myLivePosition,
@@ -404,6 +405,11 @@ eq('근두운: 실시간 순위(멈추지 않은 사람만, 동점은 같은 순
 ])
 eq('근두운: 내 순위', myLivePosition(liveRows), { position: 2, total: 3 })
 eq('근두운: 공부 중이 아니면 내 순위 없음', myLivePosition([liveRows[3]]), null)
+/* 타이머 줄 — 내 세션이 서버 현황에 실렸는지(막 시작한 순간 판단) */
+eq('근두운: 내 세션이 공부 중으로 실림', hasRunningRow(liveRows), true)
+eq('근두운: 내가 쉬는 중이면 실린 것으로 보지 않음', hasRunningRow([liveRows[3]]), false)
+eq('근두운: 내가 아직 안 실린 현황', hasRunningRow(liveRows.slice(0, 2)), false)
+eq('근두운: 줄이 비어 있으면 당연히 없음', hasRunningRow([]), false)
 eq('근두운: 잠깐 쉬는 이름', pausedLabels(liveRows), ['느림보'])
 eq('근두운: 구름마다 다른 박자', cloudMotion(0).duration, '3.80s')
 eq('근두운: 박자는 초 단위', [cloudMotion(1).duration.endsWith('s'), cloudMotion(2).drift.endsWith('s'), cloudMotion(3).delay.startsWith('-')], [true, true, true])

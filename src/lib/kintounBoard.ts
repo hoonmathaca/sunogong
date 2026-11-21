@@ -226,6 +226,14 @@ export function liveRanking(rows: LiveRow[], limit: number = RANK_LIMIT): RankIt
   return limit > 0 ? ranked.slice(0, limit) : ranked
 }
 
+/**
+ * 내 줄이 지금 공부 중(running)으로 실려 있는지.
+ * 타이머 화면에서 세션을 막 시작했는데 서버 현황에 아직 안 실렸는지 판단할 때 쓴다.
+ */
+export function hasRunningRow(rows: LiveRow[]): boolean {
+  return rows.some((row) => Boolean(row.is_me) && row.status === 'running')
+}
+
 /** 내 실시간 순위 (공부 중이 아니면 null) */
 export function myLivePosition(rows: LiveRow[]): { position: number; total: number } | null {
   const me = rows.find((row) => row.is_me && row.status === 'running')

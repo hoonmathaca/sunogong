@@ -19,6 +19,7 @@ import { QuestionAskForm } from '../src/student/QuestionAskForm'
 import { QuestionBoardScreen } from '../src/student/QuestionBoardScreen'
 import { StudentHomeScreen } from '../src/student/StudentHomeScreen'
 import { ResultScreen } from '../src/student/ResultScreen'
+import { LiveKintounStrip } from '../src/student/LiveKintounStrip'
 import { TimerScreen } from '../src/student/TimerScreen'
 import { ErrorBoundary } from '../src/components/ErrorBoundary'
 import { DesktopBlockScreen } from '../src/components/DesktopBlockScreen'
@@ -125,6 +126,10 @@ const cases: [string, () => JSX.Element][] = [
   ['StudentHomeScreen', () => <StudentHomeScreen student={student} onStart={() => {}} onExit={() => {}} onQuestions={() => {}} unreadAnswers={2} />],
   ['QuestionBoardScreen', () => <QuestionBoardScreen student={student} onBack={() => {}} />],
   ['QuestionAskForm', () => <QuestionAskForm studentId={student.id} />],
+  [
+    'LiveKintounStrip(세션 있음)',
+    () => <LiveKintounStrip studentId={student.id} sessionId="run-homework" sessionStatus="running" />,
+  ],
   ['QuestionsPanel(관리자 질문함)', () => <QuestionsPanel />],
   ['PushNotifyPanel(새 질문 알림)', () => <PushNotifyPanel />],
   ['ResultScreen', () => <ResultScreen student={student} result={result} reason="manual" onHome={() => {}} onAgain={() => {}} />],
@@ -226,6 +231,7 @@ const kintounChecks: [string, boolean][] = [
   ['근두운: 관리자 공부 중 목록', kintounPanelHtml.includes('지금 공부 중인 학생')],
   ['근두운: 숙제 타이머에 근두운 줄', homeworkHtml.includes('aria-label="근두운 — 지금 공부 중인 친구"')],
   ['근두운: 학원 타이머에는 없음', !academyHtml.includes('aria-label="근두운 — 지금 공부 중인 친구"')],
+  ['근두운: 세션 id 넘기면 바로 읽을 준비', (rendered['LiveKintounStrip(세션 있음)'] ?? '').includes('불러오는 중')],
 ]
 
 /* 학생 관리 — 닉네임 표시·수정 */

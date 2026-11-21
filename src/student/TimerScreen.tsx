@@ -327,7 +327,7 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
         {/* ☁️ 근두운 — 숙제 공부 중에만, 타이머 숫자·버튼을 가리지 않는 얇은 줄로 */}
         {isHomework ? (
           <div className="px-5 pt-2">
-            <LiveKintounStrip studentId={student.id} dim={dim} />
+            <LiveKintounStrip studentId={student.id} sessionId={session?.id ?? null} sessionStatus={status} dim={dim} />
           </div>
         ) : null}
 

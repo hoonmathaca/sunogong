@@ -6,25 +6,42 @@
  * 홈 화면의 큰 카드(LiveKintounCard)와 같은 서버 함수(live_study_board)를 쓰고,
  * 15초마다 새로 읽고 그 사이에는 1초마다 시간만 흘려 보낸다.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as api from '../lib/kintoun'
-import { formatLiveClock, LIVE_REFRESH_MS, liveStrip, tickRows, type LiveBoard, type LiveRow } from '../lib/kintounBoard'
+import {
+  formatLiveClock,
+  hasRunningRow,
+  LIVE_REFRESH_MS,
+  liveStrip,
+  tickRows,
+  type LiveBoard,
+  type LiveRow,
+} from '../lib/kintounBoard'
 
 /** 타이머 줄에 띄우는 이름 최대 개수 (넘치는 인원은 '외 N명') */
 export const STRIP_MAX = 3
 
 interface LiveKintounStripProps {
   studentId: string
+  /** 내 세션 id — 세션이 생기는 순간 바로 다시 읽어 '0명 공부 중'이 잠깐 보이지 않게 한다 */
+  sessionId?: string | null
+  /** 내 세션 상태(running/paused) — 바뀌면(시작·일시정지·계속) 바로 다시 읽는다 */
+  sessionStatus?: string
   /** 화면보호 모드(저조도)면 어두운 색으로 */
   dim?: boolean
 }
 
-export function LiveKintounStrip({ studentId, dim = false }: LiveKintounStripProps): JSX.Element {
+/** 세션을 막 시작했는데 서버 현황에 아직 안 실렸을 때 한 번 더 읽기까지의 시간 */
+export const SESSION_RETRY_MS = 1_200
+
+export function LiveKintounStrip({ studentId, sessionId = null, sessionStatus, dim = false }: LiveKintounStripProps): JSX.Element {
   const [board, setBoard] = useState<LiveBoard | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [fetchedAt, setFetchedAt] = useState(() => Date.now())
   const [now, setNow] = useState(() => Date.now())
+  /** 이미 한 번 더 읽어 본 세션 id (같은 세션에서 되풀이하지 않는다) */
+  const retriedFor = useRef<string | null>(null)
 
   const load = useCallback(async () => {
     const live = await api.liveStudyBoard(studentId)
@@ -39,9 +56,21 @@ export function LiveKintounStrip({ studentId, dim = false }: LiveKintounStripPro
     setLoading(false)
   }, [studentId])
 
+  /* 처음 열 때, 그리고 내 세션이 생기거나 상태가 바뀔 때(running ↔ paused) 바로 읽는다.
+     세션 행이 만들어지기 직전에 먼저 읽어 버리면 처음 15초 동안 '0명 공부 중'으로 보이기 때문이다. */
   useEffect(() => {
     void load()
-  }, [load])
+  }, [load, sessionId, sessionStatus])
+
+  /* 서버에 아직 내 줄이 안 실렸으면(막 시작한 순간) 한 번만 곧바로 다시 읽는다 */
+  useEffect(() => {
+    if (!sessionId || sessionStatus !== 'running' || !board) return undefined
+    if (hasRunningRow(board.students)) return undefined
+    if (retriedFor.current === sessionId) return undefined
+    retriedFor.current = sessionId
+    const id = window.setTimeout(() => void load(), SESSION_RETRY_MS)
+    return () => window.clearTimeout(id)
+  }, [board, sessionId, sessionStatus, load])
 
   /* 15초마다 새로 읽고, 1초마다 시간만 흘려 보낸다 */
   useEffect(() => {
