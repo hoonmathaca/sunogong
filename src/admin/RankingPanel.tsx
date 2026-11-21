@@ -14,10 +14,12 @@ import {
   indexLogs,
   longestStreakAllTime,
   longestStreakInRange,
+  rankByKind,
   rankEntries,
   sortStudents,
   type RankedEntry,
 } from '../lib/stats'
+import { displayNickname, normalizeNickname } from '../lib/kintounBoard'
 import type { Student, StudyLog } from '../lib/types'
 import { AdminSection, EmptyBlock, ErrorBlock, GradeFilterSelect, LoadingBlock } from './ui'
 
@@ -107,10 +109,12 @@ export function RankingPanel({ students, studentsLoading, studentsError, reloadS
     return rankEntries(items)
   }, [stats, index, period, start, end])
 
-  const minuteRanking = useMemo(
-    () => rankEntries(stats.map((stat) => ({ student: stat.student, value: stat.minutes, days: stat.submittedDays }))),
-    [stats],
-  )
+  /* 공부시간 랭킹 — 전체 / 학원 공부 / 숙제 공부 따로 */
+  const totalMinuteRanking = useMemo(() => rankByKind(stats, 'all'), [stats])
+  const academyMinuteRanking = useMemo(() => rankByKind(stats, 'academy'), [stats])
+  const homeworkMinuteRanking = useMemo(() => rankByKind(stats, 'homework'), [stats])
+  /* 🐉 드래곤볼 랭킹 — students.dragonball_count (기간과 무관한 현재 보유) */
+  const dragonballRanking = useMemo(() => rankByKind(stats, 'dragonball'), [stats])
 
   const problemRanking = useMemo(
     () => rankEntries(stats.map((stat) => ({ student: stat.student, value: stat.problems, days: stat.submittedDays }))),
@@ -144,6 +148,7 @@ export function RankingPanel({ students, studentsLoading, studentsError, reloadS
     subtitle: string,
     entries: RankedEntry[],
     format: (value: number) => string,
+    emptyText = '아직 기록이 없어요',
   ): JSX.Element => (
     <div className="rounded-2xl border border-blue-line bg-white p-4">
       <div className="flex items-baseline justify-between">
@@ -152,7 +157,7 @@ export function RankingPanel({ students, studentsLoading, studentsError, reloadS
       </div>
 
       {entries.length === 0 ? (
-        <p className="mt-3 rounded-xl bg-blue-soft/70 px-3 py-5 text-center text-[12px] text-navy/40">아직 기록이 없어요</p>
+        <p className="mt-3 rounded-xl bg-blue-soft/70 px-3 py-5 text-center text-[12px] text-navy/40">{emptyText}</p>
       ) : (
         <ol className="mt-3 space-y-1.5">
           {entries.map((entry) => (
@@ -167,6 +172,9 @@ export function RankingPanel({ students, studentsLoading, studentsError, reloadS
               <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-navy">
                 {entry.student.name}
                 <span className="ml-1 text-[10px] font-medium text-navy/40">{entry.student.grade}</span>
+                {normalizeNickname(entry.student.nickname) ? (
+                  <span className="ml-1 text-[10px] font-semibold text-[#8A5400]/70">({displayNickname(entry.student.nickname)})</span>
+                ) : null}
               </span>
               <span className="shrink-0 text-[12px] font-extrabold tabular text-blue-brand">{format(entry.value)}</span>
             </li>
@@ -240,7 +248,10 @@ export function RankingPanel({ students, studentsLoading, studentsError, reloadS
           </div>
 
           {renderRanking('연속 공부 TOP3', period === 'all' ? '역대 최장' : '기간 내 최장', streakRanking, (value) => `${value}일`)}
-          {renderRanking('공부시간 TOP3', '기간 합계', minuteRanking, (value) => formatMinutes(value))}
+          {renderRanking('전체 공부시간 TOP3', '학원+숙제 합계', totalMinuteRanking, (value) => formatMinutes(value))}
+          {renderRanking('🏫 학원 공부 TOP3', '기간 합계', academyMinuteRanking, (value) => formatMinutes(value))}
+          {renderRanking('🏠 숙제 공부 TOP3', '기간 합계', homeworkMinuteRanking, (value) => formatMinutes(value))}
+          {renderRanking('🐉 드래곤볼 TOP3', '지금 보유 · 기간과 무관', dragonballRanking, (value) => `${value}개`, '아직 드래곤볼을 받은 학생이 없어요')}
           {renderRanking('문제 풀이 TOP3', '기간 합계', problemRanking, (value) => `${value}개`)}
 
           <p className="px-1 text-[10px] text-navy/35">

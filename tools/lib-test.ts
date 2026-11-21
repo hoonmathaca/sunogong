@@ -1,6 +1,6 @@
 /** 순수 함수(날짜·집계·랭킹) 점검용 테스트 (개발용) */
 import { addDays, formatHMS, formatMinutes, formatMinutesCompact, kstDateString, monthRange, rangeDates, weekRange, weekdayOf, kstDayEndMs, kstMidnightMs } from '../src/lib/time'
-import { buildStats, indexLogs, longestStreakAllTime, longestStreakInRange, rankEntries, splitLog, splitPercents, sumSplits } from '../src/lib/stats'
+import { buildStats, indexLogs, longestStreakAllTime, longestStreakInRange, rankByKind, rankEntries, rankValue, splitLog, splitPercents, sumSplits } from '../src/lib/stats'
 import { editTotals, editValuesFromLog, normalizeEditValues } from '../src/lib/logEdit'
 import { computeElapsedSeconds, isHeartbeatStale } from '../src/lib/session'
 import { normalizeKind, pausesOnLeave } from '../src/lib/kinds'
@@ -196,6 +196,40 @@ eq('합계 집계', [summed.minutes, summed.academyMinutes, summed.homeworkMinut
 const editedStats = buildStats([students[0]], indexLogs([{ ...mixedLog, minutes: 140 }]), '2026-11-17', '2026-11-20')
 eq('합계만 고친 기록은 기타로', editedStats[0].otherMinutes, 40)
 eq('기타 합계 집계', sumSplits(editedStats).otherMinutes, 40)
+
+/* 랭킹 — 전체 공부시간 / 학원 공부 / 숙제 공부 / 드래곤볼 따로 */
+const rankStudents: Student[] = [
+  { id: 'r1', name: '가학생', code: '0101', grade: '초6', created_at: '', dragonball_count: 5 },
+  { id: 'r2', name: '나학생', code: '0102', grade: '중1', created_at: '', nickname: '달토끼', dragonball_count: 12 },
+  { id: 'r3', name: '다학생', code: '0103', grade: '중1', created_at: '', dragonball_count: 0 },
+]
+const rankLogs: StudyLog[] = [
+  { id: 'q1', student_id: 'r1', date: '2026-11-17', minutes: 100, problems: 10, academy_minutes: 80, academy_problems: 8, homework_minutes: 20, homework_problems: 2, updated_at: '' },
+  { id: 'q2', student_id: 'r2', date: '2026-11-17', minutes: 100, problems: 10, academy_minutes: 20, academy_problems: 2, homework_minutes: 80, homework_problems: 8, updated_at: '' },
+  { id: 'q3', student_id: 'r3', date: '2026-11-18', minutes: 30, problems: 3, academy_minutes: 30, academy_problems: 3, homework_minutes: 0, homework_problems: 0, updated_at: '' },
+]
+const rankStats = buildStats(rankStudents, indexLogs(rankLogs), '2026-11-17', '2026-11-19')
+eq('랭킹: 전체 공부시간 순서', rankByKind(rankStats, 'all').map((row) => [row.student.name, row.value]), [
+  ['가학생', 100],
+  ['나학생', 100],
+  ['다학생', 30],
+])
+eq('랭킹: 학원 공부만 따로', rankByKind(rankStats, 'academy').map((row) => [row.student.name, row.value]), [
+  ['가학생', 80],
+  ['다학생', 30],
+  ['나학생', 20],
+])
+eq('랭킹: 숙제 공부만 따로(0은 빼기)', rankByKind(rankStats, 'homework').map((row) => [row.student.name, row.value]), [
+  ['나학생', 80],
+  ['가학생', 20],
+])
+eq('랭킹: 드래곤볼 보유 순서', rankByKind(rankStats, 'dragonball').map((row) => [row.student.name, row.value]), [
+  ['나학생', 12],
+  ['가학생', 5],
+])
+eq('랭킹: 드래곤볼 값은 기간과 무관', rankValue(rankStats[0], 'dragonball'), 5)
+eq('랭킹: 드래곤볼 없으면 0', rankValue({ ...rankStats[2], student: { ...rankStats[2].student, dragonball_count: undefined } }, 'dragonball'), 0)
+eq('랭킹: 드래곤볼 동점은 같은 순위', rankByKind(rankStats.map((stat, i) => ({ ...stat, student: { ...stat.student, dragonball_count: i === 0 ? 9 : i === 1 ? 9 : 0 } })), 'dragonball').map((row) => row.rank), [1, 1])
 
 /* 관리자 기록 수정: 학원·숙제 따로 입력 → 합계 자동 */
 const legacyEdit = editValuesFromLog(logs[0])

@@ -178,6 +178,28 @@ export interface RankedEntry {
   rank: number
 }
 
+/** 랭킹 종류 — 전체 공부시간 · 학원 공부 · 숙제 공부 · 드래곤볼 */
+export type RankKind = 'all' | 'academy' | 'homework' | 'dragonball'
+
+/**
+ * 학생 한 명의 랭킹 값.
+ * 드래곤볼은 기간과 무관한 '지금 보유 개수'다.
+ */
+export function rankValue(stat: StudentStat, kind: RankKind): number {
+  if (kind === 'academy') return Math.max(0, stat.academyMinutes)
+  if (kind === 'homework') return Math.max(0, stat.homeworkMinutes)
+  if (kind === 'dragonball') return Math.max(0, Math.floor(Number(stat.student.dragonball_count ?? 0)))
+  return Math.max(0, stat.minutes)
+}
+
+/** 한 종류의 랭킹 줄 — 0은 빼고, 동점은 같은 순위 */
+export function rankByKind(stats: StudentStat[], kind: RankKind, take = 3): RankedEntry[] {
+  return rankEntries(
+    stats.map((stat) => ({ student: stat.student, value: rankValue(stat, kind), days: stat.submittedDays })),
+    take,
+  )
+}
+
 /**
  * 값 내림차순 순위. 동점이면 같은 순위로 두고,
  * 같은 순위 안에서는 제출 일수가 많은 학생을 먼저 보여준다.
