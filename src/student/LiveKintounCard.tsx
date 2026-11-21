@@ -132,10 +132,11 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
           <button
             type="button"
             onClick={() => void load()}
-            className="rounded-full px-2 py-1 text-[11px] font-bold text-navy/40 transition hover:bg-white"
+            disabled={loading}
+            className="rounded-full px-2 py-1 text-[11px] font-bold text-navy/40 transition hover:bg-white disabled:opacity-40"
             aria-label="근두운 새로고침"
           >
-            새로고침
+            {loading ? '불러오는 중…' : '새로고침'}
           </button>
         </div>
 
@@ -156,10 +157,14 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
           </div>
         ) : null}
 
-        {loading && !board ? (
+        {!board && !error ? (
           <div className="mt-3 flex h-[92px] items-center justify-center gap-2 text-[12px] text-navy/40">
             <Spinner className="h-4 w-4 border-navy/20 border-t-navy" />
             근두운을 불러오는 중…
+          </div>
+        ) : !board ? (
+          <div className="mt-3 rounded-2xl bg-white/80 px-3 py-6 text-center text-[12px] font-semibold text-navy/40">
+            근두운을 불러오지 못했어요. 위의 <b>다시</b>를 눌러 주세요.
           </div>
         ) : clouds.clouds.length === 0 ? (
           <div className="mt-3 rounded-2xl bg-white/80 px-3 py-6 text-center text-[12px] font-semibold text-navy/40">
@@ -206,7 +211,9 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
             )}
           </div>
 
-          {ranking.length === 0 ? (
+          {!board ? (
+            <p className="mt-2 text-[11px] font-semibold text-navy/35">근두운을 불러오는 중이에요.</p>
+          ) : ranking.length === 0 ? (
             <p className="mt-2 text-[11px] font-semibold text-navy/35">아직 이어서 공부 중인 친구가 없어요.</p>
           ) : (
             <ul className="mt-2 space-y-1">
