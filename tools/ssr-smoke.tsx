@@ -8,6 +8,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { AdminLogin } from '../src/admin/AdminLogin'
 import { AdminApp } from '../src/admin/AdminApp'
 import { Dashboard } from '../src/admin/Dashboard'
+import { KintounPanel } from '../src/admin/KintounPanel'
 import { QuestionsPanel } from '../src/admin/QuestionsPanel'
 import { PushNotifyPanel } from '../src/admin/PushNotifyPanel'
 import { RankingPanel } from '../src/admin/RankingPanel'
@@ -125,6 +126,7 @@ const cases: [string, () => JSX.Element][] = [
   ['QuestionsPanel(관리자 질문함)', () => <QuestionsPanel />],
   ['PushNotifyPanel(새 질문 알림)', () => <PushNotifyPanel />],
   ['ResultScreen', () => <ResultScreen student={student} result={result} reason="manual" onHome={() => {}} onAgain={() => {}} />],
+  ['KintounPanel(관리자 근두운)', () => <KintounPanel students={[student]} studentsLoading={false} studentsError={null} reloadStudents={() => {}} />],
   ['AdminLogin', () => <AdminLogin onSuccess={() => {}} onBack={() => {}} />],
   ['AdminApp', () => <AdminApp onBack={() => {}} />],
   ['Dashboard', () => <Dashboard students={[student]} studentsLoading={false} studentsError={null} reloadStudents={() => {}} />],
@@ -201,6 +203,25 @@ for (const [name, ok] of checks) {
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)
 }
 for (const [name, ok] of questionChecks) {
+  if (!ok) failed += 1
+  console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)
+}
+
+/* 근두운 · 드래곤볼 */
+const kintounPanelHtml = rendered['KintounPanel(관리자 근두운)'] ?? ''
+const kintounChecks: [string, boolean][] = [
+  ['근두운: 홈에 근두운 카드', homeHtml.includes('근두운')],
+  ['근두운: 홈에 내 드래곤볼', homeHtml.includes('내 드래곤볼')],
+  ['근두운: 홈에 실시간 순위', homeHtml.includes('실시간 연속 공부 순위')],
+  ['근두운: 홈에 닉네임 바꾸기', homeHtml.includes('근두운에 보이는 내 이름')],
+  ['근두운: 관리자 탭', adminHtml.includes('근두운')],
+  ['근두운: 관리자 드래곤볼 쏘기', kintounPanelHtml.includes('선오공이 드래곤볼 쏘기')],
+  ['근두운: 관리자 전체 쏘기 버튼', kintounPanelHtml.includes('명에게 쏘기')],
+  ['근두운: 관리자 쉬는 중 포함', kintounPanelHtml.includes('쉬는 중인 학생도 포함')],
+  ['근두운: 관리자 지급 이력', kintounPanelHtml.includes('드래곤볼 지급 이력')],
+  ['근두운: 관리자 공부 중 목록', kintounPanelHtml.includes('지금 공부 중인 학생')],
+]
+for (const [name, ok] of kintounChecks) {
   if (!ok) failed += 1
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)
 }

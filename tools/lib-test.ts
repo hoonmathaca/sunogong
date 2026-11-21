@@ -32,6 +32,30 @@ import {
 } from '../src/lib/questionBoard'
 import { isMobileOrTablet, isStudentScreenBlocked, readDeviceFingerprint } from '../src/lib/device'
 import {
+  adminSessionState,
+  cloudItems,
+  cloudMotion,
+  DEFAULT_NICKNAME,
+  displayNickname,
+  dragonballCountText,
+  dragonballIconCount,
+  dragonballSets,
+  formatLiveClock,
+  grantResultText,
+  GRANT_MODE_LABEL,
+  grantTargets,
+  liveRanking,
+  myLivePosition,
+  normalizeGrantAmount,
+  normalizeNickname,
+  NICKNAME_MAX,
+  pausedLabels,
+  tickSeconds,
+  uniqueLabels,
+  validateNickname,
+  type LiveRow,
+} from '../src/lib/kintounBoard'
+import {
   detectPushPlatform,
   isExpiredSubscription,
   isStandaloneDisplay,
@@ -279,6 +303,72 @@ eq('경과(시작 전)', computeElapsedSeconds(baseSession, at('2026-11-19T00:50
 eq('하트비트 끊김(30초 초과)', isHeartbeatStale(baseSession, at('2026-11-19T01:10:31Z')), true)
 eq('하트비트 살아있음', isHeartbeatStale(baseSession, at('2026-11-19T01:10:10Z')), false)
 eq('하트비트(일시정지 중엔 해당 없음)', isHeartbeatStale({ ...baseSession, status: 'paused' }, at('2026-11-19T05:00:00Z')), false)
+
+/* 근두운 — 닉네임 · 실시간 현황 · 드래곤볼 */
+eq('근두운: 닉네임 앞뒤 공백', normalizeNickname('  수학왕  '), '수학왕')
+eq('근두운: 닉네임 최대 길이', normalizeNickname('가'.repeat(NICKNAME_MAX + 5)), '가'.repeat(NICKNAME_MAX))
+eq('근두운: 빈 닉네임은 null', [normalizeNickname('   '), normalizeNickname(null)], [null, null])
+eq('근두운: 닉네임 없으면 수련생', displayNickname(''), DEFAULT_NICKNAME)
+eq('근두운: 닉네임이 있으면 그대로', displayNickname(' 달토끼 '), '달토끼')
+eq('근두운: 10자 넘으면 저장 안 함', validateNickname('가'.repeat(NICKNAME_MAX + 1)).ok, false)
+eq('근두운: 빈 값은 수련생으로 되돌리기', validateNickname('  '), { ok: true, value: null })
+eq('근두운: 닉네임 줄바꿈은 공백으로', validateNickname('수학\n왕'), { ok: true, value: '수학 왕' })
+
+eq('근두운: 시간 표시(0)', formatLiveClock(0), '00:00')
+eq('근두운: 시간 표시(65초)', formatLiveClock(65), '01:05')
+eq('근두운: 시간 표시(한 시간 넘음)', formatLiveClock(3725), '1:02:05')
+eq('근두운: 흐른 시간 더하기(공부 중)', tickSeconds({ status: 'running', seconds: 60 }, 1000, 11_000), 70)
+eq('근두운: 쉬는 중은 그대로', tickSeconds({ status: 'paused', seconds: 60 }, 1000, 11_000), 60)
+eq('근두운: 시간은 5시간에서 멈춤', tickSeconds({ status: 'running', seconds: 17_990 }, 0, 60_000), 18000)
+
+const liveRows: LiveRow[] = [
+  { nickname: '수련생', status: 'running', started_at: '2026-11-21T01:00:00Z', seconds: 600 },
+  { nickname: '수련생', status: 'running', started_at: '2026-11-21T00:30:00Z', seconds: 1800 },
+  { nickname: '달토끼', status: 'running', started_at: '2026-11-21T01:10:00Z', seconds: 600, is_me: true },
+  { nickname: '느림보', status: 'paused', started_at: '2026-11-21T01:20:00Z', seconds: 120 },
+]
+eq('근두운: 같은 이름은 A·B 로 구분', uniqueLabels(liveRows), ['수련생 B', '수련생 A', '달토끼', '느림보'])
+eq('근두운: 구름은 공부 중인 사람만', cloudItems(liveRows).clouds.map((c) => c.label), ['수련생 A', '수련생 B', '달토끼'])
+eq('근두운: 구름 개수 넘치면 외 N명', cloudItems(liveRows, 2), {
+  clouds: [
+    { label: '수련생 A', seconds: 1800, isMe: false },
+    { label: '수련생 B', seconds: 600, isMe: false },
+  ],
+  hidden: 1,
+})
+eq('근두운: 실시간 순위(멈추지 않은 사람만, 동점은 같은 순위)', liveRanking(liveRows).map((row) => [row.position, row.label]), [
+  [1, '수련생 A'],
+  [2, '수련생 B'],
+  [2, '달토끼'],
+])
+eq('근두운: 내 순위', myLivePosition(liveRows), { position: 2, total: 3 })
+eq('근두운: 공부 중이 아니면 내 순위 없음', myLivePosition([liveRows[3]]), null)
+eq('근두운: 잠깐 쉬는 이름', pausedLabels(liveRows), ['느림보'])
+eq('근두운: 구름마다 다른 박자', cloudMotion(0).duration, '3.80s')
+eq('근두운: 박자는 초 단위', [cloudMotion(1).duration.endsWith('s'), cloudMotion(2).drift.endsWith('s'), cloudMotion(3).delay.startsWith('-')], [true, true, true])
+
+eq('드래곤볼: 아이콘은 12개까지', dragonballIconCount(20), { filled: 12, extra: 8 })
+eq('드래곤볼: 적으면 그대로', dragonballIconCount(5), { filled: 5, extra: 0 })
+eq('드래곤볼: 세트 계산(15개)', dragonballSets(15), { sets: 2, rest: 1 })
+eq('드래곤볼: 개수 표시', dragonballCountText(0), '0개')
+eq('드래곤볼: 쏠 개수는 1~99', [normalizeGrantAmount(0), normalizeGrantAmount(150), normalizeGrantAmount('3.7'), normalizeGrantAmount('abc')], [1, 99, 3, 1])
+eq('드래곤볼: 쏠 대상은 공부 중인 학생', grantTargets(liveRows, false).map((row) => row.status), ['running', 'running', 'running'])
+eq('드래곤볼: 쉬는 중 포함', grantTargets(liveRows, true).length, 4)
+eq('드래곤볼: 결과 안내(전체)', grantResultText(3, 2, 'all'), '공부 중인 3명에게 드래곤볼 2개씩 쏘았어요!')
+eq('드래곤볼: 결과 안내(개별)', grantResultText(1, 1, 'single'), '드래곤볼 1개를 쏘았어요.')
+eq('드래곤볼: 이력 표시', [GRANT_MODE_LABEL.all, GRANT_MODE_LABEL.single], ['전체 일괄', '개별'])
+
+eq('관리자: 학원 공부는 그대로 공부 중', adminSessionState({ ...baseSession, kind: 'academy' }, at('2026-11-19T01:10:00Z')).status, 'running')
+eq(
+  '관리자: 숙제 공부가 30초 넘게 신호가 없으면 쉬는 중',
+  adminSessionState({ ...baseSession, kind: 'homework' }, at('2026-11-19T01:10:31Z')).status,
+  'paused',
+)
+eq(
+  '관리자: 쉬는 중으로 보면 시간도 마지막 신호에서 멈춤',
+  adminSessionState({ ...baseSession, kind: 'homework' }, at('2026-11-19T03:00:00Z')).seconds,
+  600,
+)
 
 /* 화면을 벗어날 때 멈추는 종류 (숙제 공부만) */
 eq('숙제 공부는 나가면 멈춤', pausesOnLeave('homework'), true)

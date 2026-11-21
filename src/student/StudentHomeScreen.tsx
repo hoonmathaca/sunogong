@@ -6,6 +6,7 @@ import { KIND_BAR_CLASS, KIND_EMOJI, KIND_LABEL, KIND_TEXT_CLASS, type SessionKi
 import { splitLog, splitPercents } from '../lib/stats'
 import { addDays, formatDateKo, formatMinutes, formatMinutesCompact, todayKst, weekdayOf } from '../lib/time'
 import type { Student, StudyLog } from '../lib/types'
+import { LiveKintounCard } from './LiveKintounCard'
 
 interface StudentHomeScreenProps {
   student: Student
@@ -140,6 +141,9 @@ export function StudentHomeScreen({
             <span className="rounded-full bg-white/10 px-2.5 py-1">이번 주 {formatMinutes(weekMinutes)}</span>
           </div>
         </section>
+
+        {/* 근두운 — 지금 공부 중인 친구들과 내 드래곤볼 */}
+        <LiveKintounCard studentId={student.id} />
 
         <section className="mt-4 card">
           <div className="flex flex-wrap items-center justify-between gap-2">

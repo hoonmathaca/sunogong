@@ -623,6 +623,206 @@ on conflict (id) do update
       allowed_mime_types = excluded.allowed_mime_types;
 
 -- ---------------------------------------------------------------------
+-- 3.7 근두운 · 드래곤볼 (2026-11-21 추가)
+--     학생 닉네임(실명 대신), 지금 공부 중인 친구들(닉네임+시간), 선오공이 드래곤볼 쏘기
+--     자세한 변경 이력·검증은 supabase/migrate-2026-11-21-kintoun-dragonball.sql
+-- ---------------------------------------------------------------------
+
+alter table public.students add column if not exists nickname text;
+alter table public.students add column if not exists dragonball_count integer not null default 0;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'students_nickname_check') then
+    alter table public.students
+      add constraint students_nickname_check
+      check (
+        nickname is null
+        or (length(btrim(nickname)) between 1 and 10 and nickname !~ '[\r\n\t]')
+      );
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'students_dragonball_count_check') then
+    alter table public.students
+      add constraint students_dragonball_count_check check (dragonball_count >= 0);
+  end if;
+end $$;
+
+create table if not exists public.dragonball_grants (
+  id          uuid primary key default gen_random_uuid(),
+  student_id  uuid not null references public.students (id) on delete cascade,
+  amount      integer not null check (amount > 0),
+  mode        text not null default 'single' check (mode in ('all', 'single')),
+  note        text,
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists dragonball_grants_student_idx
+  on public.dragonball_grants (student_id, created_at desc);
+
+-- 학생 닉네임 바꾸기 (빈 값이면 '수련생'으로 돌아간다)
+create or replace function public.set_student_nickname(p_student_id uuid, p_nickname text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_nick text := nullif(btrim(coalesce(p_nickname, '')), '');
+  v_row  public.students;
+begin
+  if v_nick is not null then
+    if v_nick ~ '[\r\n\t]' then
+      raise exception 'nickname_invalid' using errcode = '22023';
+    end if;
+    if length(v_nick) > 10 then
+      raise exception 'nickname_too_long' using errcode = '22023';
+    end if;
+  end if;
+
+  update public.students set nickname = v_nick where id = p_student_id returning * into v_row;
+  if not found then
+    raise exception 'student_not_found' using errcode = 'P0002';
+  end if;
+
+  return jsonb_build_object(
+    'nickname',         v_row.nickname,
+    'dragonball_count', v_row.dragonball_count
+  );
+end;
+$$;
+
+-- 내 닉네임 · 드래곤볼 개수
+create or replace function public.student_profile(p_student_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_row public.students;
+begin
+  select * into v_row from public.students where id = p_student_id;
+  if not found then
+    raise exception 'student_not_found' using errcode = 'P0002';
+  end if;
+  return jsonb_build_object(
+    'nickname',         v_row.nickname,
+    'dragonball_count', coalesce(v_row.dragonball_count, 0)
+  );
+end;
+$$;
+
+-- 근두운 — 지금 공부 중인 학생 (닉네임 + 진행 시간만, 실명·id 없음)
+create or replace function public.live_study_board(p_student_id uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  r         record;
+  v_rows    jsonb := '[]'::jsonb;
+  v_running integer := 0;
+  v_now     timestamptz := now();
+  v_secs    integer;
+begin
+  -- 숙제 공부는 하트비트가 30초 끊기면 일시정지로 본다 (reconcile_session 과 같은 규칙)
+  update public.study_sessions s
+     set status           = 'paused',
+         paused_at        = s.last_heartbeat_at,
+         auto_pause_count = s.auto_pause_count + 1,
+         last_pause_auto  = true
+   where s.status = 'running'
+     and s.kind = 'homework'
+     and s.date = public.kst_today()
+     and v_now - s.last_heartbeat_at > interval '30 seconds';
+
+  for r in
+    select s.student_id, s.status, s.started_at, s.paused_at, s.ended_at, s.paused_seconds,
+           coalesce(nullif(btrim(st.nickname), ''), '수련생') as nickname
+      from public.study_sessions s
+      join public.students st on st.id = s.student_id
+     where s.status <> 'finished'
+       and s.date = public.kst_today()
+     order by s.started_at asc
+  loop
+    v_secs := public.session_elapsed_seconds(
+      r.started_at, r.paused_at, r.ended_at, r.status, r.paused_seconds
+    );
+
+    continue when v_secs >= 18000;
+
+    if r.status = 'running' then
+      v_running := v_running + 1;
+    end if;
+
+    v_rows := v_rows || jsonb_build_array(
+      jsonb_build_object(
+        'nickname',   r.nickname,
+        'status',     r.status,
+        'started_at', r.started_at,
+        'seconds',    v_secs,
+        'is_me',      (p_student_id is not null and r.student_id = p_student_id)
+      )
+    );
+  end loop;
+
+  return jsonb_build_object(
+    'server_now',    v_now,
+    'running_count', v_running,
+    'students',      v_rows
+  );
+end;
+$$;
+
+-- 선오공이 드래곤볼 쏘기 (전체 일괄 · 개별)
+create or replace function public.grant_dragonballs(
+  p_student_ids uuid[],
+  p_amount      integer,
+  p_mode        text default 'single',
+  p_note        text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_amount integer := floor(coalesce(p_amount, 0))::integer;
+  v_mode   text := case when p_mode = 'all' then 'all' else 'single' end;
+  v_note   text := nullif(btrim(coalesce(p_note, '')), '');
+  v_id     uuid;
+  v_count  integer := 0;
+  v_total  integer := 0;
+begin
+  if v_amount < 1 or v_amount > 99 then
+    raise exception 'invalid_amount' using errcode = '22023';
+  end if;
+  if coalesce(array_length(p_student_ids, 1), 0) = 0 then
+    raise exception 'no_students' using errcode = '22023';
+  end if;
+
+  for v_id in select distinct s.id from public.students s where s.id = any(p_student_ids) loop
+    update public.students
+       set dragonball_count = dragonball_count + v_amount
+     where id = v_id
+     returning dragonball_count into v_total;
+
+    insert into public.dragonball_grants (student_id, amount, mode, note)
+    values (v_id, v_amount, v_mode, v_note);
+
+    v_count := v_count + 1;
+  end loop;
+
+  if v_count = 0 then
+    raise exception 'student_not_found' using errcode = 'P0002';
+  end if;
+
+  return jsonb_build_object('granted', v_count, 'amount', v_amount, 'mode', v_mode, 'last_total', v_total);
+end;
+$$;
+
+-- ---------------------------------------------------------------------
 -- 4. 권한 · RLS
 --    앱은 익명 키(anon)로 동작합니다. 관리자 화면은 앱 안의 비밀번호로 입장합니다.
 -- ---------------------------------------------------------------------
@@ -632,6 +832,7 @@ alter table public.study_sessions   enable row level security;
 alter table public.study_logs       enable row level security;
 alter table public.study_questions  enable row level security;
 alter table public.push_subscriptions enable row level security;
+alter table public.dragonball_grants enable row level security;
 
 drop policy if exists students_anon_all on public.students;
 create policy students_anon_all on public.students
@@ -651,6 +852,10 @@ create policy study_questions_anon_all on public.study_questions
 
 drop policy if exists push_subscriptions_anon_all on public.push_subscriptions;
 create policy push_subscriptions_anon_all on public.push_subscriptions
+  for all to anon, authenticated using (true) with check (true);
+
+drop policy if exists dragonball_grants_anon_all on public.dragonball_grants;
+create policy dragonball_grants_anon_all on public.dragonball_grants
   for all to anon, authenticated using (true) with check (true);
 
 -- Storage 정책 — question-images 버킷 안의 파일만
@@ -678,7 +883,7 @@ create policy question_images_delete on storage.objects
   using (bucket_id = 'question-images');
 
 grant usage on schema public to anon, authenticated;
-grant select, insert, update, delete on public.students, public.study_sessions, public.study_logs, public.study_questions, public.push_subscriptions to anon, authenticated;
+grant select, insert, update, delete on public.students, public.study_sessions, public.study_logs, public.study_questions, public.push_subscriptions, public.dragonball_grants to anon, authenticated;
 
 grant execute on function public.server_now() to anon, authenticated;
 grant execute on function public.kst_today() to anon, authenticated;
@@ -692,3 +897,7 @@ grant execute on function public.resume_session(uuid) to anon, authenticated;
 grant execute on function public.heartbeat(uuid) to anon, authenticated;
 grant execute on function public.finish_session(uuid, integer) to anon, authenticated;
 grant execute on function public.discard_session(uuid) to anon, authenticated;
+grant execute on function public.set_student_nickname(uuid, text) to anon, authenticated;
+grant execute on function public.student_profile(uuid) to anon, authenticated;
+grant execute on function public.live_study_board(uuid) to anon, authenticated;
+grant execute on function public.grant_dragonballs(uuid[], integer, text, text) to anon, authenticated;

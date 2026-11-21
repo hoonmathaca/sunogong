@@ -138,4 +138,144 @@
   .tab-active {
     @apply bg-navy text-white shadow-soft;
   }
+
+  /* ---------------------------------------------------------------- */
+  /* 근두운 — 작은 구름이 부드럽게 둥둥 떠다니는 모양 (2026-11-21)        */
+  /* ---------------------------------------------------------------- */
+  /* 바깥 상자: 위아래로 떠다니고, 안쪽 구름: 좌우로 살짝 흔들린다 */
+  .kintoun-float {
+    display: inline-flex;
+    animation: kintoun-bob 4s ease-in-out infinite;
+    will-change: transform;
+  }
+
+  .kintoun-cloud {
+    --cloud-bg: #ffffff;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border-radius: 999px;
+    background: var(--cloud-bg);
+    padding: 0.3rem 0.7rem 0.3rem 0.6rem;
+    box-shadow:
+      0 8px 18px -12px rgba(18, 41, 107, 0.45),
+      0 0 0 1px rgba(200, 217, 246, 0.9) inset;
+    animation: kintoun-drift 6.4s ease-in-out infinite;
+    white-space: nowrap;
+  }
+
+  /* 구름 윗면의 두 봉우리 */
+  .kintoun-cloud::before,
+  .kintoun-cloud::after {
+    content: '';
+    position: absolute;
+    z-index: 0;
+    border-radius: 999px;
+    background: var(--cloud-bg);
+  }
+  .kintoun-cloud::before {
+    width: 0.95rem;
+    height: 0.95rem;
+    top: -0.34rem;
+    left: 16%;
+  }
+  .kintoun-cloud::after {
+    width: 0.65rem;
+    height: 0.65rem;
+    top: -0.28rem;
+    right: 18%;
+  }
+
+  .kintoun-cloud > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* 내 구름은 노란 테두리로 */
+  .kintoun-cloud--me {
+    --cloud-bg: #fff8e6;
+    box-shadow:
+      0 8px 18px -10px rgba(196, 132, 12, 0.45),
+      0 0 0 2px rgba(247, 169, 59, 0.55) inset;
+  }
+
+  /* 드래곤볼 */
+  .dragonball {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: radial-gradient(circle at 32% 28%, #ffd88a 0%, #ffb02e 48%, #ef8a00 100%);
+    box-shadow: 0 2px 4px -1px rgba(180, 100, 0, 0.45), 0 0 0 1px rgba(255, 190, 80, 0.6) inset;
+    color: #a24b00;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .dragonball--empty {
+    background: #edf1f8;
+    box-shadow: none;
+    color: transparent;
+  }
+
+  .dragonball-shot {
+    animation: kintoun-shot 1.15s ease-out forwards;
+  }
+}
+
+/* 근두운·드래곤볼 애니메이션 */
+@keyframes kintoun-bob {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -0.3rem, 0);
+  }
+}
+
+@keyframes kintoun-drift {
+  0%,
+  100% {
+    transform: translate3d(-0.12rem, 0, 0);
+  }
+  50% {
+    transform: translate3d(0.12rem, -0.06rem, 0);
+  }
+}
+
+@keyframes kintoun-shot {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0.4rem, 0) scale(0.6);
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, -3rem, 0) scale(1.15);
+  }
+}
+
+@keyframes dragonball-pulse {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.14);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* 움직임을 줄여 달라고 한 기기에서는 둥둥 떠다니지 않게 */
+@media (prefers-reduced-motion: reduce) {
+  .kintoun-float,
+  .kintoun-cloud,
+  .dragonball-shot {
+    animation: none !important;
+  }
 }

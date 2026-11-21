@@ -6,6 +6,10 @@ export interface Student {
   code: string
   grade: string
   created_at: string
+  /** 실명 대신 보여 줄 별명 (2026-11-21 추가, 없으면 '수련생') */
+  nickname?: string | null
+  /** 받은 드래곤볼 개수 (제한 없이 누적) */
+  dragonball_count?: number
 }
 
 export type SessionStatus = 'running' | 'paused' | 'finished'

@@ -5,6 +5,7 @@ import * as questionsApi from '../lib/questions'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { AdminLogin } from './AdminLogin'
 import { Dashboard } from './Dashboard'
+import { KintounPanel } from './KintounPanel'
 import { QuestionsPanel } from './QuestionsPanel'
 import { RankingPanel } from './RankingPanel'
 import { StudentsPanel } from './StudentsPanel'
@@ -12,9 +13,9 @@ import { useStudents } from './useStudents'
 
 const STORAGE_KEY = 'sunogong.admin-signed-in'
 
-type Tab = 'dashboard' | 'questions' | 'students' | 'ranking'
+type Tab = 'dashboard' | 'kintoun' | 'questions' | 'students' | 'ranking'
 
-const TABS: Tab[] = ['dashboard', 'questions', 'students', 'ranking']
+const TABS: Tab[] = ['dashboard', 'kintoun', 'questions', 'students', 'ranking']
 
 function readSignedIn(): boolean {
   try {
@@ -107,6 +108,7 @@ export function AdminApp({ onBack }: AdminAppProps): JSX.Element {
           {(
             [
               { key: 'dashboard', label: '대시보드' },
+              { key: 'kintoun', label: '근두운' },
               { key: 'questions', label: '질문함' },
               { key: 'students', label: '학생 관리' },
               { key: 'ranking', label: '랭킹' },
@@ -156,6 +158,14 @@ export function AdminApp({ onBack }: AdminAppProps): JSX.Element {
             />
           ) : null}
           {tab === 'questions' ? <QuestionsPanel onUnansweredChange={setUnanswered} /> : null}
+          {tab === 'kintoun' ? (
+            <KintounPanel
+              students={students}
+              studentsLoading={loading}
+              studentsError={error}
+              reloadStudents={() => void reload()}
+            />
+          ) : null}
           {tab === 'students' ? (
             <StudentsPanel students={students} loading={loading} error={error} reload={() => void reload()} />
           ) : null}

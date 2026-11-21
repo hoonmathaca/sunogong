@@ -98,7 +98,7 @@ npm run preview    # 빌드 결과 확인
    - `/admin` 은 컴퓨터에서도 그대로 열립니다.
 1. **코드 입력** — 4자리 숫자 키패드. 코드는 문자열이라 `0575`처럼 앞자리 0이 유지됩니다.
    같은 코드를 쓰는 학생이 여럿이면 `누구세요?` 이름 선택 화면이 뜹니다.
-2. **홈** — 오늘 누적 공부시간과 **학원 공부(남색)·숙제 공부(보라)** 시간을 색 칩으로 따로 표시, `공부 기록` 카드에 **최근 7일 / 최근 30일** 전환 · 기간 합계와 두 색 비율 막대(인바디형) · 날짜별 누적 막대(30일은 카드 안에서 스크롤), `공부 시작`
+2. **홈** — 오늘 누적 공부시간과 **학원 공부(남색)·숙제 공부(보라)** 시간을 색 칩으로 따로 표시, `공부 기록` 카드에 **최근 7일 / 최근 30일** 전환 · 기간 합계와 두 색 비율 막대(인바디형) · 날짜별 누적 막대(30일은 카드 안에서 스크롤), **☁️ 근두운**(지금 공부 중인 친구 수·구름·실시간 순위·닉네임 바꾸기)과 **🐉 내 드래곤볼**, `공부 시작`
 3. **타이머** — `🏫 학원 공부 시작` / `🏠 숙제 공부 시작` 두 가지로 시작하고, `HH:MM:SS` · 종류 배지 · `일시정지` / `종료`(일시정지 중에는 `계속` / `종료`)
    - **`⛶ 전체화면`** — 브라우저 주소창·하단 내비게이션 바를 숨긴다(`document.documentElement.requestFullscreen()`). 다시 누르면 `⛶ 전체화면 나가기`(`exitFullscreen()`).
    - 숙제 공부: `📵 숙제 공부는 화면을 끄거나 나가면 멈춰요` 안내 + **`🌙 화면보호 모드`** 버튼(어두운 저조도 화면, 화면 아무 곳이나 누르면 `☀️ 밝게 보기`로 복귀)
@@ -109,6 +109,16 @@ npm run preview    # 빌드 결과 확인
    - **`💬 선오공에게 질문하기`** — 공부 중에 바로 문제 사진을 올린다. 창을 여는 동안(사진 찍으러 카메라로 넘어가는 동안 포함) **타이머는 멈추지 않는다**.
 4. **종료** — `공부를 마칠까요?` → `오늘 푼 문제 수` 키패드(0 가능) → 저장
 5. **결과** — `오늘 ○시간 ○분 공부했어요` + 오늘 합계 · 오늘 학원/숙제 시간 · 푼 문제 수
+
+### 근두운 · 드래곤볼 (2026-11-21)
+
+학생 홈의 오늘 공부 카드 아래에 두 카드가 붙습니다. 15초마다 새로 읽고, 그 사이에는 1초마다 시간만 흘려 보냅니다.
+
+- **☁️ 근두운** — 지금 공부 중인 친구 수(`N명`), 공부 중인 친구들의 **닉네임 + 진행 시간**을 **작은 구름** 안에 넣어 위아래로 둥둥 떠다니게 보여 준다(`src/index.css` 의 `kintoun-bob`·`kintoun-drift`, 구름마다 박자를 조금씩 다르게). 모바일 폭에서는 구름이 줄바꿈되고, 이름이 길면 말줄임으로 줄인다. 잠깐 쉬는 친구는 구름 대신 `😴 잠깐 쉬는 중` 한 줄로 보여 준다.
+- **🔥 실시간 연속 공부 순위** — 멈추지 않고 이어서 공부 중인 시간 기준 상위 5명(동점은 같은 순위), 내 순위는 `내 순위 N위 / M명` 으로 따로 표시하고 내 줄은 노란 배경.
+- **닉네임** — `근두운에 보이는 내 이름` 옆 `바꾸기` 버튼(최대 10자, 비우면 `수련생`). 같은 이름이 둘 이상이면 `수련생 A · 수련생 B` 로 구분해 보여 준다.
+- **🐉 내 드래곤볼** — 보유 개수를 **제한 없이** 계속 누적해 보여 준다(12개까지 아이콘 + `외 N개`). 7개 교환·보상 정책은 아직 정하지 않았으므로 **교환 버튼은 넣지 않았다**.
+- **실명은 밖으로 나가지 않는다** — 서버 함수 `live_study_board()` 가 `nickname · status · started_at · seconds · is_me` 만 돌려준다(실명·학년·학생 id 없음). 닉네임을 정하지 않은 학생은 `수련생` 으로 보인다.
 
 ### 선오공에게 질문하기 (Q&A)
 - **홈 진입 버튼** — 공부 기록 카드 아래 `💬 선오공에게 질문하기`. 아직 열지 않은 답변이 있으면 `새 답변 N` 배지가 붙는다.
@@ -124,6 +134,7 @@ npm run preview    # 빌드 결과 확인
 - **대시보드**: 최근 30일 기본, 기간 변경 · 학년 필터(표와 그래프 모두 적용) · 학생×날짜 표(시간이 길수록 진한 남색, 미제출 회색, 주말 배경) · 칸을 누르면 그 날 **기록 수정/삭제** · 학년별 요약(접기/펼치기) · 학생 비교 막대그래프 · 미제출 학생(오늘/이번 주/이번 달) · CSV(UTF-8 BOM)
 - **기록 수정 모달 — 학원·숙제 따로 입력**: 🏫 학원 공부 / 🏠 숙제 공부의 **공부시간(분)·푼 문제 수**를 각각 고치면 전체 공부시간(`minutes`)·문제 수(`problems`)는 학원+숙제로 자동 계산해 저장합니다(`academy_*`·`homework_*`도 함께 갱신). 학원·숙제 구분이 없던 예전 기록은 기존 기준대로 학원 공부로 채워 열리고, 안내 문구로 알려 줍니다. 표의 칸(대시보드)과 학생 상세의 `수정` 버튼이 같은 모달을 엽니다. 계산은 `src/lib/logEdit.ts`.
 - **학원 공부(🏫)와 숙제 공부(🏠)를 따로 집계**: 위쪽 요약 카드(총 공부시간 · 학원 · 숙제 · 푼 문제 · 1인당 평균), 학생×날짜 표의 합계 칸과 칸 아래 비율 막대, 학년별 요약(학생마다 학원/숙제 따로 + 합계), 학생 비교 막대(학원은 남색 · 숙제는 보라색으로 쌓인 막대), 학생 상세(최근 30일 학원/숙제 합계), CSV 두 종류 모두에 반영. 종류가 없던 예전 기록은 학원 공부로 본다.
+- **근두운** (상단 탭): 지금 공부 중인 학생을 **실명 + 근두운 닉네임 + 진행 시간 + 보유 드래곤볼** 로 보여 주고, **선오공이 드래곤볼 쏘기** 로 **전체 일괄**(공부 중인 학생 전원, 원하면 `쉬는 중인 학생도 포함`) · **개별**(줄마다 `☄️ N개 쏘기`) 지급을 한다. 한 번에 1~99개, 쏘면 드래곤볼이 위로 날아가는 애니메이션과 결과 문구가 뜨고 아래 `드래곤볼 지급 이력`(최근 12건)에 누가 몇 개를 받았는지 남는다. 15초마다 새로 읽는다.
 - **질문함** (상단 탭, 답변 대기 건수 배지): 학생 질문을 **답변 대기 우선**으로 보고 `답변 대기 / 답변 완료 / 전체` 로 거른다. 사진을 눌러 크게 보고, **선오공이** 이름으로 답변 글 + 해설지 사진 또는 **훈노트 영상**(MP4·WebM·MOV, 50MB 이하)을 달거나 수정하고, 질문을 삭제(사진·영상 포함)할 수 있다.
   - **오래된 질문 자동 정리** — 질문함을 열 때 **답변 완료 후 7일**이 지난 질문과 Storage 사진·영상을 자동으로 지운다(끄기 스위치 있음, `지금 정리` 버튼도 있음). DB 줄만 지우지 않고 파일까지 지워서 무료 용량이 실제로 비워진다.
 - **🔔 새 질문 알림** (질문함 맨 위 카드): 이 기기에서 알림을 **켜기/끄기**, 알림 받는 **기기 수**, **테스트 알림 보내기**.
@@ -199,10 +210,12 @@ sunogong/
 │  ├─ images/                 # mascot-full / mascot-face / hunsu-logo / og-image
 │  └─ icons/                  # icon-192 / icon-512 / apple-touch-icon
 ├─ supabase/
-│  ├─ schema.sql              # 테이블 5개 + RPC + Storage 버킷 + RLS
+│  ├─ schema.sql              # 테이블 6개 + RPC + Storage 버킷 + RLS
 │  ├─ seed.sql                # 기존 51명 + 2건
 │  ├─ migrate-2026-11-21-questions.sql  # '선오공에게 질문하기' 표·버킷·정책
-│  └─ migrate-2026-11-21-push.sql       # 새 질문 알림 구독 표
+│  ├─ migrate-2026-11-21-push.sql       # 새 질문 알림 구독 표
+│  ├─ migrate-2026-11-21-kintoun-dragonball.sql  # 닉네임·근두운·드래곤볼 함수·표
+│  └─ verify-2026-11-21-kintoun-dragonball.sql   # 근두운·드래곤볼 SQL 검증(되돌림)
 ├─ tools/make_placeholders.py # 자리표시자 이미지 생성(선택)
 ├─ tools/lib-test.ts          # 날짜·집계·랭킹·타이머·기기 판별·질문(Q&A)·알림 계산 테스트(개발용)
 ├─ tools/ssr-smoke.tsx        # 모든 화면 렌더 확인(개발용)
@@ -210,11 +223,12 @@ sunogong/
    ├─ main.tsx, App.tsx, index.css
    ├─ lib/                    # supabase.ts, api.ts, time.ts, session.ts, stats.ts, logEdit.ts(기록 수정 계산), grades.ts, csv.ts, device.ts, types.ts,
    │                          # questions.ts(Q&A DB·Storage), questionBoard.ts(질문 순수 함수), imageCompress.ts(사진 줄이기),
-   │                          # push.ts(알림 켜기/끄기·구독 저장), pushBoard.ts(알림 순수 함수·VAPID 공개 키)
-   ├─ components/             # ErrorBoundary, Brand(마스코트·로고·푸터), Keypad, Modal, ImageViewer(사진 확대), InstallBanner, DesktopBlockScreen(PC 안내)
+   │                          # push.ts(알림 켜기/끄기·구독 저장), pushBoard.ts(알림 순수 함수·VAPID 공개 키),
+   │                          # kintoun.ts(근두운·드래곤볼 DB 함수), kintounBoard.ts(근두운 순수 함수 — 닉네임·순위·구름·드래곤볼)
+   ├─ components/             # ErrorBoundary, Brand(마스코트·로고·푸터), Keypad, Modal, ImageViewer(사진 확대), InstallBanner, DesktopBlockScreen(PC 안내), KintounCloud(구름·드래곤볼)
    ├─ student/                # StudentApp, CodeEntry, ChooseStudent, Home, Timer, Result, useStudyTimer,
-   │                          # QuestionBoardScreen(질문 화면), QuestionAskForm(질문 올리기 폼)
-   └─ admin/                  # AdminApp, AdminLogin, Dashboard, StudentsPanel, RankingPanel, QuestionsPanel(질문함), PushNotifyPanel(알림 설정), Charts, 모달들
+   │                          # QuestionBoardScreen(질문 화면), QuestionAskForm(질문 올리기 폼), LiveKintounCard(근두운·내 드래곤볼)
+   └─ admin/                  # AdminApp, AdminLogin, Dashboard, StudentsPanel, RankingPanel, QuestionsPanel(질문함), PushNotifyPanel(알림 설정), KintounPanel(근두운·드래곤볼 쏘기), Charts, 모달들
 ```
 
 ---
@@ -233,8 +247,9 @@ sunogong/
 - **`api/notify-question.ts` 는 Vercel 이 `api/` 폴더를 보고 자동으로 서버리스 함수로 배포합니다**(`/api/notify-question`). 따로 설정할 것은 없고, 서버 전용 비밀 값만 환경변수로 넣으면 됩니다 — `VAPID_PRIVATE_KEY`(필수), `VAPID_PUBLIC_KEY`·`VAPID_SUBJECT`(선택), `VITE_SUPABASE_URL`·`VITE_SUPABASE_ANON_KEY`·`VITE_ADMIN_PASSWORD`(앱과 같은 값). 위 '홈 화면 설치(PWA) 및 새 질문 알림' 절의 표를 보세요.
 
 ### 보안에 대해
-- 앱은 Supabase **anon 키**로 동작하고, `students`/`study_sessions`/`study_logs`/`study_questions`/`push_subscriptions` 는 RLS 정책상 익명 사용자도 읽고 쓸 수 있습니다.
+- 앱은 Supabase **anon 키**로 동작하고, `students`/`study_sessions`/`study_logs`/`study_questions`/`push_subscriptions`/`dragonball_grants` 는 RLS 정책상 익명 사용자도 읽고 쓸 수 있습니다.
   (학생이 코드만으로 기록을 남기는 구조라 필요합니다. 알림 구독 표도 서버 함수가 같은 anon 키로 읽고 지웁니다.)
+  **근두운은 `live_study_board()` 함수가 닉네임·시간만 돌려주므로 화면에는 실명이 나가지 않지만, anon 키를 아는 사람이 표를 직접 읽으면 학생 이름을 볼 수 있는 것은 예전과 같습니다.** 완전히 가리려면 Supabase Auth(학생·교사 계정)로 바꿔야 하며, 그 작업은 이어서 할 수 있습니다.
   그래서 `push_subscriptions` 의 `endpoint`·`p256dh`·`auth` 는 anon 키로 읽힐 수 있지만, 그 값만으로는 다른 기기로 알림을 보낼 수 없습니다(VAPID 비밀 키는 Vercel 서버에만 있음).
 - 질문 사진·답변 사진/영상은 **비공개 Storage 버킷**(`question-images`)에 올라가고, 화면에서는 1시간짜리 **서명 URL** 로만 보입니다.
   버킷 정책은 앱과 같은 anon 키로 읽고 쓰는 구조라, 강한 보호가 필요하면 Supabase Auth(교사·학생 계정)로 바꾸는 것을 권합니다.
@@ -260,9 +275,12 @@ npx vite build --ssr tools/ssr-smoke.tsx --outDir .smoke2 && node .smoke2/ssr-sm
 
 # 3) SQL 문법 검증 (PostgreSQL 파서)
 python3 -c "import pglast; pglast.parse_sql(open('supabase/schema.sql').read())"
+
+# 4) 근두운·드래곤볼 SQL 검증 (검증용 학생을 만들었다가 자동으로 되돌립니다)
+#    Supabase SQL Editor 에 supabase/verify-2026-11-21-kintoun-dragonball.sql 을 붙여넣고 실행
 ```
 
-결과: 단위 테스트 전부 통과(**178건** — 날짜·집계·학원/숙제 분리 집계·기록 수정 계산·비율·랭킹·타이머·기기 판별·질문(Q&A)·알림(VAPID 키·기기 판별·구독 저장 모양·오류 문구) 계산 포함), **17개 화면** 모두 렌더 성공(관리자 알림 카드 포함), `schema.sql`/`seed.sql`/`migrate-2026-11-21-questions.sql`/`migrate-2026-11-21-push.sql` 문법 오류 없음.
+결과: 단위 테스트 전부 통과(**214건** — 날짜·집계·학원/숙제 분리 집계·기록 수정 계산·비율·랭킹·타이머·기기 판별·질문(Q&A)·알림(VAPID 키·기기 판별·구독 저장 모양·오류 문구)·근두운(닉네임·시간·구름·실시간 순위·드래곤볼) 계산 포함), **20개 화면** 모두 렌더 성공(관리자 알림 카드·근두운 패널 포함), `schema.sql`/`seed.sql`/`migrate-2026-11-21-questions.sql`/`migrate-2026-11-21-push.sql`/`migrate-2026-11-21-kintoun-dragonball.sql` 문법 오류 없음, 근두운 SQL 검증 7건 통과(검증 데이터는 되돌림 — 남은 검증용 학생 0명).
 기기 판별(학생 화면 PC 차단) 테스트 16건도 함께 통과합니다 — 아이폰·아이패드·안드로이드 허용, 윈도우·맥·리눅스·크롬북(터치 노트북 포함) 차단.
 화면 점검에는 `선오공에게 질문하기` 홈·타이머 버튼, 학생 질문 화면, 질문 올리기 폼, 관리자 질문함(자동 정리 안내 포함)이 모두 들어 있습니다.
 `'선오공이에게'` 대신 `'선오공에게'` 로만 표기되는지도 테스트로 확인합니다.
