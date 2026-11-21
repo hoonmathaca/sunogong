@@ -108,7 +108,7 @@ export function AdminApp({ onBack }: AdminAppProps): JSX.Element {
           {(
             [
               { key: 'dashboard', label: '대시보드' },
-              { key: 'kintoun', label: '근두운' },
+              { key: 'kintoun', label: '실시간' },
               { key: 'questions', label: '질문함' },
               { key: 'students', label: '학생 관리' },
               { key: 'ranking', label: '랭킹' },

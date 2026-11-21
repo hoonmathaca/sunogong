@@ -17,6 +17,7 @@ import {
 import { KIND_EMOJI, KIND_LABEL } from '../lib/kinds'
 import { formatHMS, formatMinutes, MAX_SESSION_SECONDS } from '../lib/time'
 import type { FinishResult, Student, StudySession } from '../lib/types'
+import { LiveKintounStrip } from './LiveKintounStrip'
 import { QuestionAskForm } from './QuestionAskForm'
 import { useStudyTimer, type DiscardReason, type FinishReason } from './useStudyTimer'
 
@@ -322,6 +323,13 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
             </div>
           )}
         </div>
+
+        {/* ☁️ 근두운 — 숙제 공부 중에만, 타이머 숫자·버튼을 가리지 않는 얇은 줄로 */}
+        {isHomework ? (
+          <div className="px-5 pt-2">
+            <LiveKintounStrip studentId={student.id} dim={dim} />
+          </div>
+        ) : null}
 
         {/* 전체화면을 켤 수 없을 때의 짧은 안내 (12초 뒤 저절로 사라짐) */}
         {hint ? (

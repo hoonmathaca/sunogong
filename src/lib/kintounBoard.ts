@@ -186,6 +186,26 @@ export function cloudItems(rows: LiveRow[], max: number = MAX_CLOUDS): { clouds:
   return { clouds, hidden: Math.max(0, ordered.length - clouds.length) }
 }
 
+/**
+ * 타이머 화면의 한 줄 근두운 — 공부 중 인원 수와 이름 몇 개.
+ * 서버가 준 running_count 가 있으면 그 값을, 없으면 공부 중인 줄을 센다.
+ */
+export interface LiveStrip {
+  count: number
+  items: CloudItem[]
+  hidden: number
+}
+
+export function liveStrip(rows: LiveRow[], runningCount: number | null | undefined, max: number = 3): LiveStrip {
+  const found = cloudItems(rows, max)
+  const running = rows.filter((row) => row.status === 'running').length
+  const count =
+    typeof runningCount === 'number' && Number.isFinite(runningCount) && runningCount >= 0
+      ? Math.floor(runningCount)
+      : running
+  return { count, items: found.clouds, hidden: found.hidden }
+}
+
 /** 지금 멈추지 않고 이어서 공부 중인 친구들의 실시간 순위 (동점은 같은 순위) */
 export function liveRanking(rows: LiveRow[], limit: number = RANK_LIMIT): RankItem[] {
   const running = rows.filter((row) => row.status === 'running')

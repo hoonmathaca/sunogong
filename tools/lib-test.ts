@@ -45,6 +45,7 @@ import {
   GRANT_MODE_LABEL,
   grantTargets,
   liveRanking,
+  liveStrip,
   myLivePosition,
   normalizeGrantAmount,
   normalizeNickname,
@@ -336,6 +337,17 @@ eq('근두운: 구름 개수 넘치면 외 N명', cloudItems(liveRows, 2), {
   ],
   hidden: 1,
 })
+eq('근두운: 타이머 줄 인원은 서버 값', liveStrip(liveRows, 5, 2).count, 5)
+eq('근두운: 타이머 줄 이름·외 N명', liveStrip(liveRows, 3, 2), {
+  count: 3,
+  items: [
+    { label: '수련생 A', seconds: 1800, isMe: false },
+    { label: '수련생 B', seconds: 600, isMe: false },
+  ],
+  hidden: 1,
+})
+eq('근두운: 서버 인원이 없으면 줄에서 셈', liveStrip(liveRows, null, 2).count, 3)
+eq('근두운: 타이머 줄 내 이름 표시', liveStrip(liveRows, 3, 3).items.map((item) => item.isMe), [false, false, true])
 eq('근두운: 실시간 순위(멈추지 않은 사람만, 동점은 같은 순위)', liveRanking(liveRows).map((row) => [row.position, row.label]), [
   [1, '수련생 A'],
   [2, '수련생 B'],

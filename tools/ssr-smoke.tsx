@@ -214,12 +214,14 @@ const kintounChecks: [string, boolean][] = [
   ['근두운: 홈에 내 드래곤볼', homeHtml.includes('내 드래곤볼')],
   ['근두운: 홈에 실시간 순위', homeHtml.includes('실시간 연속 공부 순위')],
   ['근두운: 홈에 닉네임 바꾸기', homeHtml.includes('근두운에 보이는 내 이름')],
-  ['근두운: 관리자 탭', adminHtml.includes('근두운')],
+  ['실시간: 관리자 탭 이름', adminHtml.includes('>실시간<') && !adminHtml.includes('>근두운<')],
   ['근두운: 관리자 드래곤볼 쏘기', kintounPanelHtml.includes('선오공이 드래곤볼 쏘기')],
   ['근두운: 관리자 전체 쏘기 버튼', kintounPanelHtml.includes('명에게 쏘기')],
   ['근두운: 관리자 쉬는 중 포함', kintounPanelHtml.includes('쉬는 중인 학생도 포함')],
   ['근두운: 관리자 지급 이력', kintounPanelHtml.includes('드래곤볼 지급 이력')],
   ['근두운: 관리자 공부 중 목록', kintounPanelHtml.includes('지금 공부 중인 학생')],
+  ['근두운: 숙제 타이머에 근두운 줄', homeworkHtml.includes('aria-label="근두운 — 지금 공부 중인 친구"')],
+  ['근두운: 학원 타이머에는 없음', !academyHtml.includes('aria-label="근두운 — 지금 공부 중인 친구"')],
 ]
 for (const [name, ok] of kintounChecks) {
   if (!ok) failed += 1
