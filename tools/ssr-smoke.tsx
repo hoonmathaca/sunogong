@@ -49,6 +49,8 @@ const student: Student = {
   code: '3733',
   grade: '초1',
   created_at: '2026-11-19T00:00:00Z',
+  nickname: '달토끼',
+  dragonball_count: 7,
 }
 
 const result: FinishResult = {
@@ -223,6 +225,19 @@ const kintounChecks: [string, boolean][] = [
   ['근두운: 숙제 타이머에 근두운 줄', homeworkHtml.includes('aria-label="근두운 — 지금 공부 중인 친구"')],
   ['근두운: 학원 타이머에는 없음', !academyHtml.includes('aria-label="근두운 — 지금 공부 중인 친구"')],
 ]
+
+/* 학생 관리 — 닉네임 표시·수정 */
+const studentsPanelHtml = rendered['StudentsPanel'] ?? ''
+const nicknameChecks: [string, boolean][] = [
+  ['닉네임: 학생 관리에 닉네임 열', studentsPanelHtml.includes('닉네임')],
+  ['닉네임: 학생 관리에 닉네임 표시', studentsPanelHtml.includes('달토끼')],
+  ['닉네임: 학생 관리에 바꾸기 버튼', studentsPanelHtml.includes('바꾸기')],
+  ['닉네임: 학생 관리에 비우기 안내', studentsPanelHtml.includes('비우면 수련생') || studentsPanelHtml.includes('닉네임은 근두운')],
+]
+for (const [name, ok] of nicknameChecks) {
+  if (!ok) failed += 1
+  console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)
+}
 for (const [name, ok] of kintounChecks) {
   if (!ok) failed += 1
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)

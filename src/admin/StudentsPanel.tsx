@@ -3,6 +3,8 @@ import { Modal } from '../components/Modal'
 import { Spinner } from '../components/Keypad'
 import { GRADE_OPTIONS, compareName, gradeRank, normalizeGrade } from '../lib/grades'
 import * as api from '../lib/api'
+import * as kintoun from '../lib/kintoun'
+import { displayNickname, NICKNAME_MAX, normalizeNickname, validateNickname } from '../lib/kintounBoard'
 import { todayKst } from '../lib/time'
 import type { Student } from '../lib/types'
 import { StudentDetailModal } from './StudentDetailModal'
@@ -24,6 +26,9 @@ interface FormState {
 
 const EMPTY_FORM: FormState = { id: null, name: '', code: '', grade: normalizeGrade('') }
 
+/** 저장된 닉네임 그대로(없으면 빈 문자열) — 입력칸에 넣을 값 */
+const nicknameOf = (student: Student): string => normalizeNickname(student.nickname) ?? ''
+
 export function StudentsPanel({ students, loading, error, reload }: StudentsPanelProps): JSX.Element {
   const [search, setSearch] = useState('')
   const [form, setForm] = useState<FormState | null>(null)
@@ -31,6 +36,11 @@ export function StudentsPanel({ students, loading, error, reload }: StudentsPane
   const [formError, setFormError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<Student | null>(null)
   const [recordStudent, setRecordStudent] = useState<Student | null>(null)
+  /* 근두운 닉네임 — 원장님이 직접 고치거나 비운다 */
+  const [nickTarget, setNickTarget] = useState<Student | null>(null)
+  const [nickInput, setNickInput] = useState('')
+  const [nickError, setNickError] = useState<string | null>(null)
+  const [nickBusy, setNickBusy] = useState(false)
 
   const codeCounts = useMemo(() => {
     const counts = new Map<string, number>()
@@ -41,7 +51,12 @@ export function StudentsPanel({ students, loading, error, reload }: StudentsPane
   const visible = useMemo(() => {
     const keyword = search.trim()
     const list = keyword
-      ? students.filter((student) => student.name.includes(keyword) || student.code.includes(keyword))
+      ? students.filter(
+          (student) =>
+            student.name.includes(keyword) ||
+            student.code.includes(keyword) ||
+            (student.nickname ?? '').includes(keyword),
+        )
       : students
     return [...list].sort((a, b) => {
       const gradeDiff = gradeRank(a.grade) - gradeRank(b.grade)
@@ -85,6 +100,31 @@ export function StudentsPanel({ students, loading, error, reload }: StudentsPane
     }
   }
 
+  const openNickname = (student: Student) => {
+    setNickError(null)
+    setNickInput(nicknameOf(student))
+    setNickTarget(student)
+  }
+
+  const saveNickname = async (value: string | null) => {
+    if (!nickTarget) return
+    const check = validateNickname(value ?? '')
+    if (!check.ok) {
+      setNickError(check.error)
+      return
+    }
+    setNickBusy(true)
+    setNickError(null)
+    const res = await kintoun.setStudentNickname(nickTarget.id, check.value)
+    setNickBusy(false)
+    if (res.ok) {
+      setNickTarget(null)
+      reload()
+    } else {
+      setNickError(res.error)
+    }
+  }
+
   const remove = async () => {
     if (!deleting) return
     setBusy(true)
@@ -102,7 +142,7 @@ export function StudentsPanel({ students, loading, error, reload }: StudentsPane
     <div className="space-y-4">
       <AdminSection
         title="학생 관리"
-        description={`전체 ${students.length}명 · 코드는 중복될 수 있어요(같은 코드면 '동일코드' 표시).`}
+        description={`전체 ${students.length}명 · 코드는 중복될 수 있어요(같은 코드면 '동일코드' 표시). 닉네임은 근두운·순위에 실명 대신 보이는 이름이에요.`}
         actions={
           <button type="button" className="btn-navy px-4 py-2 text-[12px]" onClick={openNew}>
             학생 추가
@@ -131,12 +171,13 @@ export function StudentsPanel({ students, loading, error, reload }: StudentsPane
           <EmptyBlock message="해당하는 학생이 없어요." />
         ) : (
           <div className="overflow-x-auto rounded-xl border border-blue-line">
-            <table className="w-full min-w-[560px] border-collapse text-[12px]">
+            <table className="w-full min-w-[640px] border-collapse text-[12px]">
               <thead>
                 <tr className="bg-blue-soft/70 text-[11px] text-navy/60">
                   <th className="px-3 py-2 text-left font-bold">이름</th>
                   <th className="px-3 py-2 text-left font-bold">코드</th>
                   <th className="px-3 py-2 text-left font-bold">학년</th>
+                  <th className="px-3 py-2 text-left font-bold">닉네임</th>
                   <th className="px-3 py-2 text-right font-bold">관리</th>
                 </tr>
               </thead>
@@ -151,6 +192,24 @@ export function StudentsPanel({ students, loading, error, reload }: StudentsPane
                       </span>
                     </td>
                     <td className="px-3 py-2 text-navy/60">{normalizeGrade(student.grade)}</td>
+                    <td className="px-3 py-2">
+                      <span className="inline-flex items-center gap-1.5">
+                        {normalizeNickname(student.nickname) ? (
+                          <span className="rounded-full bg-[#FFF3D6] px-2 py-0.5 text-[11px] font-bold text-[#8A5400]">
+                            {displayNickname(student.nickname)}
+                          </span>
+                        ) : (
+                          <span className="text-[11px] font-semibold text-navy/30">수련생</span>
+                        )}
+                        <button
+                          type="button"
+                          className="rounded-lg px-1.5 py-1 text-[11px] font-bold text-[#8A5400] hover:bg-[#FFF3D6]"
+                          onClick={() => openNickname(student)}
+                        >
+                          바꾸기
+                        </button>
+                      </span>
+                    </td>
                     <td className="px-3 py-2">
                       <div className="flex justify-end gap-1">
                         <button
@@ -244,6 +303,55 @@ export function StudentsPanel({ students, loading, error, reload }: StudentsPane
             </select>
           </label>
           {formError ? <p className="break-words rounded-xl bg-red-50 px-3 py-2 text-[12px] text-red-500">{formError}</p> : null}
+        </div>
+      </Modal>
+
+      {/* 근두운 닉네임 바꾸기 — 장난·사칭 닉네임을 원장님이 직접 고치거나 비운다 */}
+      <Modal
+        open={Boolean(nickTarget)}
+        title="근두운 닉네임 바꾸기"
+        description={
+          <span>
+            <strong className="text-navy">{nickTarget?.name}</strong> 학생이 근두운·순위에 실명 대신 보이는 이름이에요. 비우면{' '}
+            <strong className="text-navy">수련생</strong> 으로 보여요.
+          </span>
+        }
+        onClose={() => {
+          if (nickBusy) return
+          setNickTarget(null)
+        }}
+        footer={
+          <>
+            {normalizeNickname(nickTarget?.nickname) ? (
+              <button type="button" className="btn-outline" onClick={() => void saveNickname(null)} disabled={nickBusy}>
+                비우기
+              </button>
+            ) : null}
+            <button type="button" className="btn-outline" onClick={() => setNickTarget(null)} disabled={nickBusy}>
+              취소
+            </button>
+            <button type="button" className="btn-navy" onClick={() => void saveNickname(nickInput)} disabled={nickBusy}>
+              {nickBusy ? <Spinner className="h-4 w-4 border-white/40 border-t-white" /> : '저장'}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <label className="block text-[12px] font-semibold text-navy/60">
+            닉네임 (최대 {NICKNAME_MAX}자)
+            <input
+              type="text"
+              maxLength={NICKNAME_MAX}
+              value={nickInput}
+              onChange={(event) => setNickInput(event.target.value)}
+              className="mt-1 w-full rounded-xl border border-blue-line px-3 py-2 text-[15px] font-bold text-navy focus:outline-none focus:ring-2 focus:ring-blue-brand/30"
+              placeholder="예: 수학왕 (비우면 수련생)"
+            />
+          </label>
+          <p className="rounded-xl bg-blue-soft/70 px-3 py-2 text-[11px] font-semibold text-navy/50">
+            장난·사칭 닉네임은 여기서 바로 고치거나 비울 수 있어요. 학생 화면에서 바꾼 닉네임도 여기에 그대로 보여요.
+          </p>
+          {nickError ? <p className="break-words rounded-xl bg-red-50 px-3 py-2 text-[12px] text-red-500">{nickError}</p> : null}
         </div>
       </Modal>
 
