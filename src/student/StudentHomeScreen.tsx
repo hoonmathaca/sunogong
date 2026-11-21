@@ -109,7 +109,7 @@ export function StudentHomeScreen({
       <div className="flex-1 px-5 pt-[max(1.25rem,env(safe-area-inset-top))]">
         <header className="flex items-start justify-between">
           <div className="flex items-center gap-2.5">
-            <Mascot variant="full" className="h-11 w-11 shrink-0" />
+            <Mascot variant="face" className="h-11 w-11 shrink-0" />
             <div>
               <h1 className="font-round text-[24px] font-extrabold leading-none text-navy">선오공</h1>
               <p className="mt-1 text-[12px] font-semibold text-navy/50">선생님, 오늘도 공부했어요!</p>

@@ -16,7 +16,7 @@ export function ChooseStudentScreen({ code, candidates, busy, onSelect, onBack }
     <div className="screen bg-white">
       <div className="flex-1 px-5 pt-[max(1.25rem,env(safe-area-inset-top))]">
         <header className="flex items-center gap-2.5">
-          <Mascot variant="full" className="h-11 w-11 shrink-0" />
+          <Mascot variant="face" className="h-11 w-11 shrink-0" />
           <div>
             <h1 className="font-round text-[24px] font-extrabold leading-none text-navy">누구세요?</h1>
             <p className="mt-1 text-[12px] font-semibold text-navy/50">코드 {code}</p>

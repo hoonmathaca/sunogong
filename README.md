@@ -77,7 +77,7 @@ npm run preview    # 빌드 결과 확인
 | 파일 | 쓰이는 곳 |
 |---|---|
 | `public/images/mascot-full.png` (800×800, 투명) | 첫 화면(제목 옆), 타이머, 결과 화면 — **중앙 가르마·동그란 안경·訓 도복·근두운·주변 무지개 칠성구** 마스코트 |
-| `public/images/mascot-face.png` (512×512, 투명) | 관리자 화면 상단 |
+| `public/images/mascot-face.png` (512×512, 투명) | 관리자·학생 화면 상단의 작은 얼굴 (44px 자리) |
 | `public/images/hunsu-logo.png` (512×512, 투명) | 관리자 로그인 화면, 공유 미리보기 |
 | `public/images/hunsu-badge.png` (256×256, 원형) | **모든 화면 맨 아래에만** 작게 + "훈수학학원" |
 | `public/icons/icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `apple-touch-icon.png`(180×180) | 홈 화면 아이콘 |
