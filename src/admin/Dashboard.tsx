@@ -545,7 +545,9 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                         <span className="text-right">🏠 숙제</span>
                         <span className="text-right">합계</span>
                         <span className="text-right">{problemHeading}</span>
-                        <span className="text-right">제출</span>
+                        <span className="text-right">
+                          {scope === 'all' ? '제출' : scope === 'academy' ? '🏫 제출' : '🏠 제출'}
+                        </span>
                       </div>
                       {sectionStats.map((stat) => (
                         <div key={stat.student.id}>
@@ -565,12 +567,18 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                               {formatMinutes(stat.homeworkMinutes)}
                             </span>
                             <span className="text-right tabular">
-                              <span className={`font-bold ${scope === 'all' ? 'text-navy' : 'text-navy/50'}`}>
-                                {formatMinutes(stat.minutes)}
-                              </span>
+                              <span className="font-bold text-navy">{formatMinutes(scopedMinutes(stat, scope))}</span>
                               <span className="block text-[9px] font-medium text-navy/40">
-                                하루 {stat.submittedDays ? formatMinutesCompact(stat.minutes / stat.submittedDays) : '—'}
+                                하루{' '}
+                                {scopedDays(stat, scope)
+                                  ? formatMinutesCompact(scopedMinutes(stat, scope) / scopedDays(stat, scope))
+                                  : '—'}
                               </span>
+                              {scope === 'all' ? null : (
+                                <span className="block text-[9px] font-medium text-navy/35">
+                                  합계 {formatMinutesCompact(stat.minutes)}
+                                </span>
+                              )}
                             </span>
                             <span className={`text-right tabular ${scope === 'all' ? 'text-navy/70' : 'font-bold text-navy'}`}>
                               {scopedProblems(stat, scope)}개
