@@ -224,6 +224,7 @@ const kintounChecks: [string, boolean][] = [
   ['근두운: 홈에 실시간 순위', homeHtml.includes('실시간 연속 공부 순위')],
   ['근두운: 홈에 닉네임 바꾸기', homeHtml.includes('근두운에 보이는 내 이름')],
   ['실시간: 관리자 탭 이름', adminHtml.includes('>실시간<') && !adminHtml.includes('>근두운<')],
+  ['근두운: 관리자 지금 공부 중 학원·숙제 따로', kintounPanelHtml.includes('🏫 학원 0명 · 🏠 숙제 0명')],
   ['근두운: 관리자 드래곤볼 쏘기', kintounPanelHtml.includes('선오공이 드래곤볼 쏘기')],
   ['근두운: 관리자 전체 쏘기 버튼', kintounPanelHtml.includes('명에게 쏘기')],
   ['근두운: 관리자 쉬는 중 포함', kintounPanelHtml.includes('쉬는 중인 학생도 포함')],

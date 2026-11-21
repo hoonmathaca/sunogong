@@ -102,6 +102,9 @@ export function KintounPanel({ students, studentsLoading, studentsError, reloadS
 
   const running = liveRows.filter((row) => row.status === 'running')
   const paused = liveRows.filter((row) => row.status === 'paused')
+  /* 지금 공부 중인 학생을 학원 공부·숙제 공부로 따로 */
+  const runningAcademy = running.filter((row) => row.kind !== 'homework').length
+  const runningHomework = running.length - runningAcademy
   const targets = grantTargets(liveRows, includePaused)
 
   const flash = (id: string) => {
@@ -131,7 +134,12 @@ export function KintounPanel({ students, studentsLoading, studentsError, reloadS
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-        <StatCard label="지금 공부 중" value={`${running.length}명`} sub="멈추지 않고 이어서 공부" tone="navy" />
+        <StatCard
+          label="지금 공부 중"
+          value={`${running.length}명`}
+          sub={`🏫 학원 ${runningAcademy}명 · 🏠 숙제 ${runningHomework}명`}
+          tone="navy"
+        />
         <StatCard label="잠깐 쉬는 중" value={`${paused.length}명`} sub="일시정지 상태" />
         <StatCard label="드래곤볼 쏠 대상" value={`${targets.length}명`} sub={includePaused ? '쉬는 중 포함' : '공부 중만'} tone="homework" />
         <StatCard
