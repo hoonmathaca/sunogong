@@ -1,11 +1,11 @@
 /**
- * 선오공 「오늘의 명언」 — 학생 코드 입력 화면 아래에 한 번에 하나씩 띄운다.
+ * 선오공 「오늘의 한줄」 — 학생 코드 입력 화면 아래에 한 번에 하나씩 띄운다.
  *
  * 1~99번: 원장님이 확인한 100선 목록(`downloads/선오공-명언-100선.md`, 성경·하나님·김구 항목과
  *          이소룡 문구를 바로잡은 뒤의 99개)을 그대로 옮겼습니다.
  * 100~124번: 원장님이 더해 달라고 한 만화·애니·영화 명대사 25개.
  *
- * 화면에는 한 번에 1개만 나오고, 카드를 누르면 직전 명언을 피해 다른 명언으로 바뀝니다.
+ * 화면(앱)을 열 때마다 1개를 무작위로 골라 보여 주기만 하고, 눌러도 바뀌지 않습니다.
  */
 
 export interface Quote {
@@ -144,17 +144,14 @@ export const QUOTES: readonly Quote[] = [
 ]
 
 /**
- * 다음에 띄울 명언의 번호를 고른다.
- * 직전에 보여 준 번호(`prevIndex`)는 건너뛰어 같은 명언이 연달아 나오지 않게 한다.
- * 처음(prevIndex 없음)·잘못된 번호면 전체에서 고른다.
+ * 화면에 띄울 명언의 번호를 전체에서 무작위로 하나 고른다.
+ * 넘칠 수 없는 0~개수-1 범위를 지키고, 난수 값이 이상하면 첫 번째를 고른다.
  */
-export function pickNextQuote(prevIndex?: number | null, random: () => number = Math.random): number {
+export function pickQuote(random: () => number = Math.random): number {
   const count = QUOTES.length
   if (count <= 1) return 0
-  const roll = (max: number) => Math.min(max - 1, Math.max(0, Math.floor(random() * max)))
-  const valid = prevIndex != null && Number.isInteger(prevIndex) && prevIndex >= 0 && prevIndex < count
-  if (!valid) return roll(count)
-  const picked = roll(count - 1)
-  return picked >= (prevIndex as number) ? picked + 1 : picked
+  const roll = random()
+  if (!Number.isFinite(roll)) return 0
+  return Math.min(count - 1, Math.max(0, Math.floor(roll * count)))
 }
 

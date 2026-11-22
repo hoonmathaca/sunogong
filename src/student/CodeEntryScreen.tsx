@@ -110,7 +110,7 @@ export function CodeEntryScreen({ onSubmit, onAdmin }: CodeEntryScreenProps): JS
             />
           </div>
 
-          {/* 출결코드 입력 바로 아래 — 누르면 다른 명언으로 바뀐다 */}
+          {/* 출결코드 입력 바로 아래 — 화면을 열 때마다 무작위로 하나 보여 준다 */}
           <QuoteCard className="mt-2 max-w-[340px]" />
         </div>
       </div>
