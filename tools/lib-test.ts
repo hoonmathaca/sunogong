@@ -47,10 +47,12 @@ import {
   cloudMotion,
   DEFAULT_NICKNAME,
   displayNickname,
+  BLACK_DRAGON,
   CANDY_TICKET_COST,
   canCraftColorDragon,
   canCraftRainbowDragon,
   canExchangeCandy,
+  canExchangeSecretTicket,
   candyExchangeText,
   COLOR_DRAGON_COST,
   DRAGONS,
@@ -73,6 +75,7 @@ import {
   EMPTY_DRAGONBALLS,
   EMPTY_DRAGONS,
   normalizeDragonballMap,
+  normalizeBlackDragon,
   normalizeDragonMap,
   RAINBOW_DRAGON,
   RAINBOW_DRAGON_COST,
@@ -88,11 +91,13 @@ import {
   normalizeGrantAmount,
   normalizeNickname,
   normalizeTicketCount,
+  SECRET_TICKET,
   SHENRON_ICON,
   SHENRON_SUMMON_TITLE,
   summonMessage,
   TICKET_BY_KEY,
   TICKETS,
+  ticketChips,
   ticketCounts,
   ticketSummaryText,
   ticketTotal,
@@ -675,15 +680,19 @@ eq(
 eq(
   '교환권: 세 종류 읽기',
   ticketCounts({ candy_tickets: 1, point_1000_tickets: 2, point_10000_tickets: 0 }),
-  { candy: 1, point1000: 2, point10000: 0 },
+  { candy: 1, point1000: 2, point10000: 0, secret: 0 },
 )
-eq('교환권: 합계', ticketTotal({ candy: 1, point1000: 2, point10000: 3 }), 6)
+eq('교환권: 합계', ticketTotal({ candy: 1, point1000: 2, point10000: 3, secret: 0 }), 6)
 eq(
   '교환권: 요약(0장은 뺀다)',
-  ticketSummaryText({ candy: 1, point1000: 0, point10000: 2 }),
+  ticketSummaryText({ candy: 1, point1000: 0, point10000: 2, secret: 0 }),
   '사탕교환권 1장 · 10,000포인트 교환권 2장',
 )
-eq('교환권: 아무것도 없음', ticketSummaryText({ candy: 0, point1000: 0, point10000: 0 }), '아직 교환권이 없어요')
+eq(
+  '교환권: 아무것도 없음',
+  ticketSummaryText({ candy: 0, point1000: 0, point10000: 0, secret: 0 }),
+  '아직 교환권이 없어요',
+)
 eq(
   '교환권: 이름',
   [TICKET_BY_KEY.candy.name, TICKET_BY_KEY.point1000.name, TICKET_BY_KEY.point10000.name],
@@ -692,6 +701,28 @@ eq(
 eq('교환권: 세 종류 순서', TICKETS.map((ticket) => ticket.key), ['candy', 'point1000', 'point10000'])
 eq('사탕: 바꾼 성구 안내', candyExchangeText([5, 5]), '5성구 · 5성구 → 사탕교환권 1장으로 바꿨어요!')
 eq('사탕: 성구가 안 오면 짧게', candyExchangeText(null), '사탕교환권 1장으로 바꿨어요!')
+
+/* 히든 검은용 · 시크릿쿠폰 — 가진 학생에게만 화면에 보인다 */
+eq('히든: 이름·아이콘', [BLACK_DRAGON.name, BLACK_DRAGON.icon], ['검은용', '/dragonballs/dragon-black.png'])
+eq('히든: 마리 수 정리', [normalizeBlackDragon(2), normalizeBlackDragon(-1), normalizeBlackDragon(null)], [2, 0, 0])
+eq('히든: 검은용이 있으면 바꿀 수 있다', [canExchangeSecretTicket(1), canExchangeSecretTicket(0)], [true, false])
+eq('히든: 시크릿쿠폰 이름', [SECRET_TICKET.name, SECRET_TICKET.icon], ['시크릿쿠폰', '/dragonballs/ticket-secret.png'])
+eq(
+  '히든: 교환권 세 장에는 시크릿쿠폰이 없다',
+  ticketChips({ candy: 1, point1000: 0, point10000: 0, secret: 0 }).map((ticket) => ticket.key),
+  ['candy', 'point1000', 'point10000'],
+)
+eq(
+  '히든: 가진 학생에게만 시크릿쿠폰 칩',
+  ticketChips({ candy: 0, point1000: 0, point10000: 0, secret: 2 }).map((ticket) => ticket.key),
+  ['candy', 'point1000', 'point10000', 'secret'],
+)
+eq('히든: 교환권 합계에 시크릿 포함', ticketTotal({ candy: 1, point1000: 0, point10000: 0, secret: 2 }), 3)
+eq(
+  '히든: 요약 문구에 시크릿 포함',
+  ticketSummaryText({ candy: 0, point1000: 0, point10000: 0, secret: 1 }),
+  '시크릿쿠폰 1장',
+)
 
 /* 드래곤볼 힘 — 바꿔도 랭킹이 급격히 떨어지지 않게 쓴 만큼 센다 */
 eq('드래곤볼 힘: 일반용 1마리 = 성구 7개', dragonballPower({ dragonballs: { '1': 1, '2': 2 }, dragons: { red: 1 } }), 10)

@@ -52,6 +52,7 @@ export function describeKintounError(error: unknown): string {
   if (raw.includes('dragons_incomplete')) return '일반용을 하나씩 다 모아야 무지개용을 만들 수 있어요.'
   if (raw.includes('dragons_shortage')) return '바꿀 드래곤이 없어요.'
   if (raw.includes('rainbow_dragon_shortage')) return '바꿀 무지개용이 없어요.'
+  if (raw.includes('black_dragon_shortage')) return '바꿀 검은용이 없어요.'
   if (raw.includes('ticket_shortage')) return '학생이 가진 교환권이 모자라요. 새로고침해서 확인해 주세요.'
   if (raw.includes('invalid_ticket')) return '교환권 종류를 확인해 주세요.'
   if (
@@ -109,6 +110,10 @@ export interface StudentProfile {
   candy_tickets?: number
   point_1000_tickets?: number
   point_10000_tickets?: number
+  /** 히든 검은용 (가진 학생만 화면에 보인다) */
+  black_dragon_count?: number
+  /** 검은용으로 바꾼 시크릿쿠폰 */
+  secret_tickets?: number
   /** 예전 화면 호환 — 쓰지 않는다 */
   rainbow_ball_count?: number
 }
@@ -154,6 +159,9 @@ export interface ColorDragonCraftResult {
   dragon_total: number
   rainbow_dragon_count: number
   rainbow_dragon_ready: boolean
+  /** 이번에 검은용이 함께 나왔는지 (화면에만 쓰고 확률은 알리지 않는다) */
+  bonus_black?: boolean
+  black_dragon_count?: number
   dragonballs: Record<string, number>
   total: number
   collected: number
@@ -169,6 +177,8 @@ export interface RainbowDragonCraftResult {
   dragons: DragonMap
   dragon_total: number
   rainbow_dragon_ready: boolean
+  bonus_black?: boolean
+  black_dragon_count?: number
 }
 
 export const craftRainbowDragon = (studentId: string) =>
@@ -186,10 +196,21 @@ export interface PointExchangeResult {
   candy_tickets: number
   point_1000_tickets: number
   point_10000_tickets: number
+  secret_tickets: number
 }
 
 export const exchangePointTicket = (studentId: string, kind: 'dragon' | 'rainbow') =>
   rpc<PointExchangeResult>('exchange_point_ticket', { p_student_id: studentId, p_kind: kind })
+
+/** 검은용 1마리 → 시크릿쿠폰 1장 */
+export interface SecretTicketResult {
+  exchanged: boolean
+  black_dragon_count: number
+  secret_tickets: number
+}
+
+export const exchangeSecretTicket = (studentId: string) =>
+  rpc<SecretTicketResult>('exchange_secret_ticket', { p_student_id: studentId })
 
 /* ------------------------------------------------------------------ */
 /* 관리자                                                              */
@@ -360,17 +381,18 @@ export interface UseTicketResult {
   candy_tickets: number
   point_1000_tickets: number
   point_10000_tickets: number
+  secret_tickets: number
 }
 
 /** 실제로 지급한 교환권을 사용 처리(차감)한다 */
-export const useTicket = (studentId: string, ticket: 'candy' | 'point1000' | 'point10000', amount = 1) =>
+export const useTicket = (studentId: string, ticket: 'candy' | 'point1000' | 'point10000' | 'secret', amount = 1) =>
   rpc<UseTicketResult>('use_ticket', { p_student_id: studentId, p_ticket: ticket, p_amount: amount })
 
 /** 교환권 사용 처리 이력 한 줄 */
 export interface TicketUse {
   id: string
   student_id: string
-  ticket: 'candy' | 'point1000' | 'point10000'
+  ticket: 'candy' | 'point1000' | 'point10000' | 'secret'
   amount: number
   note: string | null
   created_at: string

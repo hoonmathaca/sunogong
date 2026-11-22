@@ -404,6 +404,25 @@ export const RAINBOW_DRAGON = {
   soft: '#F7F3FF',
 }
 
+/** 히든 검은용 — 화면에는 가진 학생에게만 보인다 (설명·확률은 어디에도 쓰지 않는다) */
+export const BLACK_DRAGON = {
+  key: 'black' as const,
+  name: '검은용',
+  icon: '/dragonballs/dragon-black.png',
+  hex: '#252A38',
+  soft: '#EEF0F5',
+}
+
+/** 검은용 마리 수 (0 이상 정수) */
+export function normalizeBlackDragon(raw: unknown): number {
+  return normalizeTicketCount(raw)
+}
+
+/** 검은용 1마리 → 시크릿쿠폰 1장으로 바꿀 수 있는지 */
+export function canExchangeSecretTicket(rawBlack: unknown): boolean {
+  return normalizeBlackDragon(rawBlack) > 0
+}
+
 /** 아직 한 마리도 없는 드래곤 맵 */
 export const EMPTY_DRAGONS: DragonMap = {
   red: 0,
@@ -488,7 +507,7 @@ export function dragonIcon(raw: unknown): string {
 /* 교환권 — 사탕 · 1,000포인트 · 10,000포인트                          */
 /* ------------------------------------------------------------------ */
 
-export type TicketKey = 'candy' | 'point1000' | 'point10000'
+export type TicketKey = 'candy' | 'point1000' | 'point10000' | 'secret'
 
 /** 교환권 세 가지의 이름·아이콘·색 */
 export interface TicketMeta {
@@ -537,6 +556,17 @@ export const TICKET_BY_KEY: Record<TicketKey, TicketMeta> = TICKETS.reduce(
   {} as Record<TicketKey, TicketMeta>,
 )
 
+/** 시크릿쿠폰 — 검은용을 가진 학생에게만 보인다 (일반 교환권 목록에는 넣지 않는다) */
+export const SECRET_TICKET: TicketMeta = {
+  key: 'secret',
+  name: '시크릿쿠폰',
+  short: '시크릿',
+  icon: '/dragonballs/ticket-secret.png',
+  hex: '#252A38',
+  soft: '#EEF0F5',
+  how: '검은용 1마리',
+}
+
 /** 사탕교환권 1장에 드는 성구 수 */
 export const CANDY_TICKET_COST = 2
 
@@ -556,23 +586,31 @@ export interface TicketCounts {
   candy: number
   point1000: number
   point10000: number
+  secret: number
 }
 
 export function ticketCounts(profile: {
   candy_tickets?: unknown
   point_1000_tickets?: unknown
   point_10000_tickets?: unknown
+  secret_tickets?: unknown
 }): TicketCounts {
   return {
     candy: normalizeTicketCount(profile.candy_tickets),
     point1000: normalizeTicketCount(profile.point_1000_tickets),
     point10000: normalizeTicketCount(profile.point_10000_tickets),
+    secret: normalizeTicketCount(profile.secret_tickets),
   }
 }
 
 /** 세 교환권을 합한 장 수 (관리자 목록 정렬) */
 export function ticketTotal(counts: TicketCounts): number {
-  return counts.candy + counts.point1000 + counts.point10000
+  return counts.candy + counts.point1000 + counts.point10000 + counts.secret
+}
+
+/** 학생이 가진 교환권 칩 목록 — 시크릿쿠폰은 가진 학생에게만 붙인다 */
+export function ticketChips(counts: TicketCounts): TicketMeta[] {
+  return counts.secret > 0 ? [...TICKETS, SECRET_TICKET] : [...TICKETS]
 }
 
 /** '사탕교환권 2장 · 1,000P 1장' — 0장은 뺀다 */
@@ -581,6 +619,7 @@ export function ticketSummaryText(counts: TicketCounts): string {
   if (counts.candy > 0) parts.push(`${TICKET_BY_KEY.candy.name} ${counts.candy}장`)
   if (counts.point1000 > 0) parts.push(`${TICKET_BY_KEY.point1000.name} ${counts.point1000}장`)
   if (counts.point10000 > 0) parts.push(`${TICKET_BY_KEY.point10000.name} ${counts.point10000}장`)
+  if (counts.secret > 0) parts.push(`${SECRET_TICKET.name} ${counts.secret}장`)
   return parts.length > 0 ? parts.join(' · ') : '아직 교환권이 없어요'
 }
 

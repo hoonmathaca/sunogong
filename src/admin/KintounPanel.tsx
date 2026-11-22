@@ -16,9 +16,10 @@ import {
   normalizeGrantAmount,
   normalizeTicketCount,
   RAINBOW_DRAGON,
+  SECRET_TICKET,
   starListText,
   TICKET_BY_KEY,
-  TICKETS,
+  ticketChips,
   ticketCounts,
   ticketTotal,
   type TicketKey,
@@ -31,6 +32,12 @@ interface KintounPanelProps {
   studentsLoading: boolean
   studentsError: string | null
   reloadStudents: () => void
+}
+
+/** 교환권 이름 찾기 — 시크릿쿠폰은 가진 학생에게만 나오므로 따로 더한다 */
+const TICKET_META: Record<TicketKey, (typeof TICKET_BY_KEY)[TicketKey]> = {
+  ...TICKET_BY_KEY,
+  secret: SECRET_TICKET,
 }
 
 /** 오른쪽 쏘기 버튼에 쓰는 일반용 아이콘 (일반용 7종을 대표) */
@@ -192,7 +199,7 @@ export function KintounPanel({ students, studentsLoading, studentsError, reloadS
     setUsing(false)
     if (res.ok) {
       setUseMessage(
-        `${useTarget.student.name} · ${TICKET_BY_KEY[useTarget.ticket].name} 1장 사용 처리했어요. 남은 교환권은 ${ticketSummaryAfter(ticketCounts(res.data))}`,
+        `${useTarget.student.name} · ${TICKET_META[useTarget.ticket].name} 1장 사용 처리했어요. 남은 교환권은 ${ticketSummaryAfter(ticketCounts(res.data))}`,
       )
       setUseTarget(null)
       await load()
@@ -422,7 +429,7 @@ export function KintounPanel({ students, studentsLoading, studentsError, reloadS
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  {TICKETS.map((ticket) => {
+                  {ticketChips(counts).map((ticket) => {
                     const count = counts[ticket.key]
                     return (
                       <button
@@ -435,7 +442,9 @@ export function KintounPanel({ students, studentsLoading, studentsError, reloadS
                             ? 'bg-[#FFF0F5] text-[#B0265B] ring-1 ring-[#F5B9CE]'
                             : ticket.key === 'point1000'
                               ? 'bg-[#FFF6E3] text-[#8A5400] ring-1 ring-[#F3C978]'
-                              : 'bg-[#F3EDFF] text-[#5B3FB8] ring-1 ring-[#D9CCFF]'
+                              : ticket.key === 'secret'
+                                ? 'bg-[#252A38] text-white ring-1 ring-[#252A38]'
+                                : 'bg-[#F3EDFF] text-[#5B3FB8] ring-1 ring-[#D9CCFF]'
                         }`}
                         aria-label={`${student.name}의 ${ticket.name} ${count}장 중 1장 사용 처리`}
                       >
@@ -463,7 +472,7 @@ export function KintounPanel({ students, studentsLoading, studentsError, reloadS
                   <span className="min-w-0 flex-1 truncate font-bold text-navy">
                     {api.ticketUseStudentName(item)}
                     <span className="ml-1.5 font-semibold text-navy/45">
-                      {TICKET_BY_KEY[item.ticket]?.name ?? item.ticket} {item.amount}장
+                      {TICKET_META[item.ticket as TicketKey]?.name ?? item.ticket} {item.amount}장
                     </span>
                   </span>
                   <span className="shrink-0 font-semibold text-navy/35 tabular">
@@ -542,14 +551,14 @@ export function KintounPanel({ students, studentsLoading, studentsError, reloadS
           <>
             <div className="flex items-center gap-2 rounded-2xl bg-[#FFF8E8] px-3 py-2.5">
               <img
-                src={TICKET_BY_KEY[useTarget.ticket].icon}
+                src={TICKET_META[useTarget.ticket].icon}
                 alt=""
                 className="h-8 w-8"
                 aria-hidden="true"
               />
               <div className="min-w-0">
                 <p className="text-[13px] font-extrabold text-navy">
-                  {useTarget.student.name} · {TICKET_BY_KEY[useTarget.ticket].name} 1장
+                  {useTarget.student.name} · {TICKET_META[useTarget.ticket].name} 1장
                 </p>
                 <p className="text-[11px] font-semibold text-navy/45">
                   지금 {ticketCounts(useTarget.student)[useTarget.ticket]}장 있어요
@@ -569,6 +578,7 @@ export function KintounPanel({ students, studentsLoading, studentsError, reloadS
 }
 
 /** 사용 처리 뒤 남은 교환권을 짧게 — '사탕 1장 · 1,000P 0장' */
-function ticketSummaryAfter(counts: { candy: number; point1000: number; point10000: number }): string {
-  return `${TICKET_BY_KEY.candy.short} ${counts.candy}장 · ${TICKET_BY_KEY.point1000.short} ${counts.point1000}장 · ${TICKET_BY_KEY.point10000.short} ${counts.point10000}장`
+function ticketSummaryAfter(counts: { candy: number; point1000: number; point10000: number; secret: number }): string {
+  const base = `${TICKET_BY_KEY.candy.short} ${counts.candy}장 · ${TICKET_BY_KEY.point1000.short} ${counts.point1000}장 · ${TICKET_BY_KEY.point10000.short} ${counts.point10000}장`
+  return counts.secret > 0 ? `${base} · ${SECRET_TICKET.short} ${counts.secret}장` : base
 }

@@ -59,8 +59,11 @@ try {
   check('기본값: 일반용 0마리', dragonSum(profile0?.dragons) === 0, profile0?.dragons)
   check(
     '기본값: 교환권 0장',
-    [profile0?.candy_tickets, profile0?.point_1000_tickets, profile0?.point_10000_tickets].every((n) => n === 0),
+    [profile0?.candy_tickets, profile0?.point_1000_tickets, profile0?.point_10000_tickets, profile0?.secret_tickets].every(
+      (n) => n === 0,
+    ),
   )
+  check('기본값: 검은용 0마리', profile0?.black_dragon_count === 0, profile0?.black_dragon_count)
 
   /* 1) 드래곤볼 21개 지급 */
   const granted = await run(
@@ -175,7 +178,27 @@ try {
   check('도감: 뽑기 가능', dex?.color_dragon_ready === true)
   check('도감: 무지개용 불가', dex?.rainbow_dragon_ready === false, dex?.dragons)
 
-  /* 11) 예전 함수 이름도 그대로 동작한다 (배포 중 열려 있던 화면 호환) */
+  /* 11) 히든 검은용 → 시크릿쿠폰 → 관리자 사용 처리 */
+  const roll = await supabase.rpc('roll_black_dragon')
+  check('히든: 앱(anon)에서는 확률 함수를 부를 수 없다', Boolean(roll.error), roll.error?.message ?? 'callable')
+
+  await run(supabase.from('students').update({ black_dragon_count: 1 }).eq('id', student.id))
+  const secret = await run(supabase.rpc('exchange_secret_ticket', { p_student_id: student.id }))
+  check('히든: 검은용 1마리 → 시크릿쿠폰 1장', secret?.secret_tickets === 1 && secret?.black_dragon_count === 0, secret)
+  const secretShort = await expectError(
+    supabase.rpc('exchange_secret_ticket', { p_student_id: student.id }),
+    'black_dragon_shortage',
+  )
+  check('히든: 검은용이 없으면 거절', secretShort.failed && secretShort.matched, secretShort.message)
+
+  const useSecret = await run(supabase.rpc('use_ticket', { p_student_id: student.id, p_ticket: 'secret', p_amount: 1 }))
+  check('히든: 시크릿쿠폰 사용 처리', useSecret?.secret_tickets === 0, useSecret?.secret_tickets)
+  const secretUses = await run(
+    supabase.from('ticket_uses').select('ticket').eq('student_id', student.id).eq('ticket', 'secret'),
+  )
+  check('히든: 시크릿쿠폰 사용 기록 1줄', secretUses?.length === 1, secretUses)
+
+  /* 12) 예전 함수 이름도 그대로 동작한다 (배포 중 열려 있던 화면 호환) */
   const legacy = await run(supabase.rpc('craft_rainbow_ball', { p_student_id: student.id }))
   check('호환: craft_rainbow_ball → 일반용', legacy?.crafted === true && COLORS.includes(legacy?.color), legacy?.color)
 } finally {

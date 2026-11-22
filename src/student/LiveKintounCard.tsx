@@ -4,6 +4,8 @@ import { Modal } from '../components/Modal'
 import { Spinner } from '../components/Keypad'
 import * as api from '../lib/kintoun'
 import {
+  BLACK_DRAGON,
+  canExchangeSecretTicket,
   CANDY_TICKET_COST,
   canCraftColorDragon,
   canCraftRainbowDragon,
@@ -27,6 +29,7 @@ import {
   liveRanking,
   myLivePosition,
   NICKNAME_MAX,
+  normalizeBlackDragon,
   normalizeDragonMap,
   normalizeTicketCount,
   pausedLabels,
@@ -34,7 +37,7 @@ import {
   SHENRON_ICON,
   SHENRON_SUMMON_TITLE,
   summonMessage,
-  TICKETS,
+  ticketChips,
   ticketCounts,
   ticketSummaryText,
   tickRows,
@@ -51,7 +54,7 @@ interface LiveKintounCardProps {
 
 const MEDAL = ['bg-amber-400 text-white', 'bg-slate-300 text-white', 'bg-amber-600/80 text-white']
 
-const EMPTY_TICKETS: TicketCounts = { candy: 0, point1000: 0, point10000: 0 }
+const EMPTY_TICKETS: TicketCounts = { candy: 0, point1000: 0, point10000: 0, secret: 0 }
 
 /** 교환 버튼 한 개 — 두 줄(이름 + 무엇을 내고 바꾸는지)로 모바일에서도 읽기 쉽게 */
 function ExchangeButton({
@@ -102,6 +105,9 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
   /* 일반용 7종 · 무지개용 · 교환권 */
   const [dragons, setDragons] = useState<DragonMap>(EMPTY_DRAGONS)
   const [rainbow, setRainbow] = useState(0)
+  /* 히든 검은용 — 가진 학생에게만 화면에 보인다 */
+  const [black, setBlack] = useState(0)
+  const [secretReveal, setSecretReveal] = useState(false)
   const [tickets, setTickets] = useState<TicketCounts>(EMPTY_TICKETS)
   const [working, setWorking] = useState<string | null>(null)
   const [cardError, setCardError] = useState<string | null>(null)
@@ -111,7 +117,7 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
   /* 무지개용이 나타난 순간 */
   const [summon, setSummon] = useState<{ rainbow: number; total: number } | null>(null)
   /* 포인트 교환권으로 바꾸기 전 확인 */
-  const [confirmPoint, setConfirmPoint] = useState<{ kind: 'dragon' | 'rainbow' } | null>(null)
+  const [confirmPoint, setConfirmPoint] = useState<{ kind: 'dragon' | 'rainbow' | 'secret' } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [fetchedAt, setFetchedAt] = useState(() => Date.now())
@@ -142,6 +148,7 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
       setDexMap(profile.data.dragonballs ?? EMPTY_DRAGONBALLS)
       setDragons(normalizeDragonMap(profile.data.dragons))
       setRainbow(normalizeTicketCount(profile.data.rainbow_dragon_count))
+      setBlack(normalizeBlackDragon(profile.data.black_dragon_count))
       setTickets(ticketCounts(profile.data))
     }
     setLoading(false)
@@ -187,6 +194,7 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
   const canCandy = canExchangeCandy(dexMap)
   const canColor = canCraftColorDragon(dexMap)
   const canRainbow = canCraftRainbowDragon(dragons)
+  const canSecret = canExchangeSecretTicket(black)
   const missingStars = dex.filter((slot) => !slot.owned).map((slot) => `${slot.stars}성구`)
   const missingColors = myDragons.filter((slot) => !slot.owned).map((slot) => slot.name.replace('용', ''))
 
@@ -223,7 +231,9 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
       setDexMap(res.data.dragonballs ?? EMPTY_DRAGONBALLS)
       setDragons(normalizeDragonMap(res.data.dragons))
       setRainbow(normalizeTicketCount(res.data.rainbow_dragon_count))
+      setBlack(normalizeBlackDragon(res.data.black_dragon_count))
       setBorn({ color: res.data.color })
+      if (res.data.bonus_black) setSecretReveal(true)
       void load()
     } else {
       setCardError(res.error)
@@ -242,7 +252,9 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
     if (res.ok) {
       setDragons(normalizeDragonMap(res.data.dragons))
       setRainbow(normalizeTicketCount(res.data.rainbow_dragon_count))
+      setBlack(normalizeBlackDragon(res.data.black_dragon_count))
       setSummon({ rainbow: res.data.rainbow_dragon_count, total: res.data.dragon_total })
+      if (res.data.bonus_black) setSecretReveal(true)
       void load()
     } else {
       setCardError(res.error)
@@ -268,6 +280,26 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
           ? '무지개용 1마리를 10,000포인트 교환권 1장으로 바꿨어요!'
           : `${res.data.color ? dragonName(res.data.color) : '일반용'} 1마리를 1,000포인트 교환권 1장으로 바꿨어요!`,
       )
+      void load()
+    } else {
+      setCardError(res.error)
+      void load()
+    }
+  }
+
+  /** 검은용 1마리 → 시크릿쿠폰 1장 */
+  const exchangeSecret = async () => {
+    if (working) return
+    setConfirmPoint(null)
+    setWorking('secret')
+    setCardError(null)
+    setNotice(null)
+    const res = await api.exchangeSecretTicket(studentId)
+    setWorking(null)
+    if (res.ok) {
+      setBlack(normalizeBlackDragon(res.data.black_dragon_count))
+      setTickets((current) => ({ ...current, secret: normalizeTicketCount(res.data.secret_tickets) }))
+      setNotice('검은용 1마리를 시크릿쿠폰 1장으로 바꿨어요!')
       void load()
     } else {
       setCardError(res.error)
@@ -449,7 +481,7 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
 
         {/* 교환권 — 학원에서 실제로 받은 뒤 관리자가 사용 처리한다 */}
         <div className="mt-2 grid grid-cols-3 gap-1.5">
-          {TICKETS.map((ticket) => {
+          {ticketChips(tickets).map((ticket) => {
             const count = tickets[ticket.key]
             return (
               <div
@@ -539,12 +571,20 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
             <p className="text-[11.5px] font-extrabold text-[#7A4A00]">
               🐲 내 일반용 <span className="text-[10px] font-bold text-[#A97516]">{dragonSummaryText(dragons)}</span>
             </p>
-            {rainbow > 0 ? (
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#F3EDFF] px-1.5 py-0.5 text-[10px] font-extrabold text-[#5B3FB8]">
-                <img src={RAINBOW_DRAGON.icon} alt="" className="h-4 w-4" aria-hidden="true" />
-                {rainbow}마리
-              </span>
-            ) : null}
+            <div className="flex shrink-0 items-center gap-1">
+              {black > 0 ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-[#EEF0F5] px-1.5 py-0.5 text-[10px] font-extrabold text-[#252A38]">
+                  <img src={BLACK_DRAGON.icon} alt="" className="h-4 w-4" aria-hidden="true" />
+                  {black}마리
+                </span>
+              ) : null}
+              {rainbow > 0 ? (
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#F3EDFF] px-1.5 py-0.5 text-[10px] font-extrabold text-[#5B3FB8]">
+                  <img src={RAINBOW_DRAGON.icon} alt="" className="h-4 w-4" aria-hidden="true" />
+                  {rainbow}마리
+                </span>
+              ) : null}
+            </div>
           </div>
 
           <div className="mt-1.5 grid grid-cols-7 gap-1">
@@ -607,6 +647,23 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
               onClick={() => setConfirmPoint({ kind: 'rainbow' })}
             />
           </div>
+
+          {/* 히든 검은용 — 가진 학생에게만 보인다 */}
+          {black > 0 ? (
+            <div className="mt-1.5">
+              <button
+                type="button"
+                disabled={!canSecret || working === 'secret'}
+                onClick={() => setConfirmPoint({ kind: 'secret' })}
+                className="flex min-h-[52px] w-full flex-col items-center justify-center rounded-2xl bg-[#252A38] px-2 py-2 text-center text-white shadow-soft transition active:scale-[0.98] disabled:opacity-40"
+              >
+                <span className="text-[12.5px] font-extrabold leading-tight">
+                  {working === 'secret' ? '바꾸는 중…' : '검은용 → 시크릿쿠폰'}
+                </span>
+                <span className="mt-0.5 text-[9.5px] font-semibold text-white/70">검은용 1마리</span>
+              </button>
+            </div>
+          ) : null}
         </div>
 
         {notice ? (
@@ -708,6 +765,36 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
         </div>
       </Modal>
 
+      {/* 어둠 속의 검은용 — 가진 학생에게만 이 순간에 보인다 */}
+      <Modal
+        open={born === null && summon === null && secretReveal}
+        title="???"
+        onClose={() => setSecretReveal(false)}
+        footer={
+          <button type="button" className="btn-navy px-5" onClick={() => setSecretReveal(false)}>
+            좋아!
+          </button>
+        }
+      >
+        <div className="relative flex flex-col items-center pb-1 pt-2">
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute top-8 h-40 w-40 rounded-full bg-[#252A38]/20 blur-2xl"
+          />
+          <img
+            src={BLACK_DRAGON.icon}
+            alt="검은용"
+            className="shenron-summon relative h-48 w-48 drop-shadow-[0_10px_22px_rgba(20,22,30,0.45)]"
+          />
+          <p className="relative mt-2 text-center font-round text-[16px] font-extrabold text-[#252A38]">
+            어둠 속에서 검은용이 나타났어요!
+          </p>
+          <p className="relative mt-1 text-center text-[12px] font-semibold text-navy/55">
+            검은용 1마리를 시크릿쿠폰 1장으로 바꿀 수 있어요.
+          </p>
+        </div>
+      </Modal>
+
       {/* 🌈 무지개용 등장 */}
       <Modal
         open={summon !== null}
@@ -751,7 +838,7 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
       {/* 포인트 교환권으로 바꾸기 전 한 번 더 확인 */}
       <Modal
         open={confirmPoint !== null}
-        title="포인트 교환권으로 바꿀까요?"
+        title={confirmPoint?.kind === 'secret' ? '시크릿쿠폰으로 바꿀까요?' : '포인트 교환권으로 바꿀까요?'}
         onClose={() => setConfirmPoint(null)}
         footer={
           <>
@@ -761,14 +848,20 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
             <button
               type="button"
               className="btn-navy px-4"
-              onClick={() => void exchangePoint(confirmPoint?.kind ?? 'dragon')}
+              onClick={() =>
+                confirmPoint?.kind === 'secret' ? void exchangeSecret() : void exchangePoint(confirmPoint?.kind ?? 'dragon')
+              }
             >
               바꾸기
             </button>
           </>
         }
       >
-        {confirmPoint?.kind === 'rainbow' ? (
+        {confirmPoint?.kind === 'secret' ? (
+          <p className="text-[13px] font-semibold text-navy/70">
+            검은용 <b>1마리</b>를 <b>시크릿쿠폰 1장</b>으로 바꿔요. 되돌릴 수 없어요.
+          </p>
+        ) : confirmPoint?.kind === 'rainbow' ? (
           <p className="text-[13px] font-semibold text-navy/70">
             무지개용 <b>1마리</b>를 <b>10,000포인트 교환권 1장</b>으로 바꿔요. 되돌릴 수 없어요.
           </p>

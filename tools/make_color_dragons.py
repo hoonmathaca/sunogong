@@ -26,10 +26,12 @@ DRAGON_COLORS = {
     'blue': (212, 1.08, 0.98),
     'navy': (234, 1.10, 0.86),
     'purple': (276, 1.10, 1.00),
+    # 히든 검은용 — 다른 용과 같은 그림에 아주 어두운 색만 입힌다
+    'black': (238, 0.20, 0.30, 0.10),
 }
 
 
-def recolor(src: Image.Image, hue_deg: float, sat_scale: float, val_scale: float) -> Image.Image:
+def recolor(src: Image.Image, hue_deg: float, sat_scale: float, val_scale: float, sat_floor: float = 0.72) -> Image.Image:
     """색이 있는 픽셀만 목표 색상으로 옮긴다. 흰 얼굴·검은 선은 그대로 둔다."""
     out = src.copy()
     px = out.load()
@@ -45,7 +47,7 @@ def recolor(src: Image.Image, hue_deg: float, sat_scale: float, val_scale: float
             if ss < 0.12 or ll < 0.12 or ll > 0.985:
                 continue
             # 옅은 파스텔 띠도 색이 뭉개지지 않게 채도를 끌어올린다
-            nss = min(1.0, max(0.72, ss) * sat_scale)
+            nss = min(1.0, max(sat_floor, ss) * sat_scale)
             nll = min(1.0, max(0.0, ll * val_scale))
             nr, ng, nb = colorsys.hls_to_rgb(target, nll, nss)
             px[x, y] = (round(nr * 255), round(ng * 255), round(nb * 255), a)
@@ -112,8 +114,10 @@ def main() -> None:
     with Image.open(BASE) as src:
         src = src.convert('RGBA')
         base = src.copy()
-        for name, (hue, sat, val) in DRAGON_COLORS.items():
-            img = recolor(base, hue, sat, val)
+        for name, spec in DRAGON_COLORS.items():
+            hue, sat, val = spec[0], spec[1], spec[2]
+            floor = spec[3] if len(spec) > 3 else 0.72
+            img = recolor(base, hue, sat, val, floor)
             path = os.path.join(OUT_DIR, f'dragon-{name}.png')
             img.save(path, optimize=True)
             print(f'{path}  {img.size[0]}x{img.size[1]}  ({os.path.getsize(path) // 1024} KB)')
@@ -121,6 +125,7 @@ def main() -> None:
     make_ticket('candy', (255, 150, 180), (233, 64, 112), '사탕', '달콤')
     make_ticket('1000', (255, 200, 90), (240, 140, 0), '1,000', 'POINT')
     make_ticket('10000', (176, 140, 255), (98, 58, 200), '10,000', 'POINT')
+    make_ticket('secret', (78, 78, 96), (24, 24, 32), '시크릿', 'SECRET')
 
 
 if __name__ == '__main__':
