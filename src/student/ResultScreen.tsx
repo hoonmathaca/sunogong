@@ -18,6 +18,7 @@ interface ResultScreenProps {
 export function ResultScreen({ student, result, reason, onHome, onAgain, busy = false }: ResultScreenProps): JSX.Element {
   const sessionMinutes = Math.max(0, Math.round(result.seconds / 60))
   const kind = normalizeKind(result.kind)
+  const pending = Boolean(result.pending_approval)
   const todaySplit = splitLog(result.log)
   const hasSplit = todaySplit.academyMinutes + todaySplit.homeworkMinutes > 0
 
@@ -36,7 +37,7 @@ export function ResultScreen({ student, result, reason, onHome, onAgain, busy = 
 
         <div className="mt-5 w-full max-w-xs rounded-3xl bg-white/10 px-5 py-4 backdrop-blur-sm">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-white/60">오늘 합계</span>
+            <span className="text-white/60">{pending ? '오늘 기록(승인된 것)' : '오늘 합계'}</span>
             <span className="font-bold tabular">{formatMinutes(result.total_minutes)}</span>
           </div>
           {hasSplit ? (
@@ -60,6 +61,15 @@ export function ResultScreen({ student, result, reason, onHome, onAgain, busy = 
             <span className="font-bold tabular">{result.total_problems}개</span>
           </div>
         </div>
+
+        {pending ? (
+          <div className="mt-3 w-full max-w-xs rounded-3xl bg-[#6D3BD6]/40 px-4 py-3 text-left">
+            <p className="text-[12.5px] font-extrabold text-white">🙌 제출했어요 — 선생님 확인을 기다려요</p>
+            <p className="mt-1 text-[11.5px] font-semibold leading-snug text-white/75">
+              공부한 페이지 사진과 문제 수를 냈어요. 선생님이 시간·문항수를 확인해 승인하면 오늘 기록에 들어가요.
+            </p>
+          </div>
+        ) : null}
 
         {reason === 'limit' ? (
           <p className="mt-3 text-[12px] text-white/60">최대 공부시간(5시간)을 채워 자동으로 마무리했어요.</p>

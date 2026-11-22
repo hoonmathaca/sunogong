@@ -108,6 +108,55 @@ export interface FinishResult {
   date: string
   kind?: SessionKind
   discarded?: boolean
+  /** 숙제 공부 — 선생님 승인을 기다리는 제출 (오늘 기록에 아직 반영 전) */
+  pending_approval?: boolean
+  /** 승인 대기로 넘긴 제출 줄 id */
+  submission_id?: string | null
+  submission?: HomeworkSubmission | null
+  /** 승인할 것이 없었다 (1분도 공부하지 않았고 문제 수도 0) */
+  nothing?: boolean
+  /** 제출한 시간·문제 수 (승인 전 값) */
+  submitted_minutes?: number | null
+  submitted_problems?: number | null
+}
+
+/* ------------------------------------------------------------------ */
+/* 숙제 공부 제출 (사진 인증 · 승인 대기) — 2026-11-23                 */
+/* ------------------------------------------------------------------ */
+
+/** 승인 대기 / 승인 / 반려 */
+export type HomeworkStatus = 'pending' | 'approved' | 'rejected'
+/** 시간·문항수 각각의 처리 결과 */
+export type HomeworkVerdict = 'pending' | 'approved' | 'rejected'
+
+/** 학생이 제출한 숙제 공부 한 건 */
+export interface HomeworkSubmission {
+  id: string
+  student_id: string
+  session_id: string | null
+  date: string
+  started_at: string | null
+  ended_at: string | null
+  /** 제출한 공부 시간(분) */
+  submitted_minutes: number
+  /** 제출한 문제 수 (자동 종료 뒤 아직 모르면 null) */
+  submitted_problems: number | null
+  /** 숙제 페이지 사진 경로 (homework-photos 버킷, 최대 5장) */
+  photo_paths: string[]
+  status: HomeworkStatus
+  time_verdict: HomeworkVerdict
+  problems_verdict: HomeworkVerdict
+  /** 승인된 시간·문제 수 (반려한 항목은 0) */
+  approved_minutes: number
+  approved_problems: number
+  reject_reason: string | null
+  submitted_at: string
+  reviewed_at: string | null
+  reviewed_by: string | null
+  created_at: string
+  updated_at: string
+  /** 관리자 목록에서 학생 이름·학년을 함께 읽는다 */
+  students?: { name: string | null; grade: string | null } | { name: string | null; grade: string | null }[] | null
 }
 
 /** 일시정지 60분 경과 → 자동 종료 결과 (auto_end_paused_session) */
@@ -131,6 +180,9 @@ export interface AutoEndResult {
   not_paused?: boolean
   /** 자정을 넘긴 공부라 기록하지 않고 버렸다 */
   discarded?: boolean
+  /** 숙제 공부 — 승인 대기 제출을 만들었다 */
+  pending_approval?: boolean
+  submission_id?: string | null
 }
 
 /** 자동 종료된 세션에 문제 수를 입력한 결과 (set_session_problems) */

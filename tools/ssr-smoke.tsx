@@ -15,6 +15,7 @@ import { RankingPanel } from '../src/admin/RankingPanel'
 import { StudentsPanel } from '../src/admin/StudentsPanel'
 import { CodeEntryScreen } from '../src/student/CodeEntryScreen'
 import { ChooseStudentScreen } from '../src/student/ChooseStudentScreen'
+import { HomeworkPhotoPicker } from '../src/student/HomeworkPhotoPicker'
 import { QuestionAskForm } from '../src/student/QuestionAskForm'
 import { QuestionBoardScreen } from '../src/student/QuestionBoardScreen'
 import { StudentHomeScreen } from '../src/student/StudentHomeScreen'
@@ -24,8 +25,10 @@ import { CandyPickModal } from '../src/student/CandyPickModal'
 import { PendingProblemsModal } from '../src/student/PendingProblemsModal'
 import { TimerScreen } from '../src/student/TimerScreen'
 import { ErrorBoundary } from '../src/components/ErrorBoundary'
+import { PhotoPager } from '../src/components/PhotoPager'
+import { HomeworkPanel } from '../src/admin/HomeworkPanel'
 import { DesktopBlockScreen } from '../src/components/DesktopBlockScreen'
-import type { FinishResult, Student, StudySession } from '../src/lib/types'
+import type { FinishResult, HomeworkSubmission, Student, StudySession } from '../src/lib/types'
 import { QUOTES } from '../src/lib/quotes'
 
 /* 서버에는 localStorage 가 없어서, 관리자 화면(로그인 유지) 스모크용으로 최소 저장소를 흉내 낸다 */
@@ -118,6 +121,40 @@ const pendingSession: StudySession = {
   auto_ended: true,
 }
 
+/* 자동 종료되어 문제 수를 아직 받지 못한 숙제 제출 (다음 접속 때 사진+문제 수) */
+const pendingHomework: HomeworkSubmission = {
+  id: 'hw-pending-1',
+  student_id: student.id,
+  session_id: 'pending-1',
+  date: '2026-11-21',
+  started_at: '2026-11-21T08:40:00Z',
+  ended_at: '2026-11-21T10:00:00Z',
+  submitted_minutes: 80,
+  submitted_problems: null,
+  photo_paths: [],
+  status: 'pending',
+  time_verdict: 'pending',
+  problems_verdict: 'pending',
+  approved_minutes: 0,
+  approved_problems: 0,
+  reject_reason: null,
+  submitted_at: '2026-11-21T10:00:00Z',
+  reviewed_at: null,
+  reviewed_by: null,
+  created_at: '2026-11-21T10:00:00Z',
+  updated_at: '2026-11-21T10:00:00Z',
+}
+
+/* 숙제 승인 결과 화면 */
+const homeworkResult: FinishResult = {
+  ...result,
+  kind: 'homework',
+  pending_approval: true,
+  submission_id: 'hw-1',
+  submitted_minutes: 60,
+  submitted_problems: 12,
+}
+
 const cases: [string, () => JSX.Element][] = [
   [
     'TimerScreen(숙제)',
@@ -160,8 +197,32 @@ const cases: [string, () => JSX.Element][] = [
   [
     'PendingProblemsModal(지난 공부 문제 수)',
     () => (
-      <PendingProblemsModal session={pendingSession} onSubmit={() => {}} onSkip={() => {}} />
+      <PendingProblemsModal
+        item={{ type: 'academy', id: pendingSession.id, session: { ...pendingSession, kind: 'academy' } }}
+        onSubmit={() => {}}
+        onSkip={() => {}}
+      />
     ),
+  ],
+  [
+    'PendingProblemsModal(지난 숙제 제출)',
+    () => (
+      <PendingProblemsModal
+        item={{ type: 'homework', id: pendingHomework.id, submission: pendingHomework }}
+        onSubmit={() => {}}
+        onSkip={() => {}}
+      />
+    ),
+  ],
+  ['HomeworkPhotoPicker(사진 없음)', () => <HomeworkPhotoPicker files={[]} onChange={() => {}} warn />],
+  [
+    'PhotoPager(사진 2장)',
+    () => <PhotoPager urls={['a', 'b']} index={0} onIndexChange={() => {}} onClose={() => {}} />,
+  ],
+  ['HomeworkPanel(관리자 숙제관리)', () => <HomeworkPanel />],
+  [
+    'ResultScreen(숙제 승인 대기)',
+    () => <ResultScreen student={student} result={homeworkResult} reason="manual" onHome={() => {}} onAgain={() => {}} />,
   ],
   [
     'ChooseStudentScreen',
@@ -291,7 +352,7 @@ const questionChecks: [string, boolean][] = [
   ['질문: 관리자 7일 보관 안내', questionsPanelHtml.includes('7일')],
   ['질문: 관리자 질문함 탭', adminHtml.includes('질문함')],
   ['스와이프: 관리자 화면에 좌우 스와이프 탭 이동', adminHtml.includes('data-admin-swipe="tab"')],
-  ['스와이프: 관리자 탭 다섯 개', ['대시보드', '실시간', '질문함', '학생 관리', '랭킹'].every((label) => adminHtml.includes(`>${label}<`) || adminHtml.includes(label))],
+  ['스와이프: 관리자 탭 여섯 개', ['대시보드', '실시간', '숙제관리', '질문함', '학생 관리', '랭킹'].every((label) => adminHtml.includes(`>${label}<`) || adminHtml.includes(label))],
   ['알림: 관리자 질문함에 알림 설정', questionsPanelHtml.includes('새 질문 알림')],
   ['알림: 알림 켜기 버튼', (rendered['PushNotifyPanel(새 질문 알림)'] ?? '').includes('알림 켜기')],
   ['알림: 테스트 알림 버튼', (rendered['PushNotifyPanel(새 질문 알림)'] ?? '').includes('테스트 알림 보내기')],
@@ -412,7 +473,7 @@ const pauseChecks: [string, boolean][] = [
   ['일시정지: 자동 마무리 안내', pausedHtml.includes('자동으로 마무리')],
   ['일시정지: 계속 버튼', pausedHtml.includes('>계속<')],
   ['문제 수: 지난 공부 제목', pendingHtml.includes('지난번 푼 문제 수')],
-  ['문제 수: 지난 공부 요약(날짜·종류·시간)', pendingHtml.includes('11월 21일') && pendingHtml.includes('숙제 공부') && pendingHtml.includes('1시간 20분')],
+  ['문제 수: 지난 공부 요약(날짜·종류·시간)', pendingHtml.includes('11월 21일') && pendingHtml.includes('학원 공부') && pendingHtml.includes('1시간 20분')],
   ['문제 수: 0도 가능 안내', pendingHtml.includes('0을 누르고 저장')],
   ['문제 수: 건너뛰기 버튼', pendingHtml.includes('건너뛰기')],
   ['문제 수: 저장 버튼', pendingHtml.includes('>저장<')],
@@ -422,6 +483,32 @@ const pauseChecks: [string, boolean][] = [
   ['문제 수: 남은 공부가 없으면 홈 카드 없음', !homeHtml.includes('자동으로 마무리된 공부가 있어요')],
 ]
 for (const [name, ok] of pauseChecks) {
+  if (!ok) failed += 1
+  console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)
+}
+
+/* 숙제 공부 사진 인증 · 시간/문항수 분리 승인 · 관리자 숙제관리 */
+const pendingHomeworkHtml = rendered['PendingProblemsModal(지난 숙제 제출)'] ?? ''
+const homeworkPickerHtml = rendered['HomeworkPhotoPicker(사진 없음)'] ?? ''
+const photoPagerHtml = rendered['PhotoPager(사진 2장)'] ?? ''
+const homeworkPanelHtml = rendered['HomeworkPanel(관리자 숙제관리)'] ?? ''
+const homeworkResultHtml = rendered['ResultScreen(숙제 승인 대기)'] ?? ''
+const homeworkChecks: [string, boolean][] = [
+  ['숙제: 지난 숙제 제출 창 제목', pendingHomeworkHtml.includes('지난 숙제 공부 제출')],
+  ['숙제: 지난 숙제에도 확정 안내 문구', pendingHomeworkHtml.includes('오늘 공부한 페이지를 찍어올리고 푼 문제수를 적어주세요')],
+  ['숙제: 지난 제출 요약', pendingHomeworkHtml.includes('11월 21일') && pendingHomeworkHtml.includes('1시간 20분')],
+  ['숙제: 지난 제출에 사진 고르기', pendingHomeworkHtml.includes('공부한 페이지 사진') && pendingHomeworkHtml.includes('찍기·고르기')],
+  ['숙제: 지난 제출에 제출 버튼', pendingHomeworkHtml.includes('>제출<')],
+  ['숙제: 사진 고르기 최대 5장 표시', homeworkPickerHtml.includes('0/5') && homeworkPickerHtml.includes('푼 문제가 있으면 사진을 1장 이상')],
+  ['숙제: 사진 크게 보기 좌우 넘기기', photoPagerHtml.includes('1 / 2') && photoPagerHtml.includes('이전 사진') && photoPagerHtml.includes('다음 사진')],
+  ['숙제: 관리자 숙제관리 탭 내용', homeworkPanelHtml.includes('숙제 제출 확인') && homeworkPanelHtml.includes('승인 대기')],
+  ['숙제: 관리자 필터 네 가지', ['승인 대기', '승인', '반려', '전체'].every((label) => homeworkPanelHtml.includes(label))],
+  ['숙제: 관리자 설명에 승인한 항목만 반영', homeworkPanelHtml.includes('승인한 항목만') && homeworkPanelHtml.includes('드래곤볼과는')],
+  ['숙제: 결과 화면에 승인 대기 안내', homeworkResultHtml.includes('선생님 확인을 기다려요') && homeworkResultHtml.includes('오늘 기록에 들어가요')],
+  ['숙제: 결과 화면에 오늘 기록(승인된 것)', homeworkResultHtml.includes('오늘 기록(승인된 것)')],
+  ['숙제: 관리자 탭 배지 자리', adminHtml.includes('숙제관리')],
+]
+for (const [name, ok] of homeworkChecks) {
   if (!ok) failed += 1
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)
 }

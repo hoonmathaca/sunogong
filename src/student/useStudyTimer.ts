@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as api from '../lib/api'
+import * as homeworkApi from '../lib/homework'
 import { normalizeKind, pausesOnLeave, type SessionKind } from '../lib/kinds'
 import { computeElapsedSeconds, isHeartbeatStale, pausedSecondsOf } from '../lib/session'
 import { PAUSE_AUTO_END_SECONDS } from '../lib/pauseWatch'
@@ -46,7 +47,7 @@ export interface StudyTimer {
   start: (kind?: SessionKind) => Promise<void>
   pause: (auto?: boolean, message?: string) => Promise<void>
   resume: () => Promise<void>
-  finish: (problems: number, reason?: FinishReason) => Promise<FinishResult | null>
+  finish: (problems: number, reason?: FinishReason, photoPaths?: string[]) => Promise<FinishResult | null>
   discard: (reason?: DiscardReason) => Promise<void>
   reload: () => Promise<void>
   clearError: () => void
@@ -320,9 +321,9 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
     [applySession],
   )
 
-  /* 종료 (서버가 시간을 계산해 study_logs 에 누적) */
+  /* 종료 (학원: 서버가 시간을 계산해 study_logs 에 누적 / 숙제: 사진과 함께 승인 대기로 제출) */
   const finish = useCallback(
-    async (problems: number, reason: FinishReason = 'manual'): Promise<FinishResult | null> => {
+    async (problems: number, reason: FinishReason = 'manual', photoPaths: string[] = []): Promise<FinishResult | null> => {
       const current = sessionRef.current
       if (!current || finishingRef.current) return null
       // 자정을 넘긴 세션은 종료를 눌러도 기록하지 않고 버린다
@@ -339,7 +340,10 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
         const guard = await api.pauseSession(current.id, true)
         if (guard.ok) applySession(guard.data)
       }
-      const res = await api.finishSession(current.id, problems)
+      const isHomework = normalizeKind(current.kind) === 'homework'
+      const res = isHomework
+        ? await homeworkApi.submitHomework(current.id, problems, photoPaths)
+        : await api.finishSession(current.id, problems)
       finishingRef.current = false
       setBusy(false)
       if (res.ok) {

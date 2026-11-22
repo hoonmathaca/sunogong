@@ -11,9 +11,11 @@ import {
   type SwipeNode,
 } from '../lib/adminSwipe'
 import * as questionsApi from '../lib/questions'
+import * as homeworkApi from '../lib/homework'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { AdminLogin } from './AdminLogin'
 import { Dashboard } from './Dashboard'
+import { HomeworkPanel } from './HomeworkPanel'
 import { KintounPanel } from './KintounPanel'
 import { QuestionsPanel } from './QuestionsPanel'
 import { RankingPanel } from './RankingPanel'
@@ -51,11 +53,12 @@ export interface AdminAppProps {
   onBack: () => void
 }
 
-/** 관리자 화면: 대시보드 · 실시간 · 질문함 · 학생 관리 · 랭킹 (모바일에서는 좌우로 밀어 탭 이동) */
+/** 관리자 화면: 대시보드 · 실시간 · 숙제관리 · 질문함 · 학생 관리 · 랭킹 (모바일에서는 좌우로 밀어 탭 이동) */
 export function AdminApp({ onBack }: AdminAppProps): JSX.Element {
   const [signedIn, setSignedIn] = useState(readSignedIn)
   const [tab, setTab] = useState<Tab>(readInitialTab)
   const [unanswered, setUnanswered] = useState(0)
+  const [pendingHomework, setPendingHomework] = useState(0)
   const { students, loading, error, reload } = useStudents()
 
   /* 모바일 좌우 스와이프로 탭 이동 — 손가락이 닿은 곳과 뗀 곳만 본다 */
@@ -76,6 +79,20 @@ export function AdminApp({ onBack }: AdminAppProps): JSX.Element {
     return () => window.clearInterval(id)
   }, [signedIn, refreshUnanswered])
 
+  /** 숙제관리 탭 배지 — 승인 대기 숙제 제출 수 */
+  const refreshPendingHomework = useCallback(() => {
+    void homeworkApi.countPendingHomework().then((res) => {
+      if (res.ok) setPendingHomework(res.data)
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!signedIn) return
+    refreshPendingHomework()
+    const id = window.setInterval(refreshPendingHomework, 60_000)
+    return () => window.clearInterval(id)
+  }, [signedIn, refreshPendingHomework])
+
   const signIn = () => {
     try {
       localStorage.setItem(STORAGE_KEY, '1')
@@ -88,6 +105,7 @@ export function AdminApp({ onBack }: AdminAppProps): JSX.Element {
   const changeTab = (next: Tab) => {
     setTab(next)
     if (next === 'questions') refreshUnanswered()
+    if (next === 'homework') refreshPendingHomework()
   }
 
   const onTouchStart = (event: TouchEvent<HTMLDivElement>) => {
@@ -148,7 +166,7 @@ export function AdminApp({ onBack }: AdminAppProps): JSX.Element {
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
           <Mascot variant="face" className="h-10 w-10" />
           <div className="min-w-0 flex-1">
-            <h1 className="font-round text-[20px] font-extrabold leading-none text-navy">선오공 관리자</h1>
+            <h1 className="whitespace-nowrap font-round text-[18px] font-extrabold leading-none text-navy sm:text-[20px]">선오공 관리자</h1>
             <p className="mt-1 text-[11px] font-semibold text-navy/45">훈수학학원 · 선생님 오늘도 공부했어요!</p>
           </div>
           <button type="button" className="btn-ghost border border-blue-line text-[12px]" onClick={onBack}>
@@ -168,6 +186,7 @@ export function AdminApp({ onBack }: AdminAppProps): JSX.Element {
             [
               { key: 'dashboard', label: '대시보드' },
               { key: 'kintoun', label: '실시간' },
+              { key: 'homework', label: '숙제관리' },
               { key: 'questions', label: '질문함' },
               { key: 'students', label: '학생 관리' },
               { key: 'ranking', label: '랭킹' },
@@ -189,6 +208,15 @@ export function AdminApp({ onBack }: AdminAppProps): JSX.Element {
                   }`}
                 >
                   {unanswered > 99 ? '99+' : unanswered}
+                </span>
+              ) : null}
+              {item.key === 'homework' && pendingHomework > 0 ? (
+                <span
+                  className={`ml-1.5 inline-flex min-w-[18px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular ${
+                    tab === 'homework' ? 'bg-white text-navy' : 'bg-[#E9A400] text-white'
+                  }`}
+                >
+                  {pendingHomework > 99 ? '99+' : pendingHomework}
                 </span>
               ) : null}
             </button>
@@ -214,6 +242,7 @@ export function AdminApp({ onBack }: AdminAppProps): JSX.Element {
             />
           ) : null}
           {tab === 'questions' ? <QuestionsPanel onUnansweredChange={setUnanswered} /> : null}
+          {tab === 'homework' ? <HomeworkPanel onPendingChange={setPendingHomework} /> : null}
           {tab === 'kintoun' ? (
             <KintounPanel
               students={students}

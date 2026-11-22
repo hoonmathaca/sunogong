@@ -161,6 +161,41 @@ import {
 } from '../src/lib/adminSwipe'
 import type { Student, StudyLog, StudySession } from '../src/lib/types'
 import type { StudyQuestion } from '../src/lib/types'
+import type { HomeworkSubmission } from '../src/lib/types'
+import {
+  HOMEWORK_FILTER_LABEL,
+  HOMEWORK_PHOTO_MAX,
+  HOMEWORK_PHOTO_MAX_SIZE,
+  HOMEWORK_PHOTO_QUALITY,
+  HOMEWORK_REASON_MAX,
+  HOMEWORK_REJECT_CHIPS,
+  HOMEWORK_SUBMIT_GUIDE,
+  approvedLine,
+  canAddPhotos,
+  countPending,
+  filterSubmissions,
+  formatSubmissionTime,
+  hasRejectedPart,
+  homeworkPhotoPath,
+  homeworkSubmitProblem,
+  mergePendingItems,
+  needsProblemCount,
+  nextPendingSubmission,
+  normalizeReason,
+  pendingHomeworkQueue,
+  photoCount,
+  rejectReasonText,
+  reviewBlockReason,
+  reviewDefaults,
+  reviewResultText,
+  sortSubmissionsForAdmin,
+  studyWindowText,
+  submissionLine,
+  submissionStatusLabel,
+  submissionStudent,
+  submissionSummary,
+  verdictLabel,
+} from '../src/lib/homeworkBoard'
 import { pickQuote, QUOTES } from '../src/lib/quotes'
 
 let failed = 0
@@ -1079,7 +1114,7 @@ eq(
 eq('알림: 제목·본문 상수', [PUSH_TITLE, PUSH_TEST_BODY.length > 0], ['선오공 새 질문', true])
 
 /* 관리자 모바일 좌우 스와이프 탭 이동 */
-eq('스와이프: 탭 순서', ADMIN_TAB_ORDER.join(','), 'dashboard,kintoun,questions,students,ranking')
+eq('스와이프: 탭 순서', ADMIN_TAB_ORDER.join(','), 'dashboard,kintoun,homework,questions,students,ranking')
 eq('스와이프: 기준값', [SWIPE_MIN_DISTANCE, SWIPE_SLOPE_RATIO, SWIPE_SCROLL_SLACK], [60, 1.5, 4])
 eq('스와이프: 손가락 하나만', [isSingleTouch(1), isSingleTouch(0), isSingleTouch(2)], [true, false, false])
 eq('스와이프: 이동 거리', gestureFrom({ x: 200, y: 100 }, { x: 120, y: 108 }), { dx: -80, dy: 8 })
@@ -1096,13 +1131,13 @@ eq('스와이프 방향: 값이 없으면 그대로', [swipeDirection({ dx: Numb
 eq('스와이프 방향: 기준값을 바꿀 수 있음', [swipeDirection({ dx: -30, dy: 0 }, 25), swipeDirection({ dx: -30, dy: 40 }, 25, 1)], ['next', null])
 
 eq('스와이프 탭 위치: 첫 탭에서 이전은 없음', tabAfterSwipe(0, 'prev'), null)
-eq('스와이프 탭 위치: 다음', [tabAfterSwipe(0, 'next'), tabAfterSwipe(3, 'next'), tabAfterSwipe(4, 'prev')], [1, 4, 3])
-eq('스와이프 탭 위치: 끝 탭에서 다음은 없음', tabAfterSwipe(4, 'next'), null)
+eq('스와이프 탭 위치: 다음', [tabAfterSwipe(0, 'next'), tabAfterSwipe(4, 'next'), tabAfterSwipe(5, 'prev')], [1, 5, 4])
+eq('스와이프 탭 위치: 끝 탭에서 다음은 없음', tabAfterSwipe(5, 'next'), null)
 eq('스와이프 탭 위치: 탭 개수를 넘는 위치는 없음', [tabAfterSwipe(9, 'next'), tabAfterSwipe(-1, 'next'), tabAfterSwipe(2, 'next', 2)], [null, null, null])
 
 eq('스와이프 결과: 왼쪽으로 밀면 다음 탭', resolveTabSwipe({ dx: -100, dy: 5, index: 1 }), 2)
 eq('스와이프 결과: 오른쪽으로 밀면 이전 탭', resolveTabSwipe({ dx: 100, dy: 5, index: 1 }), 0)
-eq('스와이프 결과: 끝 탭에서는 그대로', [resolveTabSwipe({ dx: -100, dy: 0, index: 4 }), resolveTabSwipe({ dx: 100, dy: 0, index: 0 })], [null, null])
+eq('스와이프 결과: 끝 탭에서는 그대로', [resolveTabSwipe({ dx: -100, dy: 0, index: 5 }), resolveTabSwipe({ dx: 100, dy: 0, index: 0 })], [null, null])
 eq('스와이프 결과: 막힌 곳에서 시작하면 그대로', resolveTabSwipe({ dx: -300, dy: 0, index: 2, blocked: true }), null)
 eq('스와이프 결과: 이동이 모자라면 그대로', resolveTabSwipe({ dx: -20, dy: 0, index: 2 }), null)
 eq('스와이프 결과: 탭 개수를 줄여 쓸 수 있음', resolveTabSwipe({ dx: -100, dy: 0, index: 1, count: 2 }), null)
@@ -1158,9 +1193,134 @@ eq('스와이프 예외: 손가락 위치를 못 읽으면 통과', [swipeBlockR
 const swipeOnTable = swipeBlockReason(tableCell, wrapper)
 eq('스와이프 흐름: 표 안에서 밀면 탭 그대로', resolveTabSwipe({ dx: -140, dy: 6, index: 3, blocked: swipeOnTable !== null }), null)
 eq('스와이프 흐름: 빈 곳에서 왼쪽으로 밀면 다음 탭', resolveTabSwipe({ dx: -140, dy: 6, index: 3, blocked: swipeBlockReason(background, wrapper) !== null }), 4)
-eq('스와이프 흐름: 랭킹에서 더 밀어도 그대로', resolveTabSwipe({ dx: -140, dy: 6, index: 4, blocked: false }), null)
-eq('스와이프 흐름: 학생 관리 표에서 오른쪽으로 밀면 질문함으로', resolveTabSwipe({ dx: 140, dy: -6, index: 3, blocked: false }), 2)
+eq('스와이프 흐름: 랭킹에서 더 밀어도 그대로', resolveTabSwipe({ dx: -140, dy: 6, index: 5, blocked: false }), null)
+eq('스와이프 흐름: 학생 관리 표에서 오른쪽으로 밀면 질문함으로', resolveTabSwipe({ dx: 140, dy: -6, index: 4, blocked: false }), 3)
+eq('스와이프 흐름: 실시간에서 왼쪽으로 밀면 숙제관리', resolveTabSwipe({ dx: -140, dy: 6, index: 1, blocked: false }), 2)
 eq('스와이프 예외 목록에 입력·모달·표시 항목이 모두 있음', ['input', 'textarea', 'select', '[role="dialog"]', '[data-swipe-ignore]'].every((part) => SWIPE_BLOCKING_SELECTOR.split(',').includes(part)), true)
+
+/* 숙제 공부 제출 — 사진 인증 · 시간/문항수 분리 승인 */
+eq('숙제: 안내 문구는 확정 문구 그대로', HOMEWORK_SUBMIT_GUIDE, '오늘 공부한 페이지를 찍어올리고 푼 문제수를 적어주세요')
+eq('숙제: 사진 최대 5장', HOMEWORK_PHOTO_MAX, 5)
+eq('숙제: 올리기 전 줄이기(긴 변 1200px · JPEG 0.72)', [HOMEWORK_PHOTO_MAX_SIZE, HOMEWORK_PHOTO_QUALITY], [1200, 0.72])
+eq('숙제: 빠른 반려 사유 3개', HOMEWORK_REJECT_CHIPS, ['풀이 흔적 부족', '답만 작성됨', '사진 식별 불가'])
+eq(
+  '숙제: 문제가 있으면 사진 1장 이상 필요',
+  [homeworkSubmitProblem(1, 0), homeworkSubmitProblem(30, 0)],
+  ['푼 문제가 있으면 공부한 페이지 사진을 1장 이상 올려주세요.', '푼 문제가 있으면 공부한 페이지 사진을 1장 이상 올려주세요.'],
+)
+eq('숙제: 사진이 있으면 그대로 제출', [homeworkSubmitProblem(1, 1), homeworkSubmitProblem(0, 2)], [null, null])
+eq('숙제: 0문제는 사진 없이도 됨', homeworkSubmitProblem(0, 0), null)
+eq('숙제: 5장을 넘으면 막힘', homeworkSubmitProblem(3, 6), '사진은 5장까지 올릴 수 있어요.')
+eq('숙제: 5장까지 더 고를 수 있음', [canAddPhotos(0), canAddPhotos(4), canAddPhotos(5)], [true, true, false])
+eq(
+  '숙제: 사진 경로는 학생/세션 아래',
+  homeworkPhotoPath('abc-123', 'sess-9', 2, 'jpg', 1700000000000, 'tok'),
+  'abc-123/sess-9/1700000000000-2-tok.jpg',
+)
+eq('숙제: 상태 문구', [submissionStatusLabel({ status: 'pending' }), submissionStatusLabel({ status: 'approved' }), submissionStatusLabel({ status: 'rejected' })], ['승인 대기', '승인', '반려'])
+eq('숙제: 필터 이름', HOMEWORK_FILTER_LABEL, { pending: '승인 대기', approved: '승인', rejected: '반려', all: '전체' })
+eq(
+  '숙제: 문제 수를 아직 모르면 물어봐야 함',
+  [needsProblemCount({ status: 'pending', submitted_problems: null }), needsProblemCount({ status: 'pending', submitted_problems: 0 }), needsProblemCount({ status: 'approved', submitted_problems: null })],
+  [true, false, false],
+)
+eq('숙제: 사진 수', [photoCount(['a', 'b']), photoCount([]), photoCount(null)], [2, 0, 0])
+
+const hw = (patch: Partial<HomeworkSubmission> = {}): HomeworkSubmission => ({
+  id: 'h1',
+  student_id: 'st1',
+  session_id: 'se1',
+  date: '2026-11-23',
+  started_at: '2026-11-23T05:00:00.000Z',
+  ended_at: '2026-11-23T05:40:00.000Z',
+  submitted_minutes: 40,
+  submitted_problems: 30,
+  photo_paths: ['a.jpg'],
+  status: 'pending',
+  time_verdict: 'pending',
+  problems_verdict: 'pending',
+  approved_minutes: 0,
+  approved_problems: 0,
+  reject_reason: null,
+  submitted_at: '2026-11-23T05:41:00.000Z',
+  reviewed_at: null,
+  reviewed_by: null,
+  created_at: '2026-11-23T05:41:00.000Z',
+  updated_at: '2026-11-23T05:41:00.000Z',
+  ...patch,
+})
+
+const hwList = [
+  hw({ id: 'a', submitted_at: '2026-11-23T06:00:00.000Z' }),
+  hw({ id: 'b', submitted_at: '2026-11-23T04:00:00.000Z' }),
+  hw({ id: 'c', status: 'approved', submitted_at: '2026-11-23T05:00:00.000Z', time_verdict: 'approved', problems_verdict: 'rejected', approved_minutes: 40, approved_problems: 0 }),
+  hw({ id: 'd', status: 'rejected', submitted_at: '2026-11-22T05:00:00.000Z', time_verdict: 'rejected', problems_verdict: 'rejected', reject_reason: '풀이 흔적 부족' }),
+]
+eq('숙제: 승인 대기 수', countPending(hwList), 2)
+eq('숙제: 필터별 개수', [filterSubmissions(hwList, 'pending').length, filterSubmissions(hwList, 'approved').length, filterSubmissions(hwList, 'rejected').length, filterSubmissions(hwList, 'all').length], [2, 1, 1, 4])
+eq('숙제: 관리자 대기 목록은 오래된 것부터', sortSubmissionsForAdmin(hwList, 'pending').map((s) => s.id), ['b', 'a'])
+eq('숙제: 처리 내역은 최근 것부터', [sortSubmissionsForAdmin(hwList, 'approved').map((s) => s.id), sortSubmissionsForAdmin(hwList, 'rejected').map((s) => s.id)], [['c'], ['d']])
+eq('숙제: 학생 대기 목록은 승인 전만·오래된 순', pendingHomeworkQueue([...hwList, hw({ id: 'a' })]).map((s) => s.id), ['b', 'a'])
+eq('숙제: 문제 수가 없어도 대기 목록에 들어감', pendingHomeworkQueue([hw({ id: 'x', submitted_problems: null })]).length, 1)
+eq('숙제: 요약 문구', submissionSummary({ submitted_minutes: 40, submitted_problems: 30 }), '40분 · 30문제')
+eq('숙제: 문제 수 미입력 표시', submissionSummary({ submitted_minutes: 0, submitted_problems: null }), '0분 · 문제 수 미입력')
+eq('숙제: 홈 한 줄', submissionLine({ date: '2026-11-23', submitted_minutes: 80, submitted_problems: 12 }), '11월 23일 (월) · 1시간 20분 · 12문제')
+
+eq(
+  '숙제: 승인 결과 줄',
+  [
+    approvedLine(hw({ status: 'approved', time_verdict: 'approved', problems_verdict: 'rejected', approved_minutes: 40 })),
+    approvedLine(hw({ status: 'approved', time_verdict: 'approved', problems_verdict: 'approved', approved_minutes: 40, approved_problems: 30 })),
+    approvedLine(hw({ status: 'rejected', time_verdict: 'rejected', problems_verdict: 'rejected' })),
+    approvedLine(hw()),
+  ],
+  ['시간 40분 승인 · 문항 0문제', '시간 40분 승인 · 문항 30문제 승인', '시간 0분 · 문항 0문제', ''],
+)
+eq('숙제: 부분 반려 판별', [hasRejectedPart(hw()), hasRejectedPart(hw({ time_verdict: 'rejected' })), hasRejectedPart(hw({ status: 'approved', time_verdict: 'approved', problems_verdict: 'rejected' }))], [false, true, true])
+eq('숙제: 반려 사유 다듬기', rejectReasonText({ reject_reason: '  답만 작성됨 ' }), '답만 작성됨')
+eq('숙제: 기본 선택은 시간·문항 모두 승인', reviewDefaults({ submitted_problems: 30 }), { timeApproved: true, problemsApproved: true })
+eq('숙제: 문제 수가 없으면 문항수는 승인 못 함', reviewDefaults({ submitted_problems: null }), { timeApproved: true, problemsApproved: false })
+eq('숙제: 이미 확인한 제출은 다시 저장 못 함', reviewBlockReason({ status: 'approved' }, true, true), '이미 확인한 제출이에요.')
+eq('숙제: 모두 반려는 저장 가능(0으로 확정)', reviewBlockReason({ status: 'pending' }, false, false), '모두 반려예요. 저장하면 이 제출은 0분·0문제로 확정돼요.')
+eq('숙제: 저장 결과 문구', [reviewResultText('approved', 40, 30), reviewResultText('approved', 40, 0), reviewResultText('rejected', 0, 0)], ['시간 40분 · 문항 30개 승인했어요.', '시간 40분 · 문항 0개 승인했어요.', '모두 반려했어요. 기록에는 0으로 남고 다시 제출하지 않아요.'])
+eq('숙제: 승인 결과에 드래곤볼 문구 없음(별개)', [reviewResultText('approved', 40, 30), reviewResultText('rejected', 0, 0)].some((text) => text.includes('드래곤볼')), false)
+eq('숙제: 반려 사유는 한 줄·300자까지', [normalizeReason('  풀이   흔적\n부족 '), normalizeReason('가'.repeat(HOMEWORK_REASON_MAX + 20)).length], ['풀이 흔적 부족', HOMEWORK_REASON_MAX])
+eq('숙제: 다음 대기로 넘어감', nextPendingSubmission(hwList, 'b')?.id, 'a')
+eq('숙제: 대기 중인 다른 건이 없으면 끝', nextPendingSubmission([hw({ id: 'a' })], 'a'), null)
+eq('숙제: 시간 표시', [formatSubmissionTime('2026-11-23T05:41:00.000Z'), studyWindowText('2026-11-23T05:00:00.000Z', '2026-11-23T05:40:00.000Z')], ['11월 23일 (월) 14:41', '시작 14:00 · 끝 14:40'])
+eq('숙제: 처리 항목 문구', [verdictLabel('approved'), verdictLabel('rejected'), verdictLabel('pending')], ['승인', '반려', '대기'])
+eq('숙제: 학생 이름 찾기', [submissionStudent({ students: { name: '이지빈', grade: '초1' } }), submissionStudent({ students: [{ name: '김민수', grade: '중1' }] }), submissionStudent({ students: null })], [{ name: '이지빈', grade: '초1' }, { name: '김민수', grade: '중1' }, { name: '학생', grade: '미지정' }])
+
+/* 지난 공부 마저 제출 — 학원(문제 수) · 숙제(사진+문제 수) 합치기 */
+const sessionOf = (patch: Partial<StudySession> = {}): StudySession => ({
+  id: 's1',
+  student_id: 'st1',
+  status: 'finished',
+  started_at: '2026-11-23T04:00:00.000Z',
+  paused_at: null,
+  ended_at: '2026-11-23T04:30:00.000Z',
+  last_heartbeat_at: '2026-11-23T04:30:00.000Z',
+  paused_seconds: 0,
+  auto_pause_count: 0,
+  auto_paused_seconds: 0,
+  date: '2026-11-23',
+  minutes: 30,
+  problems: null,
+  problems_pending: true,
+  created_at: '2026-11-23T04:00:00.000Z',
+  ...patch,
+})
+eq(
+  '지난 공부: 학원·숙제를 시간 순으로',
+  mergePendingItems(
+    [sessionOf({ id: 's1', ended_at: '2026-11-23T04:30:00.000Z' })],
+    [hw({ id: 'h2', submitted_at: '2026-11-23T03:00:00.000Z', ended_at: '2026-11-23T03:00:00.000Z' })],
+  ).map((item) => item.id),
+  ['h2', 's1'],
+)
+eq('지난 공부: 숙제는 승인 대기만', mergePendingItems([], [hw({ id: 'x' }), hw({ id: 'y', status: 'approved' })]).length, 1)
+eq('지난 공부: 둘 다 없으면 빈 목록', mergePendingItems(null, null), [])
+eq('지난 공부: 숙제가 있으면 홈 카드 문구를 바꿈', mergePendingItems([], [hw({ id: 'x' })]).some((item) => item.type === 'homework'), true)
 
 /* 「오늘의 한줄」 — 124개·출처·중복 없음·열 때마다 무작위 한 개 */
 eq('한줄: 124개', QUOTES.length, 124)

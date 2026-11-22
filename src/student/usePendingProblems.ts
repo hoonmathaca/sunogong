@@ -1,31 +1,35 @@
 import { useCallback, useEffect, useState } from 'react'
 import * as api from '../lib/api'
-import { pendingProblemQueue } from '../lib/pauseWatch'
-import type { StudySession } from '../lib/types'
+import * as homeworkApi from '../lib/homework'
+import { mergePendingItems, type PendingItem } from '../lib/homeworkBoard'
+
+export type { PendingItem }
 
 export interface PendingProblems {
-  /** 지금 물어볼 세션 (가장 오래된 것부터, 이번에 건너뛴 것은 빼고) */
-  current: StudySession | null
-  /** 아직 문제 수를 넣지 않은 세션 수 (서버 기준) */
+  /** 지금 물어볼 것 (가장 오래된 것부터, 이번에 건너뛴 것은 빼고) */
+  current: PendingItem | null
+  /** 아직 마저 내지 않은 건수 (서버 기준) */
   count: number
+  /** 남은 것 중 숙제 공부가 있는지 (홈 카드 문구·안내) */
+  hasHomework: boolean
   busy: boolean
   error: string | null
   reload: () => Promise<void>
-  submit: (problems: number) => Promise<boolean>
+  /** 학원: 문제 수만 / 숙제: 사진과 문제 수를 내고 승인 대기로 넘긴다 */
+  submit: (problems: number, photos?: File[]) => Promise<boolean>
   /** 이번 접속에서는 넘어가기 (기록은 그대로 남아 다음 접속 때 다시 물어봄) */
   skip: () => void
-  /** 건너뛴 세션을 다시 물어보기 (홈의 '지난번 푼 문제 수' 카드) */
+  /** 건너뛴 것을 다시 물어보기 (홈의 카드) */
   reopen: () => void
 }
 
 /**
- * 자동 종료된(문제 수 미입력) 세션을 다음 접속 때 물어보기 위한 목록.
- * - 서버(pending_problem_sessions)에서 최근 30일 것을 받아 오래된 것부터 하나씩 물어본다.
+ * 마저 내지 못한 지난 공부(학원 문제 수 · 숙제 사진/문제 수)를 다음 접속 때 하나씩 물어본다.
  * - '건너뛰기'는 이번 접속에서만 넘긴다(기록은 그대로 남아 다음 접속 때 다시 물어봄).
  */
 export function usePendingProblems(studentId: string | null | undefined): PendingProblems {
-  const [list, setList] = useState<StudySession[]>([])
-  /** 이번 접속에서 건너뛴 세션 — 다시 묻지 않는다(홈 카드로는 다시 열 수 있다) */
+  const [list, setList] = useState<PendingItem[]>([])
+  /** 이번 접속에서 건너뛴 것 — 다시 묻지 않는다(홈 카드로는 다시 열 수 있다) */
   const [hidden, setHidden] = useState<Set<string>>(() => new Set())
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -35,13 +39,19 @@ export function usePendingProblems(studentId: string | null | undefined): Pendin
       setList([])
       return
     }
-    const res = await api.listPendingProblemSessions(studentId)
-    if (!res.ok) {
-      // DB 마이그레이션 전에는 함수가 없어 오류가 난다 — 앱은 그대로 두고 조용히 넘어간다
-      console.warn('[sunogong] 문제 수 입력 대기 조회 실패:', res.error)
-      return
-    }
-    setList(pendingProblemQueue(res.data))
+    const [sessions, submissions] = await Promise.all([
+      api.listPendingProblemSessions(studentId),
+      homeworkApi.listPendingHomeworkSubmissions(studentId),
+    ])
+    // DB 마이그레이션 전에는 함수가 없어 오류가 난다 — 앱은 그대로 두고 조용히 넘어간다
+    if (!sessions.ok) console.warn('[sunogong] 문제 수 입력 대기 조회 실패:', sessions.error)
+    if (!submissions.ok) console.warn('[sunogong] 숙제 제출 대기 조회 실패:', submissions.error)
+    setList(
+      mergePendingItems(
+        sessions.ok ? sessions.data : [],
+        submissions.ok ? submissions.data : [],
+      ),
+    )
   }, [studentId])
 
   useEffect(() => {
@@ -51,24 +61,53 @@ export function usePendingProblems(studentId: string | null | undefined): Pendin
     void reload()
   }, [reload])
 
-  const current = list.find((session) => !hidden.has(session.id)) ?? null
+  const current = list.find((item) => !hidden.has(item.id)) ?? null
 
   const submit = useCallback(
-    async (problems: number): Promise<boolean> => {
+    async (problems: number, photos: File[] = []): Promise<boolean> => {
       const target = current
-      if (!target) return false
+      if (!target || !studentId) return false
       setBusy(true)
       setError(null)
-      const res = await api.setSessionProblems(target.id, problems)
+
+      if (target.type === 'academy') {
+        const res = await api.setSessionProblems(target.session.id, problems)
+        setBusy(false)
+        if (!res.ok) {
+          setError(res.error)
+          return false
+        }
+        setList((prev) => prev.filter((item) => item.id !== target.id))
+        return true
+      }
+
+      /* 숙제 — 사진을 먼저 올린 뒤 문제 수와 함께 채운다 */
+      const submission = target.submission
+      let paths: string[] = []
+      if (photos.length > 0) {
+        const uploaded = await homeworkApi.uploadHomeworkPhotos(
+          studentId,
+          submission.session_id ?? submission.id,
+          photos.slice(0, 5),
+        )
+        if (!uploaded.ok) {
+          setBusy(false)
+          setError(uploaded.error)
+          return false
+        }
+        paths = uploaded.data
+      }
+      const res = await homeworkApi.submitPendingHomework(submission.id, problems, paths)
       setBusy(false)
       if (!res.ok) {
+        if (paths.length > 0) void homeworkApi.removeHomeworkPhotos(paths)
         setError(res.error)
         return false
       }
-      setList((prev) => prev.filter((session) => session.id !== target.id))
+      setList((prev) => prev.filter((item) => item.id !== target.id))
       return true
     },
-    [current],
+    [current, studentId],
   )
 
   const skip = useCallback(() => {
@@ -79,5 +118,15 @@ export function usePendingProblems(studentId: string | null | undefined): Pendin
 
   const reopen = useCallback(() => setHidden(new Set()), [])
 
-  return { current, count: list.length, busy, error, reload, submit, skip, reopen }
+  return {
+    current,
+    count: list.length,
+    hasHomework: list.some((item) => item.type === 'homework'),
+    busy,
+    error,
+    reload,
+    submit,
+    skip,
+    reopen,
+  }
 }

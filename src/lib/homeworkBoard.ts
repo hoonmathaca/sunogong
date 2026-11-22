@@ -1,0 +1,285 @@
+/**
+ * 숙제 공부 제출(사진 인증 · 승인 대기)에 쓰는 순수 함수들.
+ * 화면 없이 값을 넣어 확인할 수 있게 계산·문구를 여기에 모아 둔다.
+ *
+ * · 학생: 숙제 공부를 끝낼 때 공부한 페이지 사진(최대 5장)과 푼 문제 수를 함께 낸다.
+ *   낸 시간·문제 수는 바로 기록에 들어가지 않고 '승인 대기'로 남는다.
+ * · 원장님: 시간과 문항수를 따로 승인/반려한다. 승인한 항목만 기록에 더하고,
+ *   반려한 항목은 0으로 확정한다. (드래곤볼 지급과는 별개 — 이 기능은 드래곤볼을 주지 않는다)
+ */
+import { formatDateKo, formatMinutes, kstDateString, kstTimeString } from './time'
+import type { HomeworkStatus, HomeworkSubmission, HomeworkVerdict, StudySession } from './types'
+
+/** 한 번에 올릴 수 있는 숙제 사진 수 */
+export const HOMEWORK_PHOTO_MAX = 5
+/** 올리기 전 줄이는 긴 변 (px) — 무료 Storage 용량을 아낀다 */
+export const HOMEWORK_PHOTO_MAX_SIZE = 1200
+/** 다시 저장할 JPEG 품질 (장당 100~150KB 정도) */
+export const HOMEWORK_PHOTO_QUALITY = 0.72
+/** 숙제 사진·제출 안내 문구 (확정 문구 — 그대로 쓴다) */
+export const HOMEWORK_SUBMIT_GUIDE = '오늘 공부한 페이지를 찍어올리고 푼 문제수를 적어주세요'
+/** 반려 사유 빠른 선택 */
+export const HOMEWORK_REJECT_CHIPS = ['풀이 흔적 부족', '답만 작성됨', '사진 식별 불가'] as const
+/** 반려 사유 메모 최대 글자 수 (DB check 와 같다) */
+export const HOMEWORK_REASON_MAX = 300
+
+export type HomeworkFilter = 'pending' | 'approved' | 'rejected' | 'all'
+
+export const HOMEWORK_FILTER_LABEL: Record<HomeworkFilter, string> = {
+  pending: '승인 대기',
+  approved: '승인',
+  rejected: '반려',
+  all: '전체',
+}
+
+/** 승인 대기 / 승인 / 반려 */
+export function submissionStatusLabel(submission: Pick<HomeworkSubmission, 'status'>): string {
+  if (submission.status === 'approved') return '승인'
+  if (submission.status === 'rejected') return '반려'
+  return '승인 대기'
+}
+
+/** 반려 사유가 한 줄 보이도록 (없으면 빈 문자열) */
+export function rejectReasonText(submission: Pick<HomeworkSubmission, 'reject_reason'>): string {
+  return (submission.reject_reason ?? '').trim()
+}
+
+/** 시간 또는 문항수가 반려됐는지 (부분 반려도 사유를 보여준다) */
+export function hasRejectedPart(submission: Pick<HomeworkSubmission, 'time_verdict' | 'problems_verdict'>): boolean {
+  return submission.time_verdict === 'rejected' || submission.problems_verdict === 'rejected'
+}
+
+/** 승인 전인데 문제 수를 아직 받지 못한 제출 — 다음 접속 때 물어본다 */
+export function needsProblemCount(
+  submission: Pick<HomeworkSubmission, 'status' | 'submitted_problems'> | null | undefined,
+): boolean {
+  if (!submission) return false
+  return submission.status === 'pending' && submission.submitted_problems === null
+}
+
+/** 올린 사진 수 */
+export function photoCount(paths: string[] | null | undefined): number {
+  return (paths ?? []).filter((path) => Boolean(path)).length
+}
+
+/**
+ * 제출 전 검사 — 문제가 있으면 사진이 1장 이상 있어야 한다.
+ * (0문제는 고민 흔적 사진이 있으면 좋고 없어도 된다)
+ * 문제가 있으면 안내 문구, 없으면 null.
+ */
+export function homeworkSubmitProblem(problems: number, photos: number): string | null {
+  const count = Number.isFinite(problems) ? Math.max(0, Math.floor(problems)) : 0
+  const photoTotal = Number.isFinite(photos) ? Math.max(0, Math.floor(photos)) : 0
+  if (photoTotal > HOMEWORK_PHOTO_MAX) return `사진은 ${HOMEWORK_PHOTO_MAX}장까지 올릴 수 있어요.`
+  if (count > 0 && photoTotal === 0) return '푼 문제가 있으면 공부한 페이지 사진을 1장 이상 올려주세요.'
+  return null
+}
+
+/** 사진을 더 고를 수 있는지 */
+export function canAddPhotos(current: number): boolean {
+  return Math.max(0, Math.floor(Number.isFinite(current) ? current : 0)) < HOMEWORK_PHOTO_MAX
+}
+
+/** 사진 경로 — homework-photos 버킷 안에서 학생·세션별로 모인다 */
+export function homeworkPhotoPath(
+  studentId: string,
+  sessionId: string,
+  index: number,
+  extension = 'jpg',
+  now: number = Date.now(),
+  token = Math.random().toString(36).slice(2, 8),
+): string {
+  const safeStudent = (studentId || 'student').replace(/[^0-9a-zA-Z-]/g, '')
+  const safeSession = (sessionId || 'session').replace(/[^0-9a-zA-Z-]/g, '')
+  const safeExt = (extension || 'jpg').replace(/[^0-9a-zA-Z]/g, '').toLowerCase() || 'jpg'
+  const order = Math.max(0, Math.floor(index))
+  return `${safeStudent}/${safeSession}/${now}-${order}-${token}.${safeExt}`
+}
+
+/** '11월 23일 (일) 14:05' — 한국 시간 */
+export function formatSubmissionTime(iso: string | null | undefined): string {
+  const ms = iso ? Date.parse(iso) : Number.NaN
+  if (!Number.isFinite(ms)) return ''
+  return `${formatDateKo(kstDateString(ms))} ${kstTimeString(ms)}`
+}
+
+/** '공부 시작 14:05 · 끝 14:52' */
+export function studyWindowText(
+  startedAt: string | null | undefined,
+  endedAt: string | null | undefined,
+): string {
+  const start = startedAt ? kstTimeString(Date.parse(startedAt)) : ''
+  const end = endedAt ? kstTimeString(Date.parse(endedAt)) : ''
+  if (!start && !end) return ''
+  if (!end) return `시작 ${start}`
+  return `시작 ${start} · 끝 ${end}`
+}
+
+/** '1시간 20분 · 30문제' */
+export function submissionSummary(
+  submission: Pick<HomeworkSubmission, 'submitted_minutes' | 'submitted_problems'>,
+): string {
+  const minutes = Math.max(0, Math.round(submission.submitted_minutes ?? 0))
+  const parts = [formatMinutes(minutes)]
+  if (submission.submitted_problems === null || submission.submitted_problems === undefined) {
+    parts.push('문제 수 미입력')
+  } else {
+    parts.push(`${Math.max(0, Math.round(submission.submitted_problems))}문제`)
+  }
+  return parts.join(' · ')
+}
+
+/** 학생 홈 목록에 쓰는 한 줄 — '11월 23일 (일) · 1시간 20분 · 30문제' */
+export function submissionLine(
+  submission: Pick<HomeworkSubmission, 'date' | 'submitted_minutes' | 'submitted_problems'>,
+): string {
+  return `${formatDateKo(submission.date)} · ${submissionSummary(submission)}`
+}
+
+/** 승인/반려된 값 — '승인 1시간 20분 · 30문제' */
+export function approvedLine(submission: HomeworkSubmission): string {
+  if (submission.status === 'pending') return ''
+  const parts: string[] = []
+  if (submission.time_verdict === 'approved') parts.push(`시간 ${formatMinutes(submission.approved_minutes)} 승인`)
+  else if (submission.time_verdict === 'rejected') parts.push('시간 0분')
+  if (submission.problems_verdict === 'approved') parts.push(`문항 ${submission.approved_problems}문제 승인`)
+  else if (submission.problems_verdict === 'rejected') parts.push('문항 0문제')
+  return parts.join(' · ')
+}
+
+/** 관리자 목록 필터 */
+export function filterSubmissions(
+  list: HomeworkSubmission[],
+  filter: HomeworkFilter,
+): HomeworkSubmission[] {
+  if (filter === 'all') return list
+  return list.filter((submission) => submission.status === filter)
+}
+
+/** 승인 대기 건수 */
+export function countPending(list: HomeworkSubmission[]): number {
+  return list.reduce((sum, submission) => sum + (submission.status === 'pending' ? 1 : 0), 0)
+}
+
+/**
+ * 관리자 목록 순서 — 승인 대기는 오래된 것부터(먼저 온 학생부터 처리),
+ * 처리한 내역은 최근 것부터. (filter 를 넘기면 그 종류만)
+ */
+export function sortSubmissionsForAdmin(list: HomeworkSubmission[], filter: HomeworkFilter): HomeworkSubmission[] {
+  const rows = filterSubmissions(list, filter)
+  if (filter === 'pending') {
+    return rows.sort((a, b) => timeOf(a) - timeOf(b))
+  }
+  return rows.sort((a, b) => timeOf(b) - timeOf(a))
+}
+
+function timeOf(submission: HomeworkSubmission): number {
+  return Date.parse(submission.submitted_at ?? submission.created_at ?? '') || 0
+}
+
+/** 학생이 아직 처리되지 않은 제출 (오래된 것부터) — 다음 접속 때 물어볼 목록 */
+export function pendingHomeworkQueue(list: HomeworkSubmission[] | null | undefined): HomeworkSubmission[] {
+  const seen = new Set<string>()
+  const out: HomeworkSubmission[] = []
+  for (const submission of list ?? []) {
+    if (!submission?.id || seen.has(submission.id)) continue
+    if (submission.status !== 'pending') continue
+    seen.add(submission.id)
+    out.push(submission)
+  }
+  return out.sort((a, b) => timeOf(a) - timeOf(b))
+}
+
+/** 제출 목록에서 학생 이름 (join 결과가 배열일 수 있다) */
+export function submissionStudent(
+  submission: Pick<HomeworkSubmission, 'students'>,
+): { name: string; grade: string } {
+  const joined = submission.students
+  const row = Array.isArray(joined) ? joined[0] ?? null : joined ?? null
+  return { name: row?.name ?? '학생', grade: row?.grade ?? '미지정' }
+}
+
+/** 확인 화면의 기본 선택 — 문제 수를 모르는 제출은 문항수를 승인할 수 없다 */
+export function reviewDefaults(submission: Pick<HomeworkSubmission, 'submitted_problems'>): {
+  timeApproved: boolean
+  problemsApproved: boolean
+} {
+  return { timeApproved: true, problemsApproved: submission.submitted_problems !== null }
+}
+
+/** 확인(저장) 버튼이 막히는 경우의 안내 (없으면 null) */
+export function reviewBlockReason(
+  submission: Pick<HomeworkSubmission, 'status'>,
+  timeApproved: boolean,
+  problemsApproved: boolean,
+): string | null {
+  if (submission.status !== 'pending') return '이미 확인한 제출이에요.'
+  if (!timeApproved && !problemsApproved) return '모두 반려예요. 저장하면 이 제출은 0분·0문제로 확정돼요.'
+  return null
+}
+
+/** 저장 뒤 결과 안내 */
+export function reviewResultText(status: HomeworkStatus, minutes: number, problems: number): string {
+  if (status === 'rejected') return '모두 반려했어요. 기록에는 0으로 남고 다시 제출하지 않아요.'
+  return `시간 ${Math.max(0, minutes)}분 · 문항 ${Math.max(0, problems)}개 승인했어요.`
+}
+
+/** 시간·문항수 각 항목의 처리 상태 문구 */
+export function verdictLabel(verdict: HomeworkVerdict): string {
+  if (verdict === 'approved') return '승인'
+  if (verdict === 'rejected') return '반려'
+  return '대기'
+}
+
+/** 반려 사유 메모 정리 (한 줄, 최대 300자) */
+export function normalizeReason(value: string | null | undefined): string {
+  const text = (value ?? '').replace(/\s+/g, ' ').trim()
+  return text.length > HOMEWORK_REASON_MAX ? text.slice(0, HOMEWORK_REASON_MAX) : text
+}
+
+/**
+ * 확인을 마친 뒤 자동으로 열 다음 대기 제출.
+ * 같은 제출은 건너뛰고, 목록에서 가장 오래된 승인 대기를 고른다.
+ */
+export function nextPendingSubmission(
+  list: HomeworkSubmission[],
+  currentId: string | null,
+): HomeworkSubmission | null {
+  const queue = list
+    .filter((submission) => submission.status === 'pending' && submission.id !== currentId)
+    .sort((a, b) => timeOf(a) - timeOf(b))
+  return queue[0] ?? null
+}
+
+/* ------------------------------------------------------------------ */
+/* 지난 공부 마저 제출 — 학원(문제 수) · 숙제(사진+문제 수) 합치기        */
+/* ------------------------------------------------------------------ */
+
+/** 아직 마저 내지 못한 지난 공부 한 건 */
+export type PendingItem =
+  | { type: 'academy'; id: string; session: StudySession }
+  | { type: 'homework'; id: string; submission: HomeworkSubmission }
+
+/** 지난 공부의 마무리 시각 (오래된 것부터 물어보기 위한 정렬 값) */
+export function pendingItemTime(item: PendingItem): number {
+  if (item.type === 'academy') {
+    return Date.parse(item.session.ended_at ?? item.session.created_at ?? '') || 0
+  }
+  return Date.parse(item.submission.ended_at ?? item.submission.submitted_at ?? '') || 0
+}
+
+/** 학원(문제 수만) 과 숙제(사진+문제 수) 목록을 시간 순으로 합친다 */
+export function mergePendingItems(
+  sessions: StudySession[] | null | undefined,
+  submissions: HomeworkSubmission[] | null | undefined,
+): PendingItem[] {
+  const academy: PendingItem[] = (sessions ?? [])
+    .filter((session) => Boolean(session?.id))
+    .map((session) => ({ type: 'academy', id: session.id, session }))
+  const homework: PendingItem[] = pendingHomeworkQueue(submissions).map((submission) => ({
+    type: 'homework',
+    id: submission.id,
+    submission,
+  }))
+  return [...academy, ...homework].sort((a, b) => pendingItemTime(a) - pendingItemTime(b))
+}

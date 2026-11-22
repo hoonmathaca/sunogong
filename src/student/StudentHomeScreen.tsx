@@ -3,9 +3,19 @@ import { BrandFooter, Mascot } from '../components/Brand'
 import { Spinner } from '../components/Keypad'
 import * as api from '../lib/api'
 import { KIND_BAR_CLASS, KIND_EMOJI, KIND_LABEL, KIND_TEXT_CLASS, type SessionKind } from '../lib/kinds'
+import {
+  approvedLine,
+  countPending,
+  hasRejectedPart,
+  photoCount,
+  rejectReasonText,
+  submissionLine,
+  submissionStatusLabel,
+} from '../lib/homeworkBoard'
+import * as homeworkApi from '../lib/homework'
 import { splitLog, splitPercents } from '../lib/stats'
 import { addDays, formatDateKo, formatMinutes, formatMinutesCompact, todayKst, weekdayOf } from '../lib/time'
-import type { Student, StudyLog } from '../lib/types'
+import type { HomeworkSubmission, Student, StudyLog } from '../lib/types'
 import { LiveKintounCard } from './LiveKintounCard'
 
 interface StudentHomeScreenProps {
@@ -18,6 +28,8 @@ interface StudentHomeScreenProps {
   unreadAnswers?: number
   /** 자동 종료된 공부 중 문제 수를 아직 넣지 않은 건수 */
   pendingProblems?: number
+  /** 그중 숙제 공부가 있는지 (카드 문구) */
+  pendingHomework?: boolean
   /** '지난번 푼 문제 수' 창 다시 열기 */
   onPendingProblems?: () => void
   busy?: boolean
@@ -35,10 +47,12 @@ export function StudentHomeScreen({
   onQuestions,
   unreadAnswers = 0,
   pendingProblems = 0,
+  pendingHomework = false,
   onPendingProblems,
   busy = false,
 }: StudentHomeScreenProps): JSX.Element {
   const [logs, setLogs] = useState<StudyLog[]>([])
+  const [submissions, setSubmissions] = useState<HomeworkSubmission[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [period, setPeriod] = useState<Period>(7)
@@ -57,6 +71,9 @@ export function StudentHomeScreen({
     } else {
       setError(res.error)
     }
+    // 숙제 제출 상태(승인 대기·승인·반려) — 기능이 아직 없어도 홈은 그대로
+    const submitted = await homeworkApi.listMyHomeworkSubmissions(student.id, 30)
+    if (submitted.ok) setSubmissions(submitted.data ?? [])
     setLoading(false)
   }, [student.id, loadStart, today])
 
@@ -97,6 +114,8 @@ export function StudentHomeScreen({
 
   const todayLog = logs.find((item) => item.date === today)
   const todaySplit = splitLog(todayLog)
+  const recentSubmissions = submissions.slice(0, 5)
+  const waitingSubmissions = countPending(submissions)
   const weekMinutes = logs
     .filter((log) => log.date >= addDays(today, -6))
     .reduce((sum, item) => sum + (item.minutes ?? 0), 0)
@@ -163,13 +182,17 @@ export function StudentHomeScreen({
             </span>
             <span className="min-w-0 flex-1">
               <span className="flex flex-wrap items-center gap-1.5">
-                <span className="font-round text-[14.5px] font-extrabold text-[#7A5B00]">지난번 푼 문제 수</span>
+                <span className="font-round text-[14.5px] font-extrabold text-[#7A5B00]">
+                  {pendingHomework ? '지난 숙제 공부 제출' : '지난번 푼 문제 수'}
+                </span>
                 <span className="rounded-full bg-[#E9A400] px-2 py-0.5 text-[10px] font-bold text-white tabular">
                   {`${pendingProblems}개`}
                 </span>
               </span>
               <span className="mt-0.5 block text-[11.5px] font-semibold text-[#8A6A00]/70">
-                자동으로 마무리된 공부가 있어요 · 눌러서 입력
+                {pendingHomework
+                  ? '자동으로 마무리된 숙제가 있어요 · 사진과 문제 수 올리기'
+                  : '자동으로 마무리된 공부가 있어요 · 눌러서 입력'}
               </span>
             </span>
             <span className="shrink-0 text-[20px] leading-none text-[#B8860B]/50" aria-hidden="true">
@@ -312,6 +335,52 @@ export function StudentHomeScreen({
 
           <p className="mt-2 text-[11px] text-navy/35">{formatDateKo(today)} 기준</p>
         </section>
+
+        {/* 숙제 제출 — 승인 대기 / 승인 / 반려(사유)를 학생도 볼 수 있게 */}
+        {recentSubmissions.length > 0 ? (
+          <section className="mt-4 card">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-[15px] font-bold text-navy">숙제 제출</h2>
+              <span className="text-[11px] font-semibold text-navy/45">
+                {waitingSubmissions > 0 ? `선생님 확인 기다리는 중 ${waitingSubmissions}건` : '최근 제출'}
+              </span>
+            </div>
+            <ul className="mt-2 space-y-1.5">
+              {recentSubmissions.map((submission) => {
+                const chipClass =
+                  submission.status === 'approved'
+                    ? 'bg-[#E6F5EA] text-[#1F7A3D]'
+                    : submission.status === 'rejected'
+                      ? 'bg-[#FDECEC] text-[#B32B2B]'
+                      : 'bg-[#FFF6DA] text-[#7A5B00]'
+                const approved = approvedLine(submission)
+                return (
+                  <li key={submission.id} className="rounded-2xl border border-blue-line/70 bg-white px-3 py-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-[12.5px] font-bold text-navy">{submissionLine(submission)}</p>
+                        <p className="mt-0.5 text-[11px] font-semibold text-navy/45">
+                          사진 {photoCount(submission.photo_paths)}장{approved ? ` · ${approved}` : ''}
+                        </p>
+                      </div>
+                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${chipClass}`}>
+                        {submissionStatusLabel(submission)}
+                      </span>
+                    </div>
+                    {hasRejectedPart(submission) && rejectReasonText(submission) ? (
+                      <p className="mt-1 rounded-xl bg-[#FDECEC] px-2 py-1 text-[11px] font-semibold text-[#B32B2B]">
+                        반려 사유: {rejectReasonText(submission)}
+                      </p>
+                    ) : null}
+                  </li>
+                )
+              })}
+            </ul>
+            <p className="mt-2 text-[10.5px] leading-snug text-navy/40">
+              사진과 문제 수를 내면 선생님이 확인해요 · 승인된 시간·문항수만 오늘 기록에 들어가요
+            </p>
+          </section>
+        ) : null}
 
         {/* 선오공에게 질문하기 — 홈에서 바로 들어간다. 새 답변이 있으면 배지 */}
         <button

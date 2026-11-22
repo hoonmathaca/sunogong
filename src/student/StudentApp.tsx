@@ -234,6 +234,7 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
           onQuestions={() => setPhase('questions')}
           unreadAnswers={unreadAnswers}
           pendingProblems={pendingProblems.count}
+          pendingHomework={pendingProblems.hasHomework}
           onPendingProblems={pendingProblems.reopen}
           busy={busy}
         />
@@ -263,14 +264,14 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
         />
       ) : null}
 
-      {/* 자동 종료된 지난 공부의 문제 수 — 홈에 들어오면 한 번 물어본다 */}
+      {/* 자동 종료된 지난 공부의 문제 수·숙제 사진 — 홈에 들어오면 한 번 물어본다 */}
       {phase === 'home' && student && pendingProblems.current ? (
         <PendingProblemsModal
           key={pendingProblems.current.id}
-          session={pendingProblems.current}
+          item={pendingProblems.current}
           busy={pendingProblems.busy}
           error={pendingProblems.error}
-          onSubmit={(problems) => void pendingProblems.submit(problems)}
+          onSubmit={(problems, photos) => void pendingProblems.submit(problems, photos)}
           onSkip={pendingProblems.skip}
         />
       ) : null}

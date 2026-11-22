@@ -28,7 +28,7 @@ cp .env.example .env      # 아래 값을 채워주세요
 
 Supabase Dashboard → **SQL Editor** 에서 순서대로 실행합니다.
 
-1. `supabase/schema.sql` — 테이블 5개(`students`, `study_sessions`, `study_logs`, `study_questions`, `push_subscriptions`), 서버 시각·타이머 RPC, Storage 버킷(`question-images`), RLS 정책, 권한
+1. `supabase/schema.sql` — 테이블 6개(`students`, `study_sessions`, `study_logs`, `study_questions`, `homework_submissions`, `push_subscriptions`), 서버 시각·타이머 RPC, Storage 버킷(`question-images`, `homework-photos`), RLS 정책, 권한
 2. `supabase/seed.sql` — 기존 데이터 이관 (**학생 51명 + 공부 기록 2건**, 원래 UUID 그대로)
 3. **`supabase/migrate-2026-11-21-questions.sql` — '선오공에게 질문하기' Q&A** (아래 표·버킷만 추가)
    - 운영 DB에는 **이 파일을 한 번 실행해야 질문 기능이 켜집니다.** 실행 전에는 학생 화면에 `질문 기능을 아직 준비 중이에요` 안내가 뜨고, 공부 기록·타이머는 그대로 동작합니다.
@@ -40,6 +40,9 @@ Supabase Dashboard → **SQL Editor** 에서 순서대로 실행합니다.
 5. **`supabase/migrate-2026-11-22-pause-autoend.sql` — 쉬는 시간 30분 알림 · 60분 자동 종료 · 다음 접속 때 문제 수 입력**
    - `study_sessions.problems_pending`·`auto_ended` 열과 `auto_end_paused_session()`, `set_session_problems()`, `pending_problem_sessions()` 함수를 만듭니다.
    - 운영 DB(`qdzlenhmhszdsnygslhp`)에는 **2026-11-22 적용 완료**입니다. 실행 전에도 타이머·기록은 그대로 동작하고, 자동 종료만 `알 수 없는 오류` 없이 원래대로 일시정지 상태로 남습니다.
+6. **`supabase/migrate-2026-11-23-homework-photo-approval.sql` — 숙제 공부 사진 인증 · 시간/문항수 분리 승인 · 관리자 `숙제관리`**
+   - `homework_submissions` 표, `close_homework_session()`·`submit_homework()`·`submit_pending_homework()`·`review_homework_submission()`·`pending_homework_submissions()`, Storage 버킷 `homework-photos`(비공개, 1개 5MB, 사진만), RLS 정책을 만들고 `finish_session`·`auto_end_paused_session`·`pending_problem_sessions` 를 새 규칙으로 바꿉니다.
+   - 운영 DB(`qdzlenhmhszdsnygslhp`)에는 **2026-11-23 적용 완료**입니다. 실행 전에는 숙제 공부도 예전처럼 바로 기록에 들어가고, 학생 화면에는 `숙제 사진 기능을 아직 준비 중이에요` 가 뜰 수 있습니다.
 
 네 파일 모두 여러 번 실행해도 안전합니다(`if not exists` / `on conflict do nothing` / 정책은 지웠다가 다시 생성).
 
@@ -52,7 +55,9 @@ select count(*) from public.study_questions;      -- 0 (질문이 쌓이면 늘�
 select count(*) from public.push_subscriptions;   -- 0 (알림 켠 기기 수)
 select count(*) from public.students where dragons <> '{"red":0,"orange":0,"yellow":0,"green":0,"blue":0,"navy":0,"purple":0}';  -- 일반용을 만든 학생 수
 select count(*) from public.study_sessions where problems_pending;   -- 문제 수 입력을 기다리는 세션 수
+select count(*) from public.homework_submissions where status = 'pending';  -- 승인을 기다리는 숙제 제출 수
 select id, public, file_size_limit from storage.buckets where id = 'question-images';
+select id, public, file_size_limit from storage.buckets where id = 'homework-photos';
 ```
 
 > **2026-11-19 변경분은 이미 운영 DB(`sunogong`)에 반영되어 있습니다.**
@@ -64,6 +69,7 @@ select id, public, file_size_limit from storage.buckets where id = 'question-ima
 > - `supabase/migrate-2026-11-21-push.sql` — 새 질문 알림(웹 푸시) 구독 표 (2026-11-21 운영 DB 적용 완료)
 > - `supabase/migrate-2026-11-21-rainbow-ball.sql` — `students.rainbow_ball_count`, `craft_rainbow_ball()`(칠성구 합치기) (2026-11-21 운영 DB 적용 완료)
 > - `supabase/migrate-2026-11-22-pause-autoend.sql` — 일시정지 30분 알림·60분 자동 종료(`problems_pending`, `auto_ended` 열과 `auto_end_paused_session`·`set_session_problems`·`pending_problem_sessions`) (2026-11-22 운영 DB 적용 완료)
+> - `supabase/migrate-2026-11-23-homework-photo-approval.sql` — 숙제 공부 사진 인증·시간/문항수 분리 승인(`homework_submissions`, `submit_homework`·`submit_pending_homework`·`review_homework_submission`, Storage `homework-photos`) (2026-11-23 운영 DB 적용 완료)
 
 ## 3. 실행 / 빌드
 
@@ -134,11 +140,32 @@ python3 tools/make_color_dragons.py
    - **😴 쉬는 지 30분 → `아직 공부 중인가요?`** — 일시정지한 채 30분이 지나면 화면 알림창과 함께 진동·안내음·브라우저 알림을 띄운다. `계속 공부할래요` / `공부 끝내고 문제 수 입력` 중에 고르면 되고, 그냥 닫으면 타이머 아래에 `쉬는 지 N분 · N분 더 쉬면 자동으로 마무리돼요` 가 계속 보인다.
    - **⏱️ 쉬는 지 60분 → 자동 종료** — 30분 알림 뒤에도 응답이 없으면 세션을 자동으로 마무리한다. 공부 시간은 쉬기 전까지 실제로 공부한 시간으로 저장하고, 문제 수는 비워 둔 채(`problems_pending`) 홈으로 나가 바로 `지난번 푼 문제 수` 입력창을 띄운다.
 4. **종료** — `공부를 마칠까요?` → `오늘 푼 문제 수` 키패드(0 가능) → 저장
-5. **결과** — `오늘 ○시간 ○분 공부했어요` + 오늘 합계 · 오늘 학원/숙제 시간 · 푼 문제 수
+   - **🏠 숙제 공부는 `숙제 공부 제출` 창**에서 `오늘 공부한 페이지를 찍어올리고 푼 문제수를 적어주세요` 안내와 함께 **공부한 페이지 사진(최대 5장)** 을 붙인다. 1문제 이상이면 사진 1장 이상이 필수이고, 0문제는 사진 없이도 된다. 종료를 누르면 그 순간 타이머가 멈춰 사진 고르는 시간이 공부 시간에 들어가지 않는다.
+   - 낸 시간·문제 수는 기록에 바로 들어가지 않고 **승인 대기**로 남는다(아래 「숙제 공부 사진 인증」).
+5. **결과** — `오늘 ○시간 ○분 공부했어요` + 오늘 합계 · 오늘 학원/숙제 시간 · 푼 문제 수. 숙제 공부는 `🙌 제출했어요 — 선생님 확인을 기다려요` 와 `오늘 기록(승인된 것)` 을 함께 보여 준다.
 6. **지난번 푼 문제 수 (2026-11-22)** — 자동 종료된 공부가 남아 있으면, 다음에 코드를 넣고 홈에 들어올 때 `지난번 푼 문제 수` 창이 뜬다.
-   - `11월 21일 (토) · 🏠 숙제 공부 · 1시간 20분 공부` 처럼 어느 공부인지 보여 주고, 키패드로 문제 수를 넣으면 그 날 기록(문제 랭킹·통계)에 바로 더해진다.
+   - `11월 21일 (토) · 🏫 학원 공부 · 1시간 20분 공부` 처럼 어느 공부인지 보여 주고, 키패드로 문제 수를 넣으면 그 날 기록(문제 랭킹·통계)에 바로 더해진다.
+   - **🏠 숙제 공부로 자동 종료된 것은 `지난 숙제 공부 제출` 창**으로 뜬다 — 같은 확정 안내 문구와 함께 사진(최대 5장)과 문제 수를 내면 승인 대기로 넘어간다.
    - `0`도 입력할 수 있고 `건너뛰기`도 된다. 건너뛰면 이번 접속에서는 다시 묻지 않고 **다음 접속 때 다시 물어본다**(기록에는 그대로 남는다). 건너뛰었어도 홈의 **✏️ 지난번 푼 문제 수** 카드를 누르면 그 자리에서 다시 입력할 수 있다.
    - 화면이 꺼진 채로 60분이 지나 있었어도, 다시 열면 그 자리에서 자동 종료 → 문제 수 입력으로 이어진다.
+
+### 숙제 공부 사진 인증 · 승인 (2026-11-23)
+숙제 공부는 **학생이 낸 시간·문제 수를 그대로 믿지 않고**, 공부한 페이지 사진과 함께 내서 **원장님이 확인한 뒤** 기록에 들어간다. 학원 공부(🏫)는 예전과 100% 똑같이 끝낼 때 바로 반영한다.
+
+**학생**
+- 숙제 타이머 종료 → `숙제 공부 제출` 창: 확정 안내 문구 `오늘 공부한 페이지를 찍어올리고 푼 문제수를 적어주세요`, `📷 사진 찍기·고르기`(최대 5장), 문제 수 키패드.
+- 사진은 올리기 전에 브라우저에서 **긴 변 1200px · JPEG 품질 0.72** 로 줄여 올린다(장당 100~150KB, `src/lib/imageCompress.ts` 에 옵션만 넘겨서 재사용). 앨범·카메라 어느 쪽으로 찍어도 된다.
+- 1문제 이상이면 사진 1장 이상 없이는 제출되지 않고, 5장을 넘겨 담을 수 없다. 0문제는 사진 없이도 된다(고민 흔적 사진은 선택).
+- 낸 뒤에는 결과 화면과 홈에 **`승인 대기`** 로 보이고, 원장님이 확인하면 **`승인`**(승인된 값) 또는 **`반려`**(사유 표시) 로 바뀐다. 홈 `숙제 제출` 카드에 최근 5건이 보인다.
+
+**DB (`homework_submissions`)**
+- 한 세션에 한 줄(`session_id unique`). `submitted_minutes`·`submitted_problems`(자동 종료 뒤 아직 모르면 `NULL`)·`photo_paths`(최대 5장)·`status(pending/approved/rejected)`·`time_verdict`·`problems_verdict`·`approved_minutes`·`approved_problems`·`reject_reason`·`reviewed_at`.
+- `submit_homework(session, problems, photo_paths)` — 숙제 세션을 끝내고 승인 대기 줄을 만든다. 1문제 이상인데 사진이 없으면 `photo_required`, 5장을 넘으면 `too_many_photos`.
+- `submit_pending_homework(submission, problems, photo_paths)` — 60분 자동 종료된 숙제의 문제 수·사진을 다음 접속 때 채운다.
+- `review_homework_submission(submission, time_approved, problems_approved, reject_reason)` — **승인한 항목만** `study_logs` 의 `homework_minutes`·`homework_problems` 에 더하고(그 날 학원 기록과 합쳐짐), 반려한 항목은 0으로 확정한다. 한 제출은 한 번만 처리(`already_reviewed`), 문제 수가 없으면 문항수 승인 불가(`problems_unknown`).
+- **드래곤볼은 별개** — 숙제 승인은 드래곤볼 지급/출현 로직을 건드리지 않는다(승인해도 드래곤볼을 주지 않는다).
+- `finish_session` 은 숙제 세션을 받으면 `close_homework_session` 으로 넘겨 기록에 바로 넣지 않는다(학원은 그대로). `auto_end_paused_session` 의 숙제 자동 종료도 승인 대기로 넘긴다.
+- 사진은 **비공개 Storage 버킷 `homework-photos`**(1개 5MB·사진 형식만)에 올라가고 화면에서는 1시간짜리 **서명 URL** 로 본다.
 
 ### 근두운 · 드래곤볼 (2026-11-21)
 
@@ -194,6 +221,12 @@ python3 tools/make_color_dragons.py
   - **미제출 학생**: `기록 없음 N명 · 🏫 학원 미제출 N명 · 🏠 숙제 미제출 N명` 을 한 줄에 보여주고, 눌러서 그 명단을 본다.
   - **학생 상세(최근 30일)**: 학원·숙제 시간과 문제를 각각, 추이 그래프도 전체/학원/숙제로 바꿔 본다. CSV 두 종류에도 학원·숙제 칸이 모두 들어간다. 종류가 없던 예전 기록은 학원 공부로 본다.
 - **실시간** (상단 탭, 예전 이름 `근두운`): 지금 공부 중인 학생을 **세 줄로** 보여 준다 — 1줄 `이름 + 닉네임`, 2줄 `공부 중/잠깐 쉬는 중 · 시간`, 3줄 배지(성구 `N개 M/7종`, 일반용 `N마리 · M/7색`, 무지개용이 있으면 🌈 개수). 오른쪽 끝은 **글자 없이 드래곤볼 아이콘만 있는 쏘기 버튼**(누르면 화면 위 `한 학생에게 N개` 만큼 쏜다, 접근성 이름은 `이름에게 드래곤볼 N개 쏘기`). 이 3줄 배치는 모바일 세로 화면(360~390px)에서 이름이 `김···` 으로 잘리지 않게 하려고 소민 님 제안을 반영한 것이다. 위쪽 카드에는 **지금 공부 중 N명을 `🏫 학원 N명 · 🏠 숙제 N명` 으로 따로** 센다. **선오공이 드래곤볼 쏘기** 로 **전체 일괄**(공부 중인 학생 전원, 원하면 `쉬는 중인 학생도 포함`) 지급을 하고, 한 번에 1~99개이며 **한 개마다 1~7성구가 랜덤**으로 나온다. 쏘면 드래곤볼이 위로 날아가는 애니메이션과 결과 문구(`4성구 · 7성구` 처럼 나온 성구)가 뜨고 아래 `드래곤볼 지급 이력`(최근 12건)에 남는다. 15초마다 새로 읽는다.
+- **숙제관리** (상단 탭, 2026-11-23 · 승인 대기 건수 배지): 학생이 사진과 함께 낸 숙제 공부를 **한 명씩** 확인한다.
+  - `승인 대기 / 승인 / 반려 / 전체` 로 거르고, 목록에 `이름 · 학년 · 날짜 · 시간·문제 수 · 사진 N장 · 승인 대기` 를 보여 준다. 승인 대기는 **오래된 것부터**(먼저 온 학생부터), 처리 내역은 최근 것부터.
+  - 상세 창: 학생 이름, 날짜, **공부 시작·종료 시각**, 제출 공부 시간(분), 제출 문제 수, **숙제 사진 갤러리**(누르면 크게 보기 · 좌우 버튼·손가락 밀기·`1 / N` 로 넘기기).
+  - **공부 시간 승인 / 반려(0)** · **문항수 승인 / 반려(0)** 를 따로 고르고, 원클릭 **`모두 승인` / `모두 반려`** 보조 버튼도 있다. 문제 수가 아직 없는 제출은 문항수를 승인할 수 없다(반려 = 0문제).
+  - **반려 사유 메모**(학생에게 보임, 300자) + 빠른 선택 칩 `풀이 흔적 부족 · 답만 작성됨 · 사진 식별 불가`.
+  - `확인(저장)` 을 누르면 승인한 항목만 그 날 `study_logs` 에 더해지고(통계·랭킹 반영), 반려한 항목은 0으로 확정된다. 저장 뒤 **다음 대기 학생으로 자동 이동**한다. 드래곤볼과는 별개다.
 - **🎟 교환권 지급 확인 · 사용 처리** (실시간 탭): 교환권을 가진 학생을 많이 가진 순서로 보여 주고(이름으로 찾기 가능), `사탕 2` · `1,000P 1` · `10,000P 0` 처럼 학생별 장 수를 눌러 **한 장 사용 처리**한다. 누르면 `학원에서 실제로 지급한 뒤 눌러 주세요` 확인 창이 뜨고, 처리하면 `최근 사용 처리` 기록이 남으며 학생 목록도 바로 다시 읽는다.
 - **질문함** (상단 탭, 답변 대기 건수 배지): 학생 질문을 **답변 대기 우선**으로 보고 `답변 대기 / 답변 완료 / 전체` 로 거른다. 사진을 눌러 크게 보고, **선오공이** 이름으로 답변 글 + 해설지 사진 또는 **훈노트 영상**(MP4·WebM·MOV, 50MB 이하)을 달거나 수정하고, 질문을 삭제(사진·영상 포함)할 수 있다.
   - **오래된 질문 자동 정리** — 질문함을 열 때 **답변 완료 후 7일**이 지난 질문과 Storage 사진·영상을 자동으로 지운다(끄기 스위치 있음, `지금 정리` 버튼도 있음). DB 줄만 지우지 않고 파일까지 지워서 무료 용량이 실제로 비워진다.
@@ -201,7 +234,7 @@ python3 tools/make_color_dragons.py
   - 켜면 학생이 질문을 올릴 때마다 휴대폰에 `선오공 새 질문` 알림이 오고, 누르면 `/admin?tab=questions`(질문함)이 바로 열린다.
   - 기기마다 따로 켜야 한다(원장님 폰·태블릿 각각). 아이폰은 홈 화면에 추가한 선오공에서만 켤 수 있다(iOS 16.4+).
 - **학생 관리**: 추가/수정/삭제, 학년(초1~고3, 미지정), 같은 코드면 `동일코드` 배지, 이름·코드·닉네임 검색, 학생별 기록 관리. **닉네임 열**에서 학생이 정한 근두운 닉네임(없으면 `수련생`)을 보고, `바꾸기` 로 원장님이 직접 고치거나 `비우기` 로 되돌린다(장난·사칭 닉네임 정리용, 최대 10자, `set_student_nickname` RPC 사용).
-- **모바일 좌우 스와이프로 탭 이동** (2026-11-21): 관리자 화면을 **왼쪽으로 밀면 다음 탭, 오른쪽으로 밀면 이전 탭**(대시보드 → 실시간 → 질문함 → 학생 관리 → 랭킹). 손가락이 **60px 넘게** 움직였고 **가로 이동이 세로 이동의 1.5배보다 클 때만** 탭이 넘어가서 세로 스크롤과 섞이지 않습니다. **입력창·선택 상자·글자 수정 영역, 모달·사진 확대, 가로로 넘치는 표**(학생 관리 표·탭 줄) 안에서는 표를 넘기는 동작이 우선이라 탭이 바뀌지 않습니다(두 손가락 확대도 제외). 판정은 `src/lib/adminSwipe.ts` 의 순수 함수, 화면 처리는 `AdminApp` 의 `onTouchStart`/`onTouchEnd`.
+- **모바일 좌우 스와이프로 탭 이동** (2026-11-21): 관리자 화면을 **왼쪽으로 밀면 다음 탭, 오른쪽으로 밀면 이전 탭**(대시보드 → 실시간 → 숙제관리 → 질문함 → 학생 관리 → 랭킹). 손가락이 **60px 넘게** 움직였고 **가로 이동이 세로 이동의 1.5배보다 클 때만** 탭이 넘어가서 세로 스크롤과 섞이지 않습니다. **입력창·선택 상자·글자 수정 영역, 모달·사진 확대, 가로로 넘치는 표**(학생 관리 표·탭 줄) 안에서는 표를 넘기는 동작이 우선이라 탭이 바뀌지 않습니다(두 손가락 확대도 제외). 판정은 `src/lib/adminSwipe.ts` 의 순수 함수, 화면 처리는 `AdminApp` 의 `onTouchStart`/`onTouchEnd`.
 - **랭킹**: 이번 달(기본) / 지난달 / 월 선택 / 전체 누적, 학년 필터, **연속 공부 TOP3**, **공부시간은 `전체 공부시간`(학원+숙제) · `🏫 학원 공부` · `🏠 숙제 공부` 세 가지로 따로** TOP3, **🐉 드래곤볼 TOP3**(기간과 무관한 현재 보유 — **일반용 1마리 = 성구 7개, 무지개용 1마리 = 성구 49개**로 쳐서 정렬하고, 이름 옆에 `🐲 일반용 N마리(M/7색) · 🌈 무지개용 N마리`), **문제도 `문제 풀이`(학원+숙제) · `🏫 학원 문제` · `🏠 숙제 문제` 세 가지로 따로** TOP3. 관리자 랭킹은 `실명 + 학년 + 닉네임(있으면)` 으로 보여 주고, 동점은 같은 순위(제출 일수 많은 학생 먼저), **이미지로 저장**(html2canvas)
 
 ### 홈 화면 설치(PWA) 및 새 질문 알림(웹 푸시)
@@ -284,6 +317,7 @@ sunogong/
 │  ├─ migrate-2026-11-22-color-dragons-tickets.sql  # 일반용 7종·무지개용·교환권·사용 처리
 │  ├─ migrate-2026-11-22-candy-pick-stars.sql       # 사탕교환권 — 쓸 성구 2개를 직접 고르기
 │  ├─ migrate-2026-11-22-secret-black-dragon.sql    # 히든 검은용·시크릿쿠폰
+│  ├─ migrate-2026-11-23-homework-photo-approval.sql  # 숙제 사진 인증·시간/문항수 승인·Storage homework-photos
 │  ├─ verify-2026-11-22-secret-black-dragon.sql     # 검은용 확률·보너스·교환 검증(되돌림)
 │  ├─ verify-2026-11-22-candy-pick-stars.sql        # 사탕교환권 성구 고르기 검증(되돌림)
 │  └─ verify-2026-11-21-kintoun-dragonball.sql   # 근두운·드래곤볼 SQL 검증(되돌림)
@@ -297,6 +331,8 @@ sunogong/
 ├─ tools/make_shenron.py      # 무지개 신룡 → public/dragonballs/shenron.png
 ├─ tools/ssr-smoke.tsx        # 모든 화면 렌더 확인(개발용)
 ├─ tools/check-login-quotes.mjs # 배포된 로그인 화면 360px — 오늘의 한줄 카드 표시·눌러도 그대로·새로 열면 무작위 + 스크린샷(개발용)
+├─ tools/e2e-homework-approval.mjs # 숙제 사진 제출·시간/문항수 승인 실서비스 E2E(검증용 학생은 끝나고 삭제)
+├─ tools/check-homework-ui.mjs  # 배포된 화면 360px — 학생 숙제 제출 창·홈 승인 표시·관리자 숙제관리 상세 + 스크린샷(개발용)
 └─ src/
    ├─ main.tsx, App.tsx, index.css
    ├─ lib/                    # supabase.ts, api.ts, time.ts, session.ts, stats.ts, logEdit.ts(기록 수정 계산), grades.ts, csv.ts, device.ts, types.ts,
@@ -305,13 +341,15 @@ sunogong/
    │                          # kintoun.ts(근두운·드래곤볼·일반용·교환권 DB 함수), kintounBoard.ts(근두운 순수 함수 — 닉네임·순위·구름·성구·일반용·교환권),
    │                          # adminSwipe.ts(관리자 좌우 스와이프 탭 이동 판정 — 거리·기울기·예외 영역),
    │                          # pauseWatch.ts(쉬는 시간 30분·60분 판정과 문제 수 입력 순수 함수), studentAlert.ts(진동·안내음·브라우저 알림),
-   │                          # quotes.ts(학생 코드 입력 화면의 「오늘의 한줄」 124개 · 무작위로 하나 고르는 pickQuote)
-   ├─ components/             # ErrorBoundary, Brand(마스코트·로고·푸터), Keypad, Modal, ImageViewer(사진 확대), InstallBanner, DesktopBlockScreen(PC 안내), KintounCloud(구름·드래곤볼),
+   │                          # quotes.ts(학생 코드 입력 화면의 「오늘의 한줄」 124개 · 무작위로 하나 고르는 pickQuote),
+   │                          # homework.ts(숙제 제출 DB·Storage), homeworkBoard.ts(숙제 제출 순수 함수 — 사진 수·상태·승인 결과·대기 합치기)
+   ├─ components/             # ErrorBoundary, Brand(마스코트·로고·푸터), Keypad, Modal, ImageViewer(사진 확대), PhotoPager(사진 좌우 넘기기), InstallBanner, DesktopBlockScreen(PC 안내), KintounCloud(구름·드래곤볼),
    │                          # QuoteCard(오늘의 한줄 카드 — 화면을 열 때 무작위 한 개, 누를 수 없음)
    ├─ student/                # StudentApp, CodeEntry, ChooseStudent, Home, Timer, Result, useStudyTimer,
    │                          # QuestionBoardScreen(질문 화면), QuestionAskForm(질문 올리기 폼), LiveKintounCard(근두운·내 드래곤볼·일반용·교환권), CandyPickModal(사탕교환권 성구 고르기),
-   │                          # PendingProblemsModal(지난번 푼 문제 수)·usePendingProblems(대기 목록)
-   └─ admin/                  # AdminApp, AdminLogin, Dashboard, StudentsPanel, RankingPanel, QuestionsPanel(질문함), PushNotifyPanel(알림 설정), KintounPanel(실시간 탭·드래곤볼 쏘기), Charts, 모달들
+   │                          # PendingProblemsModal(지난번 푼 문제 수·지난 숙제 제출)·usePendingProblems(대기 목록),
+   │                          # HomeworkPhotoPicker(숙제 사진 고르기·미리 보기)
+   └─ admin/                  # AdminApp, AdminLogin, Dashboard, StudentsPanel, RankingPanel, QuestionsPanel(질문함), PushNotifyPanel(알림 설정), KintounPanel(실시간 탭·드래곤볼 쏘기), HomeworkPanel(숙제관리), Charts, 모달들
 ```
 
 ---
@@ -377,9 +415,17 @@ python3 -c "import pglast; pglast.parse_sql(open('supabase/schema.sql').read())"
 # 5) 쉬는 시간 30분·60분 자동 종료 실서비스 확인 (앱과 같은 anon 키로 실제 Supabase 에 붙음)
 #    시작 → 일시정지 → 61분 전에 멈춘 것으로 옮김 → 자동 종료 → 문제 수 입력 → 되돌리기
 node tools/e2e-pause-autoend.mjs
+
+# 6) 숙제 사진 제출·시간/문항수 분리 승인 실서비스 E2E (검증용 학생은 끝나고 삭제)
+#    제출(사진 필수·5장 제한) → 기록에 바로 안 들어감 → 시간만/문항만/모두 반려 승인 →
+#    기록에 승인분만 반영 → 드래곤볼은 지급하지 않음 → 60분 자동 종료 뒤 문제 수·사진 채우기 → 학원 공부는 그대로
+node tools/e2e-homework-approval.mjs
+
+# 7) 배포된 화면 360px 확인 + 스크린샷 (학생 숙제 제출 창·홈 승인 표시·관리자 숙제관리 상세)
+node tools/check-homework-ui.mjs https://sunogong.vercel.app /workspace/downloads
 ```
 
-결과: 단위 테스트 전부 통과(**402건** — 날짜·집계·학원/숙제 분리 집계·기록 수정 계산·비율·랭킹·타이머(경과·쉬는 시간·자동 종료 단계)·기기 판별·질문(Q&A)·알림(VAPID 키·기기 판별·구독 저장 모양·오류 문구)·근두운(닉네임·시간·구름·실시간 순위·타이머 근두운 줄·드래곤볼) 계산, 랭킹 전체/학원/숙제 분리·드래곤볼 순위·동점 처리, **일반용 7종(색 맵·총 마리·모은 색·도감·뽑기 조건)·무지개용 합성 조건·교환권(사탕·1,000P·10,000P 개수와 문구)·드래곤볼 힘(일반용=성구 7개, 무지개용=성구 49개)**·통계 구분(전체/학원/숙제 — 학생별·하루 기록·미제출 명단), 관리자 좌우 스와이프 42건(60px·1.5배 기준, 첫/끝 탭, 입력창·모달·가로 스크롤 예외, 컨테이너 바깥 무시), 문제 수 대기 목록·지난 공부 표시·자동 종료 안내 문구, **「오늘의 한줄」 124개·모든 명언의 출처·문구 중복 없음·무작위 번호 범위(난수 0·1·범위 밖·NaN)·124개 전부 고를 수 있음·1,001번 범위 확인 15건**), **22개 화면** + 일반용 뽑기·무지개용 합성·사탕교환권·포인트 교환권 버튼, 관리자 교환권 사용 처리 칸·이름 찾기·일반용/무지개용 안내, 통계 구분 필터·실시간 학원/숙제 인원·일시정지 중 타이머·지난번 푼 문제 수 창까지 렌더 성공(스모크 122건 — 코드 입력 화면의 오늘의 한줄 카드 7건 포함)(관리자 알림 카드·근두운 패널·세션 넘긴 근두운 줄 포함), `schema.sql`/`seed.sql`/`migrate-2026-11-21-questions.sql`/`migrate-2026-11-21-push.sql`/`migrate-2026-11-21-kintoun-dragonball.sql`/`migrate-2026-11-21-dragonball-stars.sql`/`migrate-2026-11-21-rainbow-ball.sql`/`migrate-2026-11-22-pause-autoend.sql`/`migrate-2026-11-22-color-dragons-tickets.sql`/`migrate-2026-11-22-secret-black-dragon.sql` 문법 오류 없음, 근두운 SQL 검증 7건 통과, **검은용 SQL 검증 통과**(40만 번 표본 확률·강제 보너스·원래 용 유지·시크릿쿠폰 교환·사용), **쉬는 시간 자동 종료 실서비스 E2E 23건 통과**, **일반용·무지개용·교환권·검은용 실서비스 E2E 49건 통과**(21개 지급 → 성구 2개 → 사탕교환권 → 1~7성구 → 일반용 랜덤 → 7종 → 무지개용 → 1,000P·10,000P 교환권 → 관리자 사용 처리·두 번 사용 거절·사용 기록·검은용→시크릿쿠폰·시크릿쿠폰 사용 처리·앱에서 확률 함수를 부를 수 없음·예전 함수 이름 호환까지). 검증 데이터는 되돌려 남은 검증용 학생·세션·기록 0건입니다.
+결과: 단위 테스트 전부 통과(**445건** — 날짜·집계·학원/숙제 분리 집계·기록 수정 계산·비율·랭킹·타이머(경과·쉬는 시간·자동 종료 단계)·기기 판별·질문(Q&A)·알림(VAPID 키·기기 판별·구독 저장 모양·오류 문구)·근두운(닉네임·시간·구름·실시간 순위·타이머 근두운 줄·드래곤볼) 계산, 랭킹 전체/학원/숙제 분리·드래곤볼 순위·동점 처리, **일반용 7종(색 맵·총 마리·모은 색·도감·뽑기 조건)·무지개용 합성 조건·교환권(사탕·1,000P·10,000P 개수와 문구)·드래곤볼 힘(일반용=성구 7개, 무지개용=성구 49개)**·통계 구분(전체/학원/숙제 — 학생별·하루 기록·미제출 명단), 관리자 좌우 스와이프 42건(60px·1.5배 기준, 첫/끝 탭, 입력창·모달·가로 스크롤 예외, 컨테이너 바깥 무시), 문제 수 대기 목록·지난 공부 표시·자동 종료 안내 문구, **「오늘의 한줄」 124개·모든 명언의 출처·문구 중복 없음·무작위 번호 범위(난수 0·1·범위 밖·NaN)·124개 전부 고를 수 있음·1,001번 범위 확인 15건**), **22개 화면** + 일반용 뽑기·무지개용 합성·사탕교환권·포인트 교환권 버튼, 관리자 교환권 사용 처리 칸·이름 찾기·일반용/무지개용 안내, 통계 구분 필터·실시간 학원/숙제 인원·일시정지 중 타이머·지난번 푼 문제 수 창까지 렌더 성공(스모크 140건 — 코드 입력 화면의 오늘의 한줄 카드 7건 포함)(관리자 알림 카드·근두운 패널·세션 넘긴 근두운 줄 포함), `schema.sql`/`seed.sql`/`migrate-2026-11-21-questions.sql`/`migrate-2026-11-21-push.sql`/`migrate-2026-11-21-kintoun-dragonball.sql`/`migrate-2026-11-21-dragonball-stars.sql`/`migrate-2026-11-21-rainbow-ball.sql`/`migrate-2026-11-22-pause-autoend.sql`/`migrate-2026-11-22-color-dragons-tickets.sql`/`migrate-2026-11-22-secret-black-dragon.sql` 문법 오류 없음, 근두운 SQL 검증 7건 통과, **검은용 SQL 검증 통과**(40만 번 표본 확률·강제 보너스·원래 용 유지·시크릿쿠폰 교환·사용), **쉬는 시간 자동 종료 실서비스 E2E 23건 통과**, **일반용·무지개용·교환권·검은용 실서비스 E2E 49건 통과**(21개 지급 → 성구 2개 → 사탕교환권 → 1~7성구 → 일반용 랜덤 → 7종 → 무지개용 → 1,000P·10,000P 교환권 → 관리자 사용 처리·두 번 사용 거절·사용 기록·검은용→시크릿쿠폰·시크릿쿠폰 사용 처리·앱에서 확률 함수를 부를 수 없음·예전 함수 이름 호환까지). 검증 데이터는 되돌려 남은 검증용 학생·세션·기록 0건입니다.
 배포 뒤 실제 화면에서도 확인했습니다 — **관리자 360px·390px**: `김민수 열공몬 / 공부 중 · 53:21 / 5개 4/7종 · 2마리 2/7색` 처럼 세 줄이 잘리지 않고 나오고 오른쪽 끝에 드래곤볼 아이콘만 있는 쏘기 버튼이 있습니다(스크린샷 `browser/sunogong-admin-live-list-360-*.png`, `...-390-*.png`). **교환권 사용 처리**: 시크릿쿠폰 1장을 눌러 확인 창 → `사용 처리` 로 0장이 되고 `ticket_uses` 에 `secret` 1줄이 남으며 칩이 사라지는 것까지 확인했습니다(9건, `browser/sunogong-admin-ticket-used-390-*.png`). **학생 홈 360·390px**: 교환권·성구 도감·일반용 7종·무지개용·검은용(가진 학생만)이 한 화면 폭에서 읽히고(`browser/sunogong-student-dragons-360-*.png` 등), 검은용이 없는 학생 화면에는 `검은용`·`시크릿쿠폰`·확률 문구가 하나도 없습니다(5건, `browser/sunogong-student-dragons-noblack-390-*.png`). 검증용 학생·세션·기록은 모두 지워 남은 검증 데이터 0건입니다.
 화면 점검에는 `선오공에게 질문하기` 홈·타이머 버튼, 학생 질문 화면, 질문 올리기 폼, 관리자 질문함(자동 정리 안내 포함), 관리자 상단 탭 이름(`실시간`), 숙제 타이머의 근두운 줄(학원 타이머에는 없음), 학생 관리의 닉네임 열·`바꾸기` 버튼, 학생 홈의 `7색 드래곤` 대신 **`일반용`·`무지개용`·교환권** 표기가 모두 들어 있습니다. `'무지개 볼'` 표현은 홈·관리자 화면에서 모두 사라졌는지도 테스트로 확인합니다.
 
@@ -387,10 +433,14 @@ node tools/e2e-pause-autoend.mjs
 
 ---
 
-## 10. 저장 용량 관리 (질문 사진·영상)
+## 10. 저장 용량 관리 (질문 사진·영상 · 숙제 사진)
 
 Supabase 무료 플랜은 Storage **1GB** 까지 씁니다. 질문 사진은 올리기 전에 줄여서(장당 100~400KB) 올리고,
 답변 영상은 1개 **50MB** 까지로 제한합니다(앱에서 미리 검사해 안내).
+
+**숙제 사진(2026-11-23)** — 숙제 공부 사진은 **긴 변 1200px · JPEG 품질 0.72** 로 줄여 올려 장당 **100~150KB**, 한 번에 **최대 5장**입니다.
+버킷(`homework-photos`)도 1개 **5MB**·사진 형식만 받습니다. 숙제 사진은 확인(승인) 근거라 **자동으로 지우지 않고** 남겨 둡니다 —
+용량이 차면 오래된 승인 건의 사진만 지우는 정리 기능을 이어서 붙일 수 있습니다(DB 줄은 그대로 두고 파일만 지운다).
 
 질문함을 열 때 **답변 완료 후 7일이 지난 질문과 사진·영상 파일을 자동으로 지운다** (`QuestionsPanel`, 기본 켜짐 · 끄기 스위치 있음).
 - DB 줄(`study_questions`)을 지우는 것과 함께 **Storage 파일도 직접 지워서** 용량이 실제로 비워진다.
