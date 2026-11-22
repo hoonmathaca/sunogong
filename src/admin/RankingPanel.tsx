@@ -23,10 +23,11 @@ import {
 } from '../lib/stats'
 import {
   displayNickname,
-  dragonballKinds,
+  dragonColorKinds,
   dragonballTotal,
+  dragonTotal,
   normalizeNickname,
-  normalizeRainbowCount,
+  normalizeTicketCount,
 } from '../lib/kintounBoard'
 import type { Student, StudyLog } from '../lib/types'
 import { AdminSection, EmptyBlock, ErrorBlock, GradeFilterSelect, LoadingBlock } from './ui'
@@ -283,12 +284,12 @@ export function RankingPanel({ students, studentsLoading, studentsError, reloadS
           {renderRanking('🏠 숙제 공부 TOP3', '기간 합계', homeworkMinuteRanking, (value) => formatMinutes(value))}
           {renderRanking(
             '🐉 드래곤볼 TOP3',
-            '지금 보유 · 무지개 볼 1개 = 성구 7개',
+            '지금 보유 · 일반용 1마리 = 성구 7개',
             dragonballRanking,
             (_value, entry) => `${dragonballTotal(entry.student.dragonballs)}개`,
             '아직 드래곤볼을 받은 학생이 없어요',
             (entry) =>
-              `🌈 ${normalizeRainbowCount(entry.student.rainbow_ball_count)} · ${dragonballKinds(entry.student.dragonballs)}/7종`,
+              `🐲 일반용 ${dragonTotal(entry.student.dragons)}마리(${dragonColorKinds(entry.student.dragons)}/7색) · 🌈 무지개용 ${normalizeTicketCount(entry.student.rainbow_dragon_count)}마리`,
           )}
           {renderRanking('문제 풀이 TOP3', '학원+숙제 합계', problemRankings.all, (value) => `${value}개`)}
           {renderRanking('🏫 학원 문제 TOP3', '학원 공부에서 푼 문제', problemRankings.academy, (value) => `${value}개`)}

@@ -12,8 +12,18 @@ export interface Student {
   dragonball_count?: number
   /** 성구별 보유 개수 맵 — {"1":0,...,"7":0} (2026-11-21 추가) */
   dragonballs?: Record<string, number> | null
-  /** 칠성구를 합쳐 만든 무지개 볼 개수 (2026-11-21 추가) */
+  /** 칠성구를 합쳐 만든 무지개 볼 개수 (2026-11-21 추가 · 2026-11-22 부터 쓰지 않음) */
   rainbow_ball_count?: number
+  /** 일반용 보유 맵 — {"red":0,...} (2026-11-22 추가) */
+  dragons?: Record<string, number> | null
+  /** 7색을 모두 모아 만든 무지개용 마리 수 (2026-11-22 추가) */
+  rainbow_dragon_count?: number
+  /** 사탕교환권 장 수 (2026-11-22 추가) */
+  candy_tickets?: number
+  /** 1,000포인트 교환권 장 수 (2026-11-22 추가) */
+  point_1000_tickets?: number
+  /** 10,000포인트 교환권 장 수 (2026-11-22 추가) */
+  point_10000_tickets?: number
 }
 
 export type SessionStatus = 'running' | 'paused' | 'finished'

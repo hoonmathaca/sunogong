@@ -47,6 +47,13 @@ import {
   cloudMotion,
   DEFAULT_NICKNAME,
   displayNickname,
+  CANDY_TICKET_COST,
+  canCraftColorDragon,
+  canCraftRainbowDragon,
+  canExchangeCandy,
+  candyExchangeText,
+  COLOR_DRAGON_COST,
+  DRAGONS,
   dragonballCountText,
   dragonballDex,
   dragonballIcon,
@@ -56,8 +63,19 @@ import {
   dragonballSets,
   dragonballSummaryText,
   dragonballTotal,
+  dragonColorKinds,
+  dragonCraftText,
+  dragonDex,
+  dragonIcon,
+  dragonName,
+  dragonSummaryText,
+  dragonTotal,
   EMPTY_DRAGONBALLS,
+  EMPTY_DRAGONS,
   normalizeDragonballMap,
+  normalizeDragonMap,
+  RAINBOW_DRAGON,
+  RAINBOW_DRAGON_COST,
   starListText,
   formatLiveClock,
   grantResultText,
@@ -69,14 +87,15 @@ import {
   myLivePosition,
   normalizeGrantAmount,
   normalizeNickname,
-  normalizeRainbowCount,
-  RAINBOW_BALL_ICON,
-  RAINBOW_CRAFT_COST,
+  normalizeTicketCount,
   SHENRON_ICON,
   SHENRON_SUMMON_TITLE,
   summonMessage,
-  canCraftRainbowBall,
-  rainbowBallText,
+  TICKET_BY_KEY,
+  TICKETS,
+  ticketCounts,
+  ticketSummaryText,
+  ticketTotal,
   NICKNAME_MAX,
   pausedLabels,
   tickSeconds,
@@ -593,25 +612,106 @@ eq('성구: 목록 글(없음)', starListText([]), '')
 eq('성구: 목록 글은 네 종까지', starListText([1, 2, 3, 4, 5]), '1성구 · 2성구 · 3성구 · 4성구 외 1종')
 eq('드래곤볼: 이력 표시', [GRANT_MODE_LABEL.all, GRANT_MODE_LABEL.single], ['전체 일괄', '개별'])
 
-/* 무지개 볼 — 칠성구를 합친다 */
+/* 일반용 7종 — 1~7성구를 하나씩 합쳐서 뽑는다 */
 const fullSet = { '1': 1, '2': 2, '3': 1, '4': 1, '5': 1, '6': 1, '7': 1 }
-eq('무지개: 1~7성구를 다 모으면 합칠 수 있다', canCraftRainbowBall(fullSet), true)
-eq('무지개: 한 종류라도 없으면 못 합친다', canCraftRainbowBall({ ...fullSet, '3': 0 }), false)
-eq('무지개: 빈 도감은 못 합친다', canCraftRainbowBall(EMPTY_DRAGONBALLS), false)
-eq('무지개: 이상한 값은 못 합친다', canCraftRainbowBall(null), false)
-eq('무지개: 합치는 값은 성구 7개', RAINBOW_CRAFT_COST, 7)
-eq('무지개: 개수 정리', [normalizeRainbowCount(2), normalizeRainbowCount(-1), normalizeRainbowCount('3'), normalizeRainbowCount(null)], [2, 0, 3, 0])
-eq('무지개: 개수 표시', rainbowBallText(2), '무지개 볼 2개')
-eq('무지개: 합친 뒤 안내', summonMessage(2, 5), '칠성구를 합쳐 무지개 볼 2개째를 만들었어요. 남은 성구는 5개!')
-eq('무지개: 소환 제목', SHENRON_SUMMON_TITLE, '짜잔! 무지개 신룡 소환!')
-eq('무지개: 아이콘 주소', [RAINBOW_BALL_ICON, SHENRON_ICON], ['/dragonballs/rainbow.png', '/dragonballs/shenron.png'])
-eq('무지개: 힘(무지개 1 + 남은 3 = 10)', dragonballPower({ dragonballs: { '1': 1, '2': 2 }, rainbow_ball_count: 1 }), 10)
-eq('무지개: 힘(무지개 없으면 남은 성구)', dragonballPower({ dragonballs: { '1': 1, '2': 2 } }), 3)
-eq('무지개: 힘(성구 맵이 없으면 개수로)', dragonballPower({ dragonball_count: 4, rainbow_ball_count: 1 }), 11)
-eq('무지개: 랭킹은 무지개 볼을 성구 7개로 센다', rankByKind([
-  { ...rankStats[0], student: { ...rankStats[0].student, dragonball_count: 4, dragonballs: { '1': 4 } } },
-  { ...rankStats[1], student: { ...rankStats[1].student, dragonball_count: 0, dragonballs: EMPTY_DRAGONBALLS, rainbow_ball_count: 1 } },
-], 'dragonball').map((row) => row.student.name), ['나학생', '가학생'])
+eq('일반용: 1~7성구를 다 모으면 뽑을 수 있다', canCraftColorDragon(fullSet), true)
+eq('일반용: 한 종류라도 없으면 못 뽑는다', canCraftColorDragon({ ...fullSet, '3': 0 }), false)
+eq('일반용: 빈 도감은 못 뽑는다', canCraftColorDragon(EMPTY_DRAGONBALLS), false)
+eq('일반용: 이상한 값은 못 뽑는다', canCraftColorDragon(null), false)
+eq('일반용: 뽑는 값은 성구 7개', COLOR_DRAGON_COST, 7)
+eq('일반용: 일곱 색', DRAGONS.map((dragon) => dragon.key), ['red', 'orange', 'yellow', 'green', 'blue', 'navy', 'purple'])
+eq('일반용: 이름', DRAGONS.map((dragon) => dragon.name), ['빨간용', '주황용', '노란용', '초록용', '파란용', '남용', '보라용'])
+
+const dragonsSample = { red: 2, orange: 0, yellow: 1, green: 0, blue: 0, navy: 0, purple: 3 }
+eq('일반용: 맵 정리(없는 값 0, 소수 버림)', normalizeDragonMap({ red: '2', blue: -1, green: 1.9 }), {
+  red: 2,
+  orange: 0,
+  yellow: 0,
+  green: 1,
+  blue: 0,
+  navy: 0,
+  purple: 0,
+})
+eq('일반용: 빈 맵', normalizeDragonMap(null), EMPTY_DRAGONS)
+eq('일반용: 총 마리 수', dragonTotal(dragonsSample), 6)
+eq('일반용: 모은 색 수', dragonColorKinds(dragonsSample), 3)
+eq('일반용: 요약 문구', dragonSummaryText(dragonsSample), '6마리 · 3/7색')
+eq(
+  '일반용: 도감 일곱 칸',
+  dragonDex(dragonsSample).map((slot) => [slot.key, slot.count, slot.owned]),
+  [
+    ['red', 2, true],
+    ['orange', 0, false],
+    ['yellow', 1, true],
+    ['green', 0, false],
+    ['blue', 0, false],
+    ['navy', 0, false],
+    ['purple', 3, true],
+  ],
+)
+eq('일반용: 이름 찾기', [dragonName('navy'), dragonName('x')], ['남용', '드래곤'])
+eq('일반용: 아이콘 주소', dragonIcon('purple'), '/dragonballs/dragon-purple.png')
+eq('일반용: 태어난 안내', dragonCraftText('red'), '빨간용이 태어났어요!')
+
+/* 무지개용 — 일반용 7종을 하나씩 합친다 */
+const oneEach = { red: 1, orange: 1, yellow: 1, green: 1, blue: 1, navy: 1, purple: 1 }
+eq('무지개용: 7종을 다 모으면 만들 수 있다', canCraftRainbowDragon(oneEach), true)
+eq('무지개용: 한 색이 없으면 못 만든다', canCraftRainbowDragon({ ...oneEach, purple: 0 }), false)
+eq('무지개용: 빈 맵은 못 만든다', canCraftRainbowDragon(EMPTY_DRAGONS), false)
+eq('무지개용: 합성 값은 7마리', RAINBOW_DRAGON_COST, 7)
+eq('무지개용: 이름', RAINBOW_DRAGON.name, '무지개용')
+eq('무지개용: 아이콘은 신룡', [RAINBOW_DRAGON.icon, SHENRON_ICON], ['/dragonballs/shenron.png', '/dragonballs/shenron.png'])
+eq('무지개용: 합친 뒤 안내', summonMessage(2, 5), '일반용 7종을 합쳐 무지개용 2마리째를 만들었어요. 남은 일반용은 5마리!')
+eq('무지개용: 등장 제목', SHENRON_SUMMON_TITLE, '짜잔! 무지개용 등장!')
+
+/* 교환권 — 사탕 · 1,000P · 10,000P */
+eq('사탕: 성구 2개면 바꿀 수 있다', [canExchangeCandy({ '1': 2 }), canExchangeCandy({ '1': 1 }), canExchangeCandy(EMPTY_DRAGONBALLS)], [true, false, false])
+eq('사탕: 1장에 성구 2개', CANDY_TICKET_COST, 2)
+eq(
+  '교환권: 개수 정리',
+  [normalizeTicketCount(2), normalizeTicketCount(-1), normalizeTicketCount('3'), normalizeTicketCount(null)],
+  [2, 0, 3, 0],
+)
+eq(
+  '교환권: 세 종류 읽기',
+  ticketCounts({ candy_tickets: 1, point_1000_tickets: 2, point_10000_tickets: 0 }),
+  { candy: 1, point1000: 2, point10000: 0 },
+)
+eq('교환권: 합계', ticketTotal({ candy: 1, point1000: 2, point10000: 3 }), 6)
+eq(
+  '교환권: 요약(0장은 뺀다)',
+  ticketSummaryText({ candy: 1, point1000: 0, point10000: 2 }),
+  '사탕교환권 1장 · 10,000포인트 교환권 2장',
+)
+eq('교환권: 아무것도 없음', ticketSummaryText({ candy: 0, point1000: 0, point10000: 0 }), '아직 교환권이 없어요')
+eq(
+  '교환권: 이름',
+  [TICKET_BY_KEY.candy.name, TICKET_BY_KEY.point1000.name, TICKET_BY_KEY.point10000.name],
+  ['사탕교환권', '1,000포인트 교환권', '10,000포인트 교환권'],
+)
+eq('교환권: 세 종류 순서', TICKETS.map((ticket) => ticket.key), ['candy', 'point1000', 'point10000'])
+eq('사탕: 바꾼 성구 안내', candyExchangeText([5, 5]), '5성구 · 5성구 → 사탕교환권 1장으로 바꿨어요!')
+eq('사탕: 성구가 안 오면 짧게', candyExchangeText(null), '사탕교환권 1장으로 바꿨어요!')
+
+/* 드래곤볼 힘 — 바꿔도 랭킹이 급격히 떨어지지 않게 쓴 만큼 센다 */
+eq('드래곤볼 힘: 일반용 1마리 = 성구 7개', dragonballPower({ dragonballs: { '1': 1, '2': 2 }, dragons: { red: 1 } }), 10)
+eq('드래곤볼 힘: 무지개용 1마리 = 성구 49개', dragonballPower({ dragons: { red: 1 }, rainbow_dragon_count: 1 }), 56)
+eq('드래곤볼 힘: 남은 성구만', dragonballPower({ dragonballs: { '1': 1, '2': 2 } }), 3)
+eq('드래곤볼 힘: 성구 맵이 없으면 개수로', dragonballPower({ dragonball_count: 4, dragons: { blue: 1 } }), 11)
+eq(
+  '랭킹: 일반용으로 바꾼 학생이 앞선다',
+  rankByKind(
+    [
+      { ...rankStats[0], student: { ...rankStats[0].student, dragonball_count: 4, dragonballs: { '1': 4 } } },
+      {
+        ...rankStats[1],
+        student: { ...rankStats[1].student, dragonball_count: 0, dragonballs: EMPTY_DRAGONBALLS, dragons: { red: 1 } },
+      },
+    ],
+    'dragonball',
+  ).map((row) => row.student.name),
+  ['나학생', '가학생'],
+)
 
 eq('관리자: 학원 공부는 그대로 공부 중', adminSessionState({ ...baseSession, kind: 'academy' }, at('2026-11-19T01:10:00Z')).status, 'running')
 eq(

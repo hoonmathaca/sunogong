@@ -21,8 +21,6 @@ export const DEFAULT_NICKNAME = '수련생'
 export const DRAGONBALL_MAX_AMOUNT = 99
 /** 드래곤볼 한 세트 (1~7성구 하나씩) */
 export const DRAGONBALL_SET_SIZE = 7
-/** 무지개 볼 아이콘 — 칠성구를 합쳐서 만든다 */
-export const RAINBOW_BALL_ICON = '/dragonballs/rainbow.png'
 /** 무지개 신룡 아이콘 — 칠성구를 합칠 때 '짜잔!' 하고 소환된다 */
 export const SHENRON_ICON = '/dragonballs/shenron.png'
 
@@ -59,7 +57,7 @@ export interface LiveRow {
   is_me?: boolean
   /** 그 학생의 성구별 보유 개수 맵 (1~7성구) */
   dragonballs?: DragonballMap | null
-  /** 만든 무지개 볼 개수 */
+  /** 예전 무지개 볼 개수 (2026-11-22 이후 쓰지 않음 · 화면 호환용) */
   rainbow_ball_count?: number | null
 }
 
@@ -366,52 +364,271 @@ export function dragonballIcon(stars: number): string {
 }
 
 /* ------------------------------------------------------------------ */
-/* 무지개 볼 — 칠성구를 합쳐서 만든다                                    */
+/* 일반용 7종 · 무지개용                                                 */
 /* ------------------------------------------------------------------ */
 
-/** 무지개 볼 개수 (0 이상 정수) */
-export function normalizeRainbowCount(raw: unknown): number {
+/** 드래곤 색 — 빨강·주황·노랑·초록·파랑·남색·보라 (DB students.dragons 키와 같다) */
+export const DRAGON_COLORS = ['red', 'orange', 'yellow', 'green', 'blue', 'navy', 'purple'] as const
+export type DragonColor = (typeof DRAGON_COLORS)[number]
+export type DragonMap = Record<DragonColor, number>
+
+/** 일반용 하나하나의 이름·아이콘·색 */
+export interface DragonMeta {
+  key: DragonColor
+  name: string
+  icon: string
+  hex: string
+  soft: string
+}
+
+export const DRAGONS: DragonMeta[] = [
+  { key: 'red', name: '빨간용', icon: '/dragonballs/dragon-red.png', hex: '#E23B3B', soft: '#FFECEC' },
+  { key: 'orange', name: '주황용', icon: '/dragonballs/dragon-orange.png', hex: '#EF8A1C', soft: '#FFF1E0' },
+  { key: 'yellow', name: '노란용', icon: '/dragonballs/dragon-yellow.png', hex: '#D9A400', soft: '#FFF7DC' },
+  { key: 'green', name: '초록용', icon: '/dragonballs/dragon-green.png', hex: '#31A24C', soft: '#E8F8EC' },
+  { key: 'blue', name: '파란용', icon: '/dragonballs/dragon-blue.png', hex: '#2E86DE', soft: '#E8F2FE' },
+  { key: 'navy', name: '남용', icon: '/dragonballs/dragon-navy.png', hex: '#3B4CB8', soft: '#EBEDFB' },
+  { key: 'purple', name: '보라용', icon: '/dragonballs/dragon-purple.png', hex: '#7B4BD6', soft: '#F3EDFF' },
+]
+
+export const DRAGON_BY_KEY: Record<DragonColor, DragonMeta> = DRAGONS.reduce(
+  (acc, dragon) => ({ ...acc, [dragon.key]: dragon }),
+  {} as Record<DragonColor, DragonMeta>,
+)
+
+/** 무지개용 — 일반용 7종을 모두 모아 만든다 (아이콘은 무지개 신룡 그대로) */
+export const RAINBOW_DRAGON = {
+  name: '무지개용',
+  icon: SHENRON_ICON,
+  hex: '#7B4BD6',
+  soft: '#F7F3FF',
+}
+
+/** 아직 한 마리도 없는 드래곤 맵 */
+export const EMPTY_DRAGONS: DragonMap = {
+  red: 0,
+  orange: 0,
+  yellow: 0,
+  green: 0,
+  blue: 0,
+  navy: 0,
+  purple: 0,
+}
+
+/** 서버에서 온 드래곤 맵을 7색 숫자 맵으로 정리한다 */
+export function normalizeDragonMap(raw: unknown): DragonMap {
+  const out: DragonMap = { ...EMPTY_DRAGONS }
+  if (!raw || typeof raw !== 'object') return out
+  const source = raw as Record<string, unknown>
+  for (const color of DRAGON_COLORS) {
+    const value = Math.floor(Number(source[color] ?? 0))
+    out[color] = Number.isFinite(value) && value > 0 ? value : 0
+  }
+  return out
+}
+
+/** 보유한 일반용 수 */
+export function dragonTotal(raw: unknown): number {
+  const map = normalizeDragonMap(raw)
+  return DRAGON_COLORS.reduce((sum, color) => sum + map[color], 0)
+}
+
+/** 모은 드래곤 색 수 (0~7) */
+export function dragonColorKinds(raw: unknown): number {
+  const map = normalizeDragonMap(raw)
+  return DRAGON_COLORS.filter((color) => map[color] > 0).length
+}
+
+/** '3마리 · 4/7색' */
+export function dragonSummaryText(raw: unknown): string {
+  return `${dragonTotal(raw)}마리 · ${dragonColorKinds(raw)}/7색`
+}
+
+/** 도감 한 칸 — 색, 보유 수, 아이콘 */
+export interface DragonSlot extends DragonMeta {
+  count: number
+  owned: boolean
+}
+
+/** 일반용 도감 일곱 칸 */
+export function dragonDex(raw: unknown): DragonSlot[] {
+  const map = normalizeDragonMap(raw)
+  return DRAGONS.map((dragon) => ({ ...dragon, count: map[dragon.key], owned: map[dragon.key] > 0 }))
+}
+
+/** 1~7성구를 하나씩 다 모았는지 — 일반용 뽑기 조건 */
+export function canCraftColorDragon(rawStars: unknown): boolean {
+  const map = normalizeDragonballMap(rawStars)
+  return DRAGONBALL_STARS.every((star) => map[star] >= 1)
+}
+
+/** 일반용을 하나씩 다 모았는지 — 무지개용 합성 조건 */
+export function canCraftRainbowDragon(rawDragons: unknown): boolean {
+  const map = normalizeDragonMap(rawDragons)
+  return DRAGON_COLORS.every((color) => map[color] >= 1)
+}
+
+/** 일반용 뽑기·레인보우 합성에 드는 성구·드래곤 수 (각 색 하나씩 = 7) */
+export const COLOR_DRAGON_COST = DRAGONBALL_SET_SIZE
+export const RAINBOW_DRAGON_COST = DRAGON_COLORS.length
+
+/** 빨강 드래곤 이름 (모르는 색이면 '드래곤') */
+export function dragonName(raw: unknown): string {
+  const key = String(raw ?? '') as DragonColor
+  return DRAGON_BY_KEY[key]?.name ?? '드래곤'
+}
+
+/** 빨강 드래곤 아이콘 (모르는 색이면 레인보우) */
+export function dragonIcon(raw: unknown): string {
+  const key = String(raw ?? '') as DragonColor
+  return DRAGON_BY_KEY[key]?.icon ?? RAINBOW_DRAGON.icon
+}
+
+/* ------------------------------------------------------------------ */
+/* 교환권 — 사탕 · 1,000포인트 · 10,000포인트                          */
+/* ------------------------------------------------------------------ */
+
+export type TicketKey = 'candy' | 'point1000' | 'point10000'
+
+/** 교환권 세 가지의 이름·아이콘·색 */
+export interface TicketMeta {
+  key: TicketKey
+  name: string
+  short: string
+  icon: string
+  hex: string
+  soft: string
+  /** 어떤 드래곤·성구로 바꾸는지 (관리자 화면 설명) */
+  how: string
+}
+
+export const TICKETS: TicketMeta[] = [
+  {
+    key: 'candy',
+    name: '사탕교환권',
+    short: '사탕',
+    icon: '/dragonballs/ticket-candy.png',
+    hex: '#E9578A',
+    soft: '#FFEFF4',
+    how: '성구 2개',
+  },
+  {
+    key: 'point1000',
+    name: '1,000포인트 교환권',
+    short: '1,000P',
+    icon: '/dragonballs/ticket-1000.png',
+    hex: '#D98A00',
+    soft: '#FFF6E3',
+    how: '드래곤 1마리',
+  },
+  {
+    key: 'point10000',
+    name: '10,000포인트 교환권',
+    short: '10,000P',
+    icon: '/dragonballs/ticket-10000.png',
+    hex: '#6D3BD6',
+    soft: '#F3EDFF',
+    how: '무지개용 1마리',
+  },
+]
+
+export const TICKET_BY_KEY: Record<TicketKey, TicketMeta> = TICKETS.reduce(
+  (acc, ticket) => ({ ...acc, [ticket.key]: ticket }),
+  {} as Record<TicketKey, TicketMeta>,
+)
+
+/** 사탕교환권 1장에 드는 성구 수 */
+export const CANDY_TICKET_COST = 2
+
+/** 0 이상 정수로 정리 */
+export function normalizeTicketCount(raw: unknown): number {
   const value = Math.floor(Number(raw ?? 0))
   return Number.isFinite(value) && value > 0 ? value : 0
 }
 
-/** 1~7성구를 모두 하나씩 갖고 있는지 — 합치기 버튼이 열리는 조건 */
-export function canCraftRainbowBall(raw: unknown): boolean {
-  const map = normalizeDragonballMap(raw)
-  return DRAGONBALL_STARS.every((star) => map[star] >= 1)
+/** 1~7성구 2개를 사탕교환권으로 바꿀 수 있는지 */
+export function canExchangeCandy(rawStars: unknown): boolean {
+  return dragonballTotal(rawStars) >= CANDY_TICKET_COST
 }
 
-/** 합칠 때 사라지는 성구 수 (칠성구 하나씩 = 7개) */
-export const RAINBOW_CRAFT_COST = DRAGONBALL_SET_SIZE
+/** 학생이 가진 교환권 세 가지 */
+export interface TicketCounts {
+  candy: number
+  point1000: number
+  point10000: number
+}
+
+export function ticketCounts(profile: {
+  candy_tickets?: unknown
+  point_1000_tickets?: unknown
+  point_10000_tickets?: unknown
+}): TicketCounts {
+  return {
+    candy: normalizeTicketCount(profile.candy_tickets),
+    point1000: normalizeTicketCount(profile.point_1000_tickets),
+    point10000: normalizeTicketCount(profile.point_10000_tickets),
+  }
+}
+
+/** 세 교환권을 합한 장 수 (관리자 목록 정렬) */
+export function ticketTotal(counts: TicketCounts): number {
+  return counts.candy + counts.point1000 + counts.point10000
+}
+
+/** '사탕교환권 2장 · 1,000P 1장' — 0장은 뺀다 */
+export function ticketSummaryText(counts: TicketCounts): string {
+  const parts: string[] = []
+  if (counts.candy > 0) parts.push(`${TICKET_BY_KEY.candy.name} ${counts.candy}장`)
+  if (counts.point1000 > 0) parts.push(`${TICKET_BY_KEY.point1000.name} ${counts.point1000}장`)
+  if (counts.point10000 > 0) parts.push(`${TICKET_BY_KEY.point10000.name} ${counts.point10000}장`)
+  return parts.length > 0 ? parts.join(' · ') : '아직 교환권이 없어요'
+}
+
+/** '5성구 2개 → 사탕교환권 1장' */
+export function candyExchangeText(stars: readonly number[] | null | undefined): string {
+  const list = (stars ?? []).map((star) => starName(star))
+  return list.length > 0
+    ? `${list.join(' · ')} → 사탕교환권 1장으로 바꿨어요!`
+    : '사탕교환권 1장으로 바꿨어요!'
+}
+
+/** 드래곤이 태어났을 때 안내 — '빨강 드래곤이 태어났어요!' */
+export function dragonCraftText(color: unknown): string {
+  return `${dragonName(color)}이 태어났어요!`
+}
 
 /**
- * 드래곤볼 힘 — 무지개 볼 1개를 성구 7개로 쳐서 남은 성구와 더한다.
- * (관리자 랭킹 정렬에 쓴다: 무지개 볼이 있으면 그만큼 앞선다)
+ * 드래곤볼 힘 — 성구 1개 = 1, 일반용 1마리 = 성구 7개, 무지개용 1마리 = 성구 49개.
+ * (교환해도 랭킹이 급격히 떨어지지 않게, 쓴 만큼 그대로 세어 준다)
  */
 export function dragonballPower(profile: {
   dragonballs?: unknown
-  rainbow_ball_count?: unknown
+  dragons?: unknown
+  rainbow_dragon_count?: unknown
   dragonball_count?: unknown
+  /** 예전 화면 호환 — 쓰지 않는다 */
+  rainbow_ball_count?: unknown
 }): number {
-  const rainbow = normalizeRainbowCount(profile.rainbow_ball_count)
   const map = normalizeDragonballMap(profile.dragonballs)
   const mapTotal = DRAGONBALL_STARS.reduce((sum, star) => sum + map[star], 0)
   const total = Math.max(mapTotal, Math.floor(Number(profile.dragonball_count ?? 0)) || 0)
-  return rainbow * DRAGONBALL_SET_SIZE + total
+  const dragons = dragonTotal(profile.dragons) * COLOR_DRAGON_COST
+  const rainbow = normalizeTicketCount(profile.rainbow_dragon_count) * COLOR_DRAGON_COST * COLOR_DRAGON_COST
+  return total + dragons + rainbow
 }
 
-/** '무지개 볼 2개' */
-export function rainbowBallText(raw: unknown): string {
-  return `무지개 볼 ${normalizeRainbowCount(raw)}개`
+/** 예전 무지개 볼 개수 — 남은 기록 호환용 (화면에는 쓰지 않는다) */
+export function normalizeRainbowCount(raw: unknown): number {
+  return normalizeTicketCount(raw)
 }
 
-/** 합치기 결과 안내 — '짜잔! 무지개 신룡이 나타났어요!' */
-export const SHENRON_SUMMON_TITLE = '짜잔! 무지개 신룡 소환!'
+/** 합성 결과 안내 — '짜잔! 무지개용 등장!' */
+export const SHENRON_SUMMON_TITLE = '짜잔! 무지개용 등장!'
 
 export function summonMessage(rainbowCount: number, total: number): string {
-  const rainbow = normalizeRainbowCount(rainbowCount)
+  const rainbow = normalizeTicketCount(rainbowCount)
   const rest = Math.max(0, Math.floor(Number(total) || 0))
-  return `칠성구를 합쳐 무지개 볼 ${rainbow}개째를 만들었어요. 남은 성구는 ${rest}개!`
+  return `일반용 7종을 합쳐 무지개용 ${rainbow}마리째를 만들었어요. 남은 일반용은 ${rest}마리!`
 }
 
 /** '4성구' */
