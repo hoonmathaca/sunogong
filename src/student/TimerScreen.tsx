@@ -16,7 +16,7 @@ import {
 } from '../lib/fullscreen'
 import { KIND_EMOJI, KIND_LABEL } from '../lib/kinds'
 import { PAUSE_CHECK_SECONDS, pauseStage, secondsUntilAutoEnd } from '../lib/pauseWatch'
-import { alertPauseCheck } from '../lib/studentAlert'
+import { alertPauseCheck, primeAlertSound } from '../lib/studentAlert'
 import { formatHMS, formatMinutes, MAX_SESSION_SECONDS } from '../lib/time'
 import type { AutoEndResult, FinishResult, Student, StudySession } from '../lib/types'
 import { LiveKintounStrip } from './LiveKintounStrip'
@@ -87,6 +87,13 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
       `쉬는 지 ${formatMinutes(Math.floor(pausedSeconds / 60))}이 지났어요. 30분 더 지나면 자동으로 마무리해요.`,
     )
   }, [status, pausedSeconds])
+
+  /* 알림음 준비 — 학생이 화면을 처음 누를 때 소리 장치를 깨워 둔다(그 뒤 30분 알림음이 울린다) */
+  useEffect(() => {
+    const prime = () => primeAlertSound()
+    window.addEventListener('pointerdown', prime, { once: true })
+    return () => window.removeEventListener('pointerdown', prime)
+  }, [])
 
   /* 5시간이 되면 자동으로 종료 안내 (문제 수는 그대로 입력) */
   useEffect(() => {

@@ -87,6 +87,12 @@ export function playAlertBeep(): void {
   }
 }
 
+/** 소리 준비 — 학생이 버튼을 누를 때 한 번 불러 두면 나중에 알림음을 낼 수 있다 */
+export function primeAlertSound(): void {
+  const ctx = context()
+  if (ctx && ctx.state === 'suspended') void ctx.resume?.()
+}
+
 /** 진동 (지원하지 않는 기기는 무시) */
 export function vibratePauseCheck(): void {
   try {
