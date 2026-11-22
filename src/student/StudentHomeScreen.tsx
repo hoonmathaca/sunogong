@@ -359,7 +359,7 @@ export function StudentHomeScreen({
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="text-[12.5px] font-bold text-navy">{submissionLine(submission)}</p>
-                        <p className="mt-0.5 text-[11px] font-semibold text-navy/45">
+                        <p className="mt-0.5 break-keep text-[11px] font-semibold text-navy/45">
                           사진 {photoCount(submission.photo_paths)}장{approved ? ` · ${approved}` : ''}
                         </p>
                       </div>
@@ -368,7 +368,7 @@ export function StudentHomeScreen({
                       </span>
                     </div>
                     {hasRejectedPart(submission) && rejectReasonText(submission) ? (
-                      <p className="mt-1 rounded-xl bg-[#FDECEC] px-2 py-1 text-[11px] font-semibold text-[#B32B2B]">
+                      <p className="mt-1 break-keep rounded-xl bg-[#FDECEC] px-2 py-1 text-[11px] font-semibold text-[#B32B2B]">
                         반려 사유: {rejectReasonText(submission)}
                       </p>
                     ) : null}
