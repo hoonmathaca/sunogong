@@ -109,6 +109,42 @@ try {
   const running = await run(supabase.rpc('start_session', { p_student_id: student.id, p_kind: 'academy' }))
   const notPaused = await run(supabase.rpc('auto_end_paused_session', { p_session_id: running.id }))
   check('공부 중이면 자동 종료 안 함', notPaused?.not_paused === true && notPaused?.session?.status === 'running', notPaused?.not_paused)
+
+  /* 9) 1분도 공부하지 않은 세션은 기록 줄을 만들지 않는다 */
+  await run(supabase.from('study_sessions').delete().eq('id', running.id))
+  const zeroPaused = await run(
+    supabase.from('study_sessions').select('*').eq('id', started.id).single(),
+  )
+  const zero = await run(
+    supabase
+      .from('study_sessions')
+      .insert({
+        student_id: student.id,
+        status: 'paused',
+        kind: 'academy',
+        started_at: new Date(now.getTime() - 61 * 60_000).toISOString(),
+        paused_at: new Date(now.getTime() - 60.5 * 60_000).toISOString(),
+        last_heartbeat_at: new Date(now.getTime() - 60.5 * 60_000).toISOString(),
+        paused_seconds: 0,
+        date: ended.date,
+      })
+      .select('id')
+      .single(),
+  )
+  const zeroEnd = await run(supabase.rpc('auto_end_paused_session', { p_session_id: zero.id }))
+  check('0분 세션: 자동 종료는 되지만 문제 수는 묻지 않음', zeroEnd?.minutes === 0 && zeroEnd?.problems_pending === false, {
+    minutes: zeroEnd?.minutes,
+    pending: zeroEnd?.problems_pending,
+  })
+  const logAfterZero = await run(
+    supabase.from('study_logs').select('*').eq('student_id', student.id).eq('date', ended.date).single(),
+  )
+  check(
+    '0분 세션: 그 날 기록은 그대로(40분·23문제)',
+    logAfterZero?.minutes === 40 && logAfterZero?.problems === 23,
+    { minutes: logAfterZero?.minutes, problems: logAfterZero?.problems },
+  )
+  check('0분 세션: 대기 목록에도 없음', zeroPaused?.id === started.id)
 } finally {
   const { error } = await supabase.from('students').delete().eq('id', student.id)
   const left = await run(

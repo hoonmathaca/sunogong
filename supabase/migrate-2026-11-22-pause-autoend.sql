@@ -133,34 +133,41 @@ begin
          paused_at        = null,
          last_pause_auto  = false,
          minutes          = v_mins,
-         problems         = null,          -- 아직 모른다 (problems_pending 으로 표시)
-         problems_pending = true,
+         problems         = null,               -- 아직 모른다 (problems_pending 으로 표시)
+         problems_pending = (v_mins > 0),       -- 1분도 안 됐으면 물어볼 것이 없다
          auto_ended       = true
    where id = s.id
    returning * into s;
 
-  -- 문제 수는 0으로 넣어 두고, 나중에 set_session_problems() 가 더한다
-  insert into public.study_logs as l (
-    student_id, date, minutes, problems,
-    academy_minutes, academy_problems, homework_minutes, homework_problems, updated_at
-  )
-  values (
-    s.student_id, s.date, v_mins, 0,
-    case when v_kind = 'academy'  then v_mins else 0 end,
-    0,
-    case when v_kind = 'homework' then v_mins else 0 end,
-    0,
-    now()
-  )
-  on conflict (student_id, date) do update
-    set minutes           = l.minutes + excluded.minutes,
-        problems          = l.problems + excluded.problems,
-        academy_minutes   = l.academy_minutes + excluded.academy_minutes,
-        academy_problems  = l.academy_problems + excluded.academy_problems,
-        homework_minutes  = l.homework_minutes + excluded.homework_minutes,
-        homework_problems = l.homework_problems + excluded.homework_problems,
-        updated_at        = now()
-  returning * into v_log;
+  if v_mins > 0 then
+    -- 문제 수는 0으로 넣어 두고, 나중에 set_session_problems() 가 더한다
+    insert into public.study_logs as l (
+      student_id, date, minutes, problems,
+      academy_minutes, academy_problems, homework_minutes, homework_problems, updated_at
+    )
+    values (
+      s.student_id, s.date, v_mins, 0,
+      case when v_kind = 'academy'  then v_mins else 0 end,
+      0,
+      case when v_kind = 'homework' then v_mins else 0 end,
+      0,
+      now()
+    )
+    on conflict (student_id, date) do update
+      set minutes           = l.minutes + excluded.minutes,
+          problems          = l.problems + excluded.problems,
+          academy_minutes   = l.academy_minutes + excluded.academy_minutes,
+          academy_problems  = l.academy_problems + excluded.academy_problems,
+          homework_minutes  = l.homework_minutes + excluded.homework_minutes,
+          homework_problems = l.homework_problems + excluded.homework_problems,
+          updated_at        = now()
+    returning * into v_log;
+  else
+    -- 공부한 시간이 0분이면 기록 줄도 만들지 않는다 (그 날 기록은 그대로)
+    select * into v_log
+      from public.study_logs
+     where student_id = s.student_id and date = s.date;
+  end if;
 
   return jsonb_build_object(
     'session',          to_jsonb(s),
@@ -172,7 +179,7 @@ begin
     'total_problems',   coalesce(v_log.problems, 0),
     'date',             s.date,
     'kind',             v_kind,
-    'problems_pending', true,
+    'problems_pending', s.problems_pending,
     'auto_ended',       true
   );
 end;
