@@ -256,6 +256,18 @@ try {
     .eq('session_id', s5.id)
   check('학원: 숙제 제출 줄을 만들지 않음', academySubs === 0, academySubs)
 
+  /* 8-2) 5시간 초과로 서버가 먼저 마무리한 숙제 세션도 승인 대기로 (오늘 남은 시간이 5시간보다 길 때만) */
+  const kstMidnight = new Date(`${today()}T00:00:00+09:00`).getTime()
+  if (Date.now() - kstMidnight > 310 * 60_000) {
+    const s6 = await homeworkSession(305)
+    const limit = await run(supabase.rpc('finish_session', { p_session_id: s6.id, p_problems: 0 }))
+    check('5시간: 승인 대기로 넘어감', limit?.pending_approval === true, limit?.pending_approval)
+    check('5시간: 300분으로 잘림', limit?.submitted_minutes === 300, limit?.submitted_minutes)
+    check('5시간: 기록에는 안 들어감', (await readLog()).homework_minutes === 49)
+  } else {
+    console.log('skip 5시간 경로 — 오늘 남은 시간이 5시간보다 짧아 확인할 수 없음')
+  }
+
   /* 9) 사진 서명 주소 */
   const { data: signed, error: signError } = await supabase.storage
     .from('homework-photos')
