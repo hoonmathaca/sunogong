@@ -48,7 +48,8 @@ export function describeKintounError(error: unknown): string {
   if (raw.includes('invalid_amount')) return '한 번에 1~50장까지만 바꿀 수 있어요.'
   if (raw.includes('no_students')) return '드래곤볼을 받을 학생이 없어요.'
   if (raw.includes('dragonballs_incomplete')) return '1~7성구를 하나씩 다 모아야 일반용을 뽑을 수 있어요.'
-  if (raw.includes('dragonballs_shortage')) return '사탕교환권으로 바꾸려면 성구가 2개 필요해요.'
+  if (raw.includes('invalid_stars')) return '성구는 2개를 골라야 해요. 다시 골라 주세요.'
+  if (raw.includes('dragonballs_shortage')) return '고른 성구가 모자라요. 가진 성구에서 다시 골라 주세요.'
   if (raw.includes('dragons_incomplete')) return '일반용을 하나씩 다 모아야 무지개용을 만들 수 있어요.'
   if (raw.includes('dragons_shortage')) return '바꿀 드래곤이 없어요.'
   if (raw.includes('rainbow_dragon_shortage')) return '바꿀 무지개용이 없어요.'
@@ -136,7 +137,7 @@ export const setStudentNickname = (studentId: string, nickname: string | null) =
 export const liveStudyBoard = (studentId?: string | null) =>
   rpc<LiveBoard>('live_study_board', studentId ? { p_student_id: studentId } : {})
 
-/** 성구 2개 → 사탕교환권 1장 (서버가 가장 많은 성구부터 차감) */
+/** 성구 2개 → 사탕교환권 1장 (학생이 고른 성구 2개를 그대로 차감) */
 export interface CandyExchangeResult {
   exchanged: boolean
   /** 이번에 빠진 성구 (예: [5, 5]) */
@@ -147,8 +148,16 @@ export interface CandyExchangeResult {
   collected: number
 }
 
-export const exchangeCandyTicket = (studentId: string) =>
-  rpc<CandyExchangeResult>('exchange_candy_ticket', { p_student_id: studentId })
+/**
+ * 성구 2개 → 사탕교환권 1장.
+ * stars 를 주면 그 성구 2개(같은 성구 2개 가능)를 그대로 차감하고,
+ * 주지 않으면 서버가 가장 많이 가진 성구부터 2개를 차감한다.
+ */
+export const exchangeCandyTicket = (studentId: string, stars?: number[] | null) =>
+  rpc<CandyExchangeResult>('exchange_candy_ticket', {
+    p_student_id: studentId,
+    p_stars: stars && stars.length > 0 ? stars : null,
+  })
 
 /** 1~7성구 하나씩 → 일반용 랜덤 1마리 */
 export interface ColorDragonCraftResult {

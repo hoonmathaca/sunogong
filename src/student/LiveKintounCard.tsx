@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Dragonball, KintounCloud } from '../components/KintounCloud'
+import { CandyPickModal } from './CandyPickModal'
 import { Modal } from '../components/Modal'
 import { Spinner } from '../components/Keypad'
 import * as api from '../lib/kintoun'
@@ -11,6 +12,10 @@ import {
   canCraftRainbowDragon,
   canExchangeCandy,
   candyExchangeText,
+  canExchangeCandyPick,
+  normalizeCandyPick,
+  pickCandyStar,
+  unpickCandyStar,
   cloudItems,
   displayNickname,
   dragonballDex,
@@ -110,6 +115,10 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
   const [secretReveal, setSecretReveal] = useState(false)
   const [tickets, setTickets] = useState<TicketCounts>(EMPTY_TICKETS)
   const [working, setWorking] = useState<string | null>(null)
+  /* 사탕교환권 — 쓸 성구 2개를 직접 고른다 */
+  const [candyOpen, setCandyOpen] = useState(false)
+  const [candyPick, setCandyPick] = useState<number[]>([])
+  const [candyError, setCandyError] = useState<string | null>(null)
   const [cardError, setCardError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   /* 일반용이 태어난 순간 */
@@ -198,22 +207,39 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
   const missingStars = dex.filter((slot) => !slot.owned).map((slot) => `${slot.stars}성구`)
   const missingColors = myDragons.filter((slot) => !slot.owned).map((slot) => slot.name)
 
-  /** 성구 2개 → 사탕교환권 */
-  const exchangeCandy = async () => {
+  /** 사탕교환권 — 쓸 성구 2개를 고르는 창을 연다 */
+  const openCandy = () => {
     if (working || !canCandy) return
+    setCandyPick([])
+    setCandyError(null)
+    setCandyOpen(true)
+  }
+
+  /** 고른 성구 2개 → 사탕교환권 1장 */
+  const exchangeCandy = async () => {
+    if (working) return
+    const picks = normalizeCandyPick(candyPick)
+    if (!canExchangeCandyPick(dexMap, picks)) {
+      setCandyError('가진 성구가 바뀌었어요. 다시 골라 주세요.')
+      setCandyPick([])
+      return
+    }
     setWorking('candy')
     setCardError(null)
     setNotice(null)
-    const res = await api.exchangeCandyTicket(studentId)
+    setCandyError(null)
+    const res = await api.exchangeCandyTicket(studentId, picks)
     setWorking(null)
     if (res.ok) {
       setDragonballs(Math.max(0, Number(res.data.total ?? 0)))
       setDexMap(res.data.dragonballs ?? EMPTY_DRAGONBALLS)
       setTickets((current) => ({ ...current, candy: normalizeTicketCount(res.data.candy_tickets) }))
       setNotice(candyExchangeText(res.data.used))
+      setCandyOpen(false)
+      setCandyPick([])
       void load()
     } else {
-      setCardError(res.error)
+      setCandyError(res.error)
       void load()
     }
   }
@@ -548,7 +574,7 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
             tone="candy"
             disabled={!canCandy}
             busy={working === 'candy'}
-            onClick={() => void exchangeCandy()}
+            onClick={openCandy}
           />
           <ExchangeButton
             title="일반용 뽑기"
@@ -794,6 +820,34 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
           </p>
         </div>
       </Modal>
+
+      {/* 🍬 사탕교환권 — 쓸 성구 2개 고르기 */}
+      <CandyPickModal
+        open={candyOpen}
+        rawStars={dexMap}
+        selected={candyPick}
+        busy={working === 'candy'}
+        error={candyError}
+        onPick={(star) => {
+          setCandyError(null)
+          setCandyPick((current) => pickCandyStar(dexMap, current, star))
+        }}
+        onUnpick={(index) => {
+          setCandyError(null)
+          setCandyPick((current) => unpickCandyStar(current, index))
+        }}
+        onClear={() => {
+          setCandyError(null)
+          setCandyPick([])
+        }}
+        onClose={() => {
+          if (working === 'candy') return
+          setCandyOpen(false)
+          setCandyPick([])
+          setCandyError(null)
+        }}
+        onSubmit={() => void exchangeCandy()}
+      />
 
       {/* 🌈 무지개용 등장 */}
       <Modal

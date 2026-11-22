@@ -1539,10 +1539,13 @@ $$;
 
 -- ---------------------------------------------------------------------
 -- 4. 성구 2개 → 사탕교환권 1장
---    가장 많이 가진 성구부터 차감한다 (같으면 낮은 성구 먼저).
+--    학생이 고른 성구 2개(p_stars)를 그대로 차감한다. 같은 성구 2개도 된다.
+--    p_stars 가 없으면(예전 화면) 가장 많이 가진 성구부터 차감한다 (같으면 낮은 성구 먼저).
 --    반환: {exchanged, used:[성구,성구], candy_tickets, dragonballs, total, collected}
 -- ---------------------------------------------------------------------
-create or replace function public.exchange_candy_ticket(p_student_id uuid)
+drop function if exists public.exchange_candy_ticket(uuid);
+
+create or replace function public.exchange_candy_ticket(p_student_id uuid, p_stars integer[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1552,10 +1555,9 @@ declare
   v_row    public.students;
   v_map    jsonb;
   v_total  integer;
-  v_pick   integer[];
+  v_pick   integer[] := '{}'::integer[];
   v_star   integer;
-  v_left   integer := 2;
-  v_count  integer;
+  v_have   integer;
   step     integer;
 begin
   select * into v_row from public.students where id = p_student_id for update;
@@ -1565,30 +1567,51 @@ begin
 
   v_map   := coalesce(v_row.dragonballs, '{"1":0,"2":0,"3":0,"4":0,"5":0,"6":0,"7":0}'::jsonb);
   v_total := coalesce(v_row.dragonball_count, 0);
-  if v_total < 2 then
-    raise exception 'dragonballs_shortage' using errcode = '22023';
-  end if;
 
-  v_pick := '{}'::integer[];
-  for step in 1 .. 2 loop
-    -- 가장 많이 남은 성구 (같으면 낮은 성구)
-    select star into v_star
-      from generate_series(1, 7) as t(star)
-     where coalesce((v_map ->> t.star::text)::int, 0) > 0
-     order by coalesce((v_map ->> t.star::text)::int, 0) desc, t.star asc
-     limit 1;
-
-    if v_star is null then
+  if p_stars is null then
+    /* 예전 화면 — 가장 많이 가진 성구부터 (같으면 낮은 성구) */
+    if v_total < 2 then
       raise exception 'dragonballs_shortage' using errcode = '22023';
     end if;
 
-    v_pick := v_pick || v_star;
-    v_map := jsonb_set(
-      v_map,
-      array[v_star::text],
-      to_jsonb(greatest(0, coalesce((v_map ->> v_star::text)::int, 0) - 1))
-    );
-  end loop;
+    for step in 1 .. 2 loop
+      select t.star into v_star
+        from generate_series(1, 7) as t(star)
+       where coalesce((v_map ->> t.star::text)::int, 0) > 0
+       order by coalesce((v_map ->> t.star::text)::int, 0) desc, t.star asc
+       limit 1;
+
+      if v_star is null then
+        raise exception 'dragonballs_shortage' using errcode = '22023';
+      end if;
+
+      v_pick := v_pick || v_star;
+      v_map  := jsonb_set(
+        v_map,
+        array[v_star::text],
+        to_jsonb(coalesce((v_map ->> v_star::text)::int, 0) - 1)
+      );
+    end loop;
+  else
+    /* 학생이 고른 성구 — 정확히 2개, 1~7성구, 가진 만큼만 */
+    if coalesce(array_length(p_stars, 1), 0) <> 2 then
+      raise exception 'invalid_stars' using errcode = '22023';
+    end if;
+
+    foreach v_star in array p_stars loop
+      if v_star is null or v_star < 1 or v_star > 7 then
+        raise exception 'invalid_stars' using errcode = '22023';
+      end if;
+
+      v_have := coalesce((v_map ->> v_star::text)::int, 0);
+      if v_have < 1 then
+        raise exception 'dragonballs_shortage' using errcode = '22023';
+      end if;
+
+      v_pick := v_pick || v_star;
+      v_map  := jsonb_set(v_map, array[v_star::text], to_jsonb(v_have - 1));
+    end loop;
+  end if;
 
   v_total := greatest(0, v_total - 2);
 
@@ -1609,6 +1632,9 @@ begin
   );
 end;
 $$;
+
+comment on function public.exchange_candy_ticket(uuid, integer[]) is
+  '성구 2개 → 사탕교환권 1장. p_stars 로 쓸 성구를 직접 지정(같은 성구 2개 허용), 없으면 가장 많은 성구부터';
 
 -- ---------------------------------------------------------------------
 -- 5. 1~7성구 하나씩 → 일반용 랜덤 1마리
@@ -2000,7 +2026,7 @@ grant select, insert, update, delete on public.ticket_uses to anon, authenticate
 
 grant execute on function public.student_profile(uuid) to anon, authenticated;
 grant execute on function public.student_dragonballs(uuid) to anon, authenticated;
-grant execute on function public.exchange_candy_ticket(uuid) to anon, authenticated;
+grant execute on function public.exchange_candy_ticket(uuid, integer[]) to anon, authenticated;
 grant execute on function public.craft_color_dragon(uuid) to anon, authenticated;
 grant execute on function public.craft_rainbow_ball(uuid) to anon, authenticated;
 grant execute on function public.craft_rainbow_dragon(uuid) to anon, authenticated;

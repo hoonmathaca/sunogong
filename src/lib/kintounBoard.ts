@@ -581,6 +581,89 @@ export function canExchangeCandy(rawStars: unknown): boolean {
   return dragonballTotal(rawStars) >= CANDY_TICKET_COST
 }
 
+/* ------------------------------------------------------------------ */
+/* 사탕교환권에 쓸 성구 고르기                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * 고른 성구 목록을 1~7성구 정수만 남겨 정리한다 (최대 2개).
+ * 같은 성구를 두 번 고른 것은 그대로 둔다 — 3성구 2개도 바꿀 수 있다.
+ */
+export function normalizeCandyPick(selected: readonly unknown[] | null | undefined): number[] {
+  const out: number[] = []
+  for (const value of selected ?? []) {
+    const star = Math.floor(Number(value))
+    if (!Number.isFinite(star) || star < 1 || star > 7) continue
+    out.push(star)
+    if (out.length >= CANDY_TICKET_COST) break
+  }
+  return out
+}
+
+/** 그 성구를 하나 더 고를 수 있는지 (가진 개수 · 이미 고른 개수 · 2개 제한) */
+export function canPickCandyStar(rawStars: unknown, selected: readonly unknown[], star: number): boolean {
+  const value = Math.floor(Number(star))
+  if (!Number.isFinite(value) || value < 1 || value > 7) return false
+  const picks = normalizeCandyPick(selected)
+  if (picks.length >= CANDY_TICKET_COST) return false
+  const owned = normalizeDragonballMap(rawStars)[value]
+  return picks.filter((picked) => picked === value).length < owned
+}
+
+/** 성구 하나 더 고르기 (고를 수 없으면 그대로) */
+export function pickCandyStar(rawStars: unknown, selected: readonly unknown[], star: number): number[] {
+  const picks = normalizeCandyPick(selected)
+  if (!canPickCandyStar(rawStars, picks, star)) return picks
+  return [...picks, Math.floor(Number(star))]
+}
+
+/** 몇 번째로 고른 성구인지(index) 빼기 — 같은 성구가 둘이어도 하나만 빠진다 */
+export function unpickCandyStar(selected: readonly unknown[], index: number): number[] {
+  const picks = normalizeCandyPick(selected)
+  const seat = Math.floor(Number(index))
+  if (!Number.isFinite(seat) || seat < 0 || seat >= picks.length) return picks
+  return picks.filter((_, position) => position !== seat)
+}
+
+/** 그 성구를 몇 개 골랐는지 (칸에 '고름' 표시에 쓴다) */
+export function candyPickCount(selected: readonly unknown[], star: number): number {
+  const value = Math.floor(Number(star))
+  return normalizeCandyPick(selected).filter((picked) => picked === value).length
+}
+
+/** 그 성구를 아직 몇 개 더 고를 수 있는지 (가진 개수 − 고른 개수) */
+export function candyPickLeft(rawStars: unknown, selected: readonly unknown[], star: number): number {
+  const value = Math.floor(Number(star))
+  if (!Number.isFinite(value) || value < 1 || value > 7) return 0
+  const owned = normalizeDragonballMap(rawStars)[value]
+  return Math.max(0, owned - candyPickCount(selected, value))
+}
+
+/** 고른 성구 2개를 지금 가진 성구로 바꿀 수 있는지 (2개 · 가진 개수 안) */
+export function canExchangeCandyPick(rawStars: unknown, selected: readonly unknown[]): boolean {
+  const picks = normalizeCandyPick(selected)
+  if (picks.length !== CANDY_TICKET_COST) return false
+  const counts = new Map<number, number>()
+  for (const star of picks) {
+    const found = (counts.get(star) ?? 0) + 1
+    counts.set(star, found)
+    if (found > normalizeDragonballMap(rawStars)[star]) return false
+  }
+  return true
+}
+
+/** '1개 더 고르세요' · '2개를 다 골랐어요' */
+export function candyPickStatusText(selected: readonly unknown[]): string {
+  const left = CANDY_TICKET_COST - normalizeCandyPick(selected).length
+  return left > 0 ? `${left}개 더 고르세요` : '2개를 다 골랐어요'
+}
+
+/** '3성구 · 3성구' — 고른 차례 그대로 (같은 성구도 그대로) */
+export function candyPickText(selected: readonly unknown[]): string {
+  const picks = normalizeCandyPick(selected)
+  return picks.length > 0 ? picks.map((star) => starName(star)).join(' · ') : '아직 고르지 않았어요'
+}
+
 /** 학생이 가진 교환권 세 가지 */
 export interface TicketCounts {
   candy: number

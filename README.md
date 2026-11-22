@@ -151,7 +151,11 @@ python3 tools/make_color_dragons.py
 - **성구 아이콘** — `public/dragonballs/1.png` ~ `7.png` (256×256, 투명 배경). `tools/make_dragonballs.py` 로 다시 만들 수 있고, 별 개수·배치는 정식 드래곤볼 배치(1 가운데 · 2 위아래 · 3 삼각 · 4 네 귀퉁이 · 5 네 귀퉁이+가운데 · 6 두 줄 세 개씩 · 7 가운데+둘레 여섯)를 따른다.
   - 색은 **차분하게 톤다운한 뮤트 파스텔 무지개 7색 + 하얀 별** — 1 코랄레드 · 2 살구주황 · 3 버터옐로 · 4 세이지그린 · 5 더스티스카이 · 6 슬레이트네이비 · 7 라벤더퍼플. 별이 밝은 구슬에서도 세어지도록 별 테두리·그림자를 구슬의 진한 톤으로 그린다.
 - **🐲 일반용 7종 · 🌈 무지개용 · 🎟 교환권 (2026-11-22)** — 2026-11-21 의 '무지개 볼' 은 없애고 **일반용 7종(빨간용·주황용·노란용·초록용·파란용·남용·보라용)** 과 **무지개용** 으로 바꿨다.
-  - **성구 2개 → 사탕교환권 1장** — 가장 많이 가진 성구부터 차감한다(같으면 낮은 성구 먼저). 버튼은 `사탕교환권 · 성구 2개 → 1장`.
+  - **성구 2개 → 사탕교환권 1장 — 쓸 성구 2개를 학생이 직접 고른다 (2026-11-22)** — 버튼(`사탕교환권 · 성구 2개 → 1장`)을 누르면 **성구 고르기 창**이 열린다.
+    - 위의 두 칸에 고른 성구가 차례로 채워지고, 아래 1~7성구 도감에서 **가진 성구를 누를 때마다 한 개**씩 골라진다. 같은 성구를 두 번 누르면 **3성구 2개**처럼 같은 성구 2개도 고를 수 있고, 서로 다른 성구 2개(1성구 + 5성구)도 된다.
+    - 가진 개수를 넘겨 고를 수 없다(그 칸은 `–`/흐리게). 고른 칸을 누르면 그 하나만 빠지고, `다시 고르기` 로 모두 지운다. 2개를 다 고르면 `2개를 다 골랐어요` 와 함께 `사탕교환권으로 바꾸기` 가 열린다.
+    - 서버(`exchange_candy_ticket(p_student_id, p_stars integer[])`)가 **고른 성구 2개를 그대로 차감**하고 사탕교환권 1장을 늘린다. 2개가 아니거나 1~7성구가 아니면 `invalid_stars`, 가진 개수보다 많으면 `dragonballs_shortage` 로 거절하고 아무것도 바꾸지 않는다.
+    - `p_stars` 없이 부르면(배포 중 열려 있던 예전 화면) 예전처럼 가장 많이 가진 성구부터 2개를 차감한다.
   - **1~7성구 하나씩 → 일반용 7종 중 랜덤 1마리** — `일반용 뽑기` 버튼(성구 7개가 빠진다). 태어나면 `새 일반용 탄생!` 모달에 그 색 일반용이 크게 뜬다.
   - **일반용 7종 하나씩 → 무지개용 1마리** — `무지개용` 버튼. 7색을 다 모으면 열리고, 누르면 `짜잔! 무지개용 등장!` 모달에 무지개 신룡(`public/dragonballs/shenron.png`, 배에 무지개 `訓`)이 나타난다.
   - **일반용 1마리 → 1,000포인트 교환권 1장**, **무지개용 1마리 → 10,000포인트 교환권 1장** — 되돌릴 수 없어서 한 번 더 확인하는 창을 띄운다.
@@ -277,14 +281,17 @@ sunogong/
 │  ├─ migrate-2026-11-21-dragonball-stars.sql   # 1~7성구 도감(성구 맵·랜덤 지급·지급 이력)
 │  ├─ migrate-2026-11-21-rainbow-ball.sql       # (지난 규칙) 무지개 볼 — 지금은 아래 파일이 대신한다
 │  ├─ migrate-2026-11-22-color-dragons-tickets.sql  # 일반용 7종·무지개용·교환권·사용 처리
+│  ├─ migrate-2026-11-22-candy-pick-stars.sql       # 사탕교환권 — 쓸 성구 2개를 직접 고르기
 │  ├─ migrate-2026-11-22-secret-black-dragon.sql    # 히든 검은용·시크릿쿠폰
 │  ├─ verify-2026-11-22-secret-black-dragon.sql     # 검은용 확률·보너스·교환 검증(되돌림)
+│  ├─ verify-2026-11-22-candy-pick-stars.sql        # 사탕교환권 성구 고르기 검증(되돌림)
 │  └─ verify-2026-11-21-kintoun-dragonball.sql   # 근두운·드래곤볼 SQL 검증(되돌림)
 ├─ tools/make_placeholders.py # 자리표시자 이미지 생성(선택)
 ├─ tools/lib-test.ts          # 날짜·집계·랭킹·타이머·기기 판별·질문(Q&A)·알림·성구 도감·스와이프 계산 테스트(개발용)
 ├─ tools/make_dragonballs.py  # 1~7성구 아이콘(public/dragonballs/1~7.png) 생성 스크립트
 ├─ tools/make_color_dragons.py # 일반용 7종(색만 바꾼 신룡) + 교환권 아이콘 생성 스크립트
 ├─ tools/e2e-color-dragons-tickets.mjs # 일반용·무지개용·교환권 실서비스 E2E(검증용 학생은 끝나고 삭제)
+├─ tools/e2e-candy-pick-stars.mjs # 사탕교환권 성구 고르기 실서비스 E2E(검증용 학생은 끝나고 삭제)
 ├─ tools/make_mascot.py       # 마스코트 → 전신·얼굴·앱 아이콘·og-image 생성 스크립트
 ├─ tools/make_shenron.py      # 무지개 신룡 → public/dragonballs/shenron.png
 ├─ tools/ssr-smoke.tsx        # 모든 화면 렌더 확인(개발용)
@@ -298,7 +305,7 @@ sunogong/
    │                          # pauseWatch.ts(쉬는 시간 30분·60분 판정과 문제 수 입력 순수 함수), studentAlert.ts(진동·안내음·브라우저 알림)
    ├─ components/             # ErrorBoundary, Brand(마스코트·로고·푸터), Keypad, Modal, ImageViewer(사진 확대), InstallBanner, DesktopBlockScreen(PC 안내), KintounCloud(구름·드래곤볼)
    ├─ student/                # StudentApp, CodeEntry, ChooseStudent, Home, Timer, Result, useStudyTimer,
-   │                          # QuestionBoardScreen(질문 화면), QuestionAskForm(질문 올리기 폼), LiveKintounCard(근두운·내 드래곤볼·일반용·교환권),
+   │                          # QuestionBoardScreen(질문 화면), QuestionAskForm(질문 올리기 폼), LiveKintounCard(근두운·내 드래곤볼·일반용·교환권), CandyPickModal(사탕교환권 성구 고르기),
    │                          # PendingProblemsModal(지난번 푼 문제 수)·usePendingProblems(대기 목록)
    └─ admin/                  # AdminApp, AdminLogin, Dashboard, StudentsPanel, RankingPanel, QuestionsPanel(질문함), PushNotifyPanel(알림 설정), KintounPanel(실시간 탭·드래곤볼 쏘기), Charts, 모달들
 ```
@@ -356,6 +363,12 @@ python3 -c "import pglast; pglast.parse_sql(open('supabase/schema.sql').read())"
 
 # 4-3) 히든 검은용·시크릿쿠폰 검증 (확률 표본·강제 보너스·교환·사용, 검증용 학생은 삭제)
 #     Supabase SQL Editor 에 supabase/verify-2026-11-22-secret-black-dragon.sql 을 붙여넣고 실행
+
+# 4-4) 사탕교환권 성구 고르기 SQL 검증 (같은 성구 2개·서로 다른 2개·잘못된 고르기·예전 호출, 검증용 학생은 삭제)
+#     Supabase SQL Editor 에 supabase/verify-2026-11-22-candy-pick-stars.sql 을 붙여넣고 실행
+
+# 4-5) 사탕교환권 성구 고르기 실서비스 E2E (앱과 같은 anon 키, 검증용 학생은 끝나고 삭제)
+#     node tools/e2e-candy-pick-stars.mjs
 
 # 5) 쉬는 시간 30분·60분 자동 종료 실서비스 확인 (앱과 같은 anon 키로 실제 Supabase 에 붙음)
 #    시작 → 일시정지 → 61분 전에 멈춘 것으로 옮김 → 자동 종료 → 문제 수 입력 → 되돌리기

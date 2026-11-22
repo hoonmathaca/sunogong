@@ -52,8 +52,17 @@ import {
   canCraftColorDragon,
   canCraftRainbowDragon,
   canExchangeCandy,
+  canExchangeCandyPick,
   canExchangeSecretTicket,
   candyExchangeText,
+  candyPickCount,
+  candyPickLeft,
+  candyPickStatusText,
+  candyPickText,
+  canPickCandyStar,
+  normalizeCandyPick,
+  pickCandyStar,
+  unpickCandyStar,
   COLOR_DRAGON_COST,
   DRAGONS,
   dragonballCountText,
@@ -701,6 +710,47 @@ eq(
 eq('교환권: 세 종류 순서', TICKETS.map((ticket) => ticket.key), ['candy', 'point1000', 'point10000'])
 eq('사탕: 바꾼 성구 안내', candyExchangeText([5, 5]), '5성구 · 5성구 → 사탕교환권 1장으로 바꿨어요!')
 eq('사탕: 성구가 안 오면 짧게', candyExchangeText(null), '사탕교환권 1장으로 바꿨어요!')
+
+/* 사탕교환권: 쓸 성구 2개를 학생이 직접 고른다 */
+const pickStars = { '1': 1, '2': 0, '3': 2, '4': 0, '5': 3, '6': 0, '7': 0 }
+eq(
+  '사탕고르기: 고른 목록 정리 — 1~7성구만, 두 개까지',
+  [normalizeCandyPick([3, 3]), normalizeCandyPick([0, 8, 5]), normalizeCandyPick(null), normalizeCandyPick(['3', 7.9])],
+  [[3, 3], [5], [], [3, 7]],
+)
+eq('사탕고르기: 같은 성구 2개도 고를 수 있다', pickCandyStar(pickStars, [3], 3), [3, 3])
+eq('사탕고르기: 가진 개수를 넘겨 고를 수 없다', pickCandyStar(pickStars, [1], 1), [1])
+eq('사탕고르기: 없는 성구는 못 고른다', [canPickCandyStar(pickStars, [], 2), canPickCandyStar(pickStars, [], 4)], [false, false])
+eq('사탕고르기: 없는 성구를 골라도 그대로', pickCandyStar(pickStars, [], 4), [])
+eq('사탕고르기: 두 개를 고르면 더 못 고른다', [canPickCandyStar(pickStars, [3, 5], 5), canPickCandyStar(pickStars, [3, 3], 5)], [false, false])
+eq('사탕고르기: 서로 다른 성구 두 개', pickCandyStar(pickStars, [1], 5), [1, 5])
+eq(
+  '사탕고르기: 고른 칸 하나만 빼기',
+  [unpickCandyStar([3, 3], 0), unpickCandyStar([3, 3], 1), unpickCandyStar([1, 5], 9)],
+  [[3], [3], [1, 5]],
+)
+eq(
+  '사탕고르기: 두 개를 다 골랐을 때만 바꿀 수 있다',
+  [canExchangeCandyPick(pickStars, [3, 3]), canExchangeCandyPick(pickStars, [1, 5]), canExchangeCandyPick(pickStars, [3]), canExchangeCandyPick(pickStars, [])],
+  [true, true, false, false],
+)
+eq('사탕고르기: 가진 개수보다 많으면 바꿀 수 없다', canExchangeCandyPick(pickStars, [1, 1]), false)
+eq(
+  '사탕고르기: 남은 개수',
+  [candyPickLeft(pickStars, [3], 3), candyPickLeft(pickStars, [3, 3], 3), candyPickLeft(pickStars, [5], 3), candyPickLeft(pickStars, [], 2)],
+  [1, 0, 2, 0],
+)
+eq(
+  '사탕고르기: 상태 문구',
+  [candyPickStatusText([]), candyPickStatusText([3]), candyPickStatusText([1, 5])],
+  ['2개 더 고르세요', '1개 더 고르세요', '2개를 다 골랐어요'],
+)
+eq(
+  '사탕고르기: 고른 성구 이름',
+  [candyPickText([3, 3]), candyPickText([5, 1]), candyPickText([])],
+  ['3성구 · 3성구', '5성구 · 1성구', '아직 고르지 않았어요'],
+)
+eq('사탕고르기: 칸별 고른 개수', [candyPickCount([3, 3], 3), candyPickCount([1, 5], 3)], [2, 0])
 
 /* 히든 검은용 · 시크릿쿠폰 — 가진 학생에게만 화면에 보인다 */
 eq('히든: 이름·아이콘', [BLACK_DRAGON.name, BLACK_DRAGON.icon], ['검은용', '/dragonballs/dragon-black.png'])

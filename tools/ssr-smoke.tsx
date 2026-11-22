@@ -20,6 +20,7 @@ import { QuestionBoardScreen } from '../src/student/QuestionBoardScreen'
 import { StudentHomeScreen } from '../src/student/StudentHomeScreen'
 import { ResultScreen } from '../src/student/ResultScreen'
 import { LiveKintounStrip } from '../src/student/LiveKintounStrip'
+import { CandyPickModal } from '../src/student/CandyPickModal'
 import { PendingProblemsModal } from '../src/student/PendingProblemsModal'
 import { TimerScreen } from '../src/student/TimerScreen'
 import { ErrorBoundary } from '../src/components/ErrorBoundary'
@@ -188,6 +189,36 @@ const cases: [string, () => JSX.Element][] = [
     'LiveKintounStrip(세션 있음)',
     () => <LiveKintounStrip studentId={student.id} sessionId="run-homework" sessionStatus="running" />,
   ],
+  [
+    'CandyPickModal(성구 2개 고름)',
+    () => (
+      <CandyPickModal
+        open
+        rawStars={{ '1': 1, '2': 0, '3': 2, '4': 0, '5': 3, '6': 0, '7': 0 }}
+        selected={[3, 5]}
+        onPick={() => {}}
+        onUnpick={() => {}}
+        onClear={() => {}}
+        onClose={() => {}}
+        onSubmit={() => {}}
+      />
+    ),
+  ],
+  [
+    'CandyPickModal(성구 1개만 고름)',
+    () => (
+      <CandyPickModal
+        open
+        rawStars={{ '1': 1, '2': 0, '3': 2, '4': 0, '5': 3, '6': 0, '7': 0 }}
+        selected={[3]}
+        onPick={() => {}}
+        onUnpick={() => {}}
+        onClear={() => {}}
+        onClose={() => {}}
+        onSubmit={() => {}}
+      />
+    ),
+  ],
   ['QuestionsPanel(관리자 질문함)', () => <QuestionsPanel />],
   ['PushNotifyPanel(새 질문 알림)', () => <PushNotifyPanel />],
   ['ResultScreen', () => <ResultScreen student={student} result={result} reason="manual" onHome={() => {}} onAgain={() => {}} />],
@@ -276,6 +307,8 @@ for (const [name, ok] of questionChecks) {
 
 /* 근두운 · 드래곤볼 */
 const kintounPanelHtml = rendered['KintounPanel(관리자 근두운)'] ?? ''
+const candyReadyHtml = rendered['CandyPickModal(성구 2개 고름)'] ?? ''
+const candyOneHtml = rendered['CandyPickModal(성구 1개만 고름)'] ?? ''
 const kintounChecks: [string, boolean][] = [
   ['근두운: 홈에 근두운 카드', homeHtml.includes('근두운')],
   ['근두운: 홈에 내 드래곤볼', homeHtml.includes('내 드래곤볼')],
@@ -298,6 +331,13 @@ const kintounChecks: [string, boolean][] = [
   ['무지개 볼 표현 없음', !homeHtml.includes('무지개 볼') && !kintounPanelHtml.includes('무지개 볼')],
   ['교환권: 홈에 사탕교환권 버튼', homeHtml.includes('사탕교환권') && homeHtml.includes('성구 2개 → 1장')],
   ['교환권: 홈에 포인트 교환권 버튼', homeHtml.includes('1,000P 교환권') && homeHtml.includes('10,000P')],
+  ['사탕고르기: 창 제목·안내', candyReadyHtml.includes('사탕교환권으로 바꾸기') && candyReadyHtml.includes('쓸 <b>성구 2개</b>')],
+  ['사탕고르기: 고른 성구 두 칸', candyReadyHtml.includes('3성구') && candyReadyHtml.includes('5성구') && candyReadyHtml.includes('2개를 다 골랐어요')],
+  ['사탕고르기: 두 개 고르면 바꾸기 버튼 열림', !/<button[^>]*disabled=""[^>]*>사탕교환권으로 바꾸기/.test(candyReadyHtml)],
+  ['사탕고르기: 하나만 고르면 안내·버튼 잠김', candyOneHtml.includes('1개 더 고르세요') && /<button[^>]*disabled=""[^>]*>사탕교환권으로 바꾸기/.test(candyOneHtml)],
+  ['사탕고르기: 일곱 성구 칸 모두', ['1성', '2성', '3성', '4성', '5성', '6성', '7성'].every((label) => candyReadyHtml.includes(`>${label}<`))],
+  ['사탕고르기: 고른 칸은 개수 표시', candyReadyHtml.includes('1개 고름')],
+  ['사탕고르기: 없는 성구는 고를 수 없음(–)', candyReadyHtml.includes('aria-label="2성구 고르기 (0개 남음)"')],
   ['교환권: 관리자 사용 처리 칸', kintounPanelHtml.includes('교환권 지급 확인 · 사용 처리')],
   ['교환권: 관리자 이름 찾기', kintounPanelHtml.includes('이름으로 찾기')],
   ['근두운: 관리자 일반용·무지개용 안내', kintounPanelHtml.includes('일반용') && kintounPanelHtml.includes('무지개용')],
