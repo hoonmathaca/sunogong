@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { BrandFooter, Mascot } from '../components/Brand'
 import { InstallBanner } from '../components/InstallBanner'
 import { Keypad, Spinner } from '../components/Keypad'
+import { QuoteCard } from '../components/QuoteCard'
 
 interface CodeEntryScreenProps {
   onSubmit: (code: string) => Promise<{ ok: boolean; error?: string }>
@@ -64,14 +65,14 @@ export function CodeEntryScreen({ onSubmit, onAdmin }: CodeEntryScreenProps): JS
 
   return (
     <div className="screen bg-white">
-      <div className="flex-1 px-5 pb-2 pt-[max(1.25rem,env(safe-area-inset-top))]">
+      <div className="flex-1 px-5 pb-2 pt-[max(1rem,env(safe-area-inset-top))]">
         <header className="flex items-center gap-2.5">
           <Mascot variant="face" className="h-11 w-11 shrink-0" />
           <h1 className="font-round text-[28px] font-extrabold leading-none tracking-tight text-navy">선오공</h1>
         </header>
-        <p className="mt-2 text-[15px] font-semibold text-navy/55">선생님, 오늘도 공부했어요!</p>
+        <p className="mt-1.5 text-[15px] font-semibold text-navy/55">선생님, 오늘도 공부했어요!</p>
 
-        <div className="mt-6 flex flex-col items-center">
+        <div className="mt-[clamp(10px,2.8dvh,22px)] flex flex-col items-center">
           <div key={shake} className={`flex gap-3 ${error ? 'animate-shake' : ''}`} aria-label={`입력한 자릿수 ${code.length}개`}>
             {[0, 1, 2, 3].map((index) => (
               <div
@@ -93,7 +94,7 @@ export function CodeEntryScreen({ onSubmit, onAdmin }: CodeEntryScreenProps): JS
 
           <p
             role="alert"
-            className={`mt-3 h-6 text-[13px] font-semibold ${error ? 'text-red-500' : 'text-navy/45'}`}
+            className={`mt-2 h-6 text-[13px] font-semibold ${error ? 'text-red-500' : 'text-navy/45'}`}
           >
             {error ?? '선생님께 받은 4자리 코드를 입력하세요'}
           </p>
@@ -108,6 +109,9 @@ export function CodeEntryScreen({ onSubmit, onAdmin }: CodeEntryScreenProps): JS
               busy={busy}
             />
           </div>
+
+          {/* 출결코드 입력 바로 아래 — 누르면 다른 명언으로 바뀐다 */}
+          <QuoteCard className="mt-2 max-w-[340px]" />
         </div>
       </div>
 

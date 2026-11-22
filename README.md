@@ -120,6 +120,7 @@ python3 tools/make_color_dragons.py
    - `/admin` 은 컴퓨터에서도 그대로 열립니다.
 1. **코드 입력** — 4자리 숫자 키패드. 코드는 문자열이라 `0575`처럼 앞자리 0이 유지됩니다.
    같은 코드를 쓰는 학생이 여럿이면 `누구세요?` 이름 선택 화면이 뜹니다.
+   - **💬 오늘의 명언 (2026-11-22)** — 키패드 바로 아래에 명언 카드 한 장(`src/lib/quotes.ts` 124개, `src/components/QuoteCard.tsx`). 화면에 들어올 때마다 한 개를 무작위로 고르고, **카드를 누르면 직전 명언을 피해 다른 명언으로 바뀝니다**. 명언마다 출처(`— 이름 (작품·저서·장절)`)를 함께 보여 주고, 124개는 원장님이 확인한 99개 + 만화·애니·영화 명대사 25개입니다.
 2. **홈** — 오늘 누적 공부시간과 **학원 공부(남색)·숙제 공부(보라)** 시간을 색 칩으로 따로 표시, `공부 기록` 카드에 **최근 7일 / 최근 30일** 전환 · 기간 합계와 두 색 비율 막대(인바디형) · 날짜별 누적 막대(30일은 카드 안에서 스크롤), **☁️ 근두운**(지금 공부 중인 친구 수·구름·실시간 순위·닉네임 바꾸기)과 **🐉 내 드래곤볼**, `공부 시작`
 3. **타이머** — `🏫 학원 공부 시작` / `🏠 숙제 공부 시작` 두 가지로 시작하고, `HH:MM:SS` · 종류 배지 · `일시정지` / `종료`(일시정지 중에는 `계속` / `종료`)
    - **`⛶ 전체화면`** — 브라우저 주소창·하단 내비게이션 바를 숨긴다(`document.documentElement.requestFullscreen()`). 다시 누르면 `⛶ 전체화면 나가기`(`exitFullscreen()`).
@@ -295,6 +296,7 @@ sunogong/
 ├─ tools/make_mascot.py       # 마스코트 → 전신·얼굴·앱 아이콘·og-image 생성 스크립트
 ├─ tools/make_shenron.py      # 무지개 신룡 → public/dragonballs/shenron.png
 ├─ tools/ssr-smoke.tsx        # 모든 화면 렌더 확인(개발용)
+├─ tools/check-login-quotes.mjs # 배포된 로그인 화면 360px — 명언 카드 표시·누르면 바뀌는지 확인 + 스크린샷(개발용)
 └─ src/
    ├─ main.tsx, App.tsx, index.css
    ├─ lib/                    # supabase.ts, api.ts, time.ts, session.ts, stats.ts, logEdit.ts(기록 수정 계산), grades.ts, csv.ts, device.ts, types.ts,
@@ -302,8 +304,10 @@ sunogong/
    │                          # push.ts(알림 켜기/끄기·구독 저장), pushBoard.ts(알림 순수 함수·VAPID 공개 키),
    │                          # kintoun.ts(근두운·드래곤볼·일반용·교환권 DB 함수), kintounBoard.ts(근두운 순수 함수 — 닉네임·순위·구름·성구·일반용·교환권),
    │                          # adminSwipe.ts(관리자 좌우 스와이프 탭 이동 판정 — 거리·기울기·예외 영역),
-   │                          # pauseWatch.ts(쉬는 시간 30분·60분 판정과 문제 수 입력 순수 함수), studentAlert.ts(진동·안내음·브라우저 알림)
-   ├─ components/             # ErrorBoundary, Brand(마스코트·로고·푸터), Keypad, Modal, ImageViewer(사진 확대), InstallBanner, DesktopBlockScreen(PC 안내), KintounCloud(구름·드래곤볼)
+   │                          # pauseWatch.ts(쉬는 시간 30분·60분 판정과 문제 수 입력 순수 함수), studentAlert.ts(진동·안내음·브라우저 알림),
+   │                          # quotes.ts(학생 코드 입력 화면의 「오늘의 명언」 124개 · 직전 명언을 피하는 pickNextQuote)
+   ├─ components/             # ErrorBoundary, Brand(마스코트·로고·푸터), Keypad, Modal, ImageViewer(사진 확대), InstallBanner, DesktopBlockScreen(PC 안내), KintounCloud(구름·드래곤볼),
+   │                          # QuoteCard(오늘의 명언 카드 — 누르면 다른 명언으로)
    ├─ student/                # StudentApp, CodeEntry, ChooseStudent, Home, Timer, Result, useStudyTimer,
    │                          # QuestionBoardScreen(질문 화면), QuestionAskForm(질문 올리기 폼), LiveKintounCard(근두운·내 드래곤볼·일반용·교환권), CandyPickModal(사탕교환권 성구 고르기),
    │                          # PendingProblemsModal(지난번 푼 문제 수)·usePendingProblems(대기 목록)

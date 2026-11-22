@@ -161,6 +161,7 @@ import {
 } from '../src/lib/adminSwipe'
 import type { Student, StudyLog, StudySession } from '../src/lib/types'
 import type { StudyQuestion } from '../src/lib/types'
+import { pickNextQuote, QUOTES } from '../src/lib/quotes'
 
 let failed = 0
 function eq(name: string, actual: unknown, expected: unknown) {
@@ -1160,5 +1161,34 @@ eq('스와이프 흐름: 빈 곳에서 왼쪽으로 밀면 다음 탭', resolveT
 eq('스와이프 흐름: 랭킹에서 더 밀어도 그대로', resolveTabSwipe({ dx: -140, dy: 6, index: 4, blocked: false }), null)
 eq('스와이프 흐름: 학생 관리 표에서 오른쪽으로 밀면 질문함으로', resolveTabSwipe({ dx: 140, dy: -6, index: 3, blocked: false }), 2)
 eq('스와이프 예외 목록에 입력·모달·표시 항목이 모두 있음', ['input', 'textarea', 'select', '[role="dialog"]', '[data-swipe-ignore]'].every((part) => SWIPE_BLOCKING_SELECTOR.split(',').includes(part)), true)
+
+/* 「오늘의 명언」 — 124개·출처·중복·직전 명언 회피 */
+eq('명언: 124개', QUOTES.length, 124)
+eq('명언: 빈 문구나 빈 출처 없음', QUOTES.every((q) => q.text.trim().length > 0 && q.source.trim().length > 0), true)
+eq('명언: 같은 문구가 두 번 들어 있지 않음', new Set(QUOTES.map((q) => q.text.trim())).size, QUOTES.length)
+eq('명언: 모든 명언에 출처가 붙어 있음', QUOTES.every((q) => q.source.trim().length >= 2), true)
+eq('명언: 카드에 들어갈 길이(문구 80자 이하)', QUOTES.every((q) => q.text.length <= 80), true)
+eq('명언: 첫머리는 에디슨, 99번째는 이순신, 100번째부터 만화·영화', [QUOTES[0].source, QUOTES[98].source, QUOTES[99].source], ['토머스 에디슨', '이순신 (『난중일기』, 1597)', '라피키 (『라이온 킹』)'])
+eq('명언: 만화·영화 명대사 25개가 뒤에 붙음', QUOTES.slice(99).length, 25)
+eq('명언: 만화·영화 25개 모두 출처에 작품(『』)이 있음', QUOTES.slice(99).every((q) => q.source.includes('『')), true)
+
+/* 직전에 보여 준 명언은 다시 고르지 않고, 범위를 벗어난 번호도 돌려주지 않는다 */
+let quoteRepeats = 0
+for (let prev = 0; prev < QUOTES.length; prev += 1) {
+  for (const roll of [0, 0.17, 0.5, 0.83, 0.999999]) {
+    const next = pickNextQuote(prev, () => roll)
+    if (next === prev || next < 0 || next >= QUOTES.length) quoteRepeats += 1
+  }
+}
+eq('명언: 직전 명언을 연달아 고르지 않음(124×5회)', quoteRepeats, 0)
+eq('명언: 처음에는 전체에서 고름', [pickNextQuote(null, () => 0), pickNextQuote(undefined, () => 0.999999)], [0, QUOTES.length - 1])
+eq('명언: 잘못된 번호는 무시하고 전체에서 고름', [pickNextQuote(-3, () => 0.5), pickNextQuote(999, () => 0.5)], [62, 62])
+eq(
+  '명언: 직전 명언만 빼고 나머지 123개를 모두 고를 수 있음',
+  new Set([0, 0.001, 0.25, 0.5, 0.75, 0.999999].map((roll) => pickNextQuote(7, () => roll)).concat(
+    Array.from({ length: 123 }, (_, i) => pickNextQuote(7, () => i / 122)),
+  )).size,
+  123,
+)
 
 console.log(failed === 0 ? 'ALL LIB TESTS PASSED' : `${failed} FAILED`)

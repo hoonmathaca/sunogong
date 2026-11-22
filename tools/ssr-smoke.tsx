@@ -26,6 +26,7 @@ import { TimerScreen } from '../src/student/TimerScreen'
 import { ErrorBoundary } from '../src/components/ErrorBoundary'
 import { DesktopBlockScreen } from '../src/components/DesktopBlockScreen'
 import type { FinishResult, Student, StudySession } from '../src/lib/types'
+import { QUOTES } from '../src/lib/quotes'
 
 /* 서버에는 localStorage 가 없어서, 관리자 화면(로그인 유지) 스모크용으로 최소 저장소를 흉내 낸다 */
 if (typeof globalThis.localStorage === 'undefined') {
@@ -301,6 +302,22 @@ for (const [name, ok] of checks) {
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)
 }
 for (const [name, ok] of questionChecks) {
+  if (!ok) failed += 1
+  console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)
+}
+
+/* 「오늘의 명언」 — 코드 입력 화면 아래에 명언 카드가 한 줄로 나오는지 */
+const entryHtml = rendered['CodeEntryScreen'] ?? ''
+const shownQuote = QUOTES.find((q) => entryHtml.includes(q.text))
+const quoteChecks: [string, boolean][] = [
+  ['명언: 로그인 화면에 오늘의 명언 카드', entryHtml.includes('오늘의 명언')],
+  ['명언: 누르면 바뀐다는 안내', entryHtml.includes('눌러서 바꾸기')],
+  ['명언: 124개 중 한 개의 문구가 실제로 나옴', Boolean(shownQuote)],
+  ['명언: 그 명언의 출처도 함께 나옴', Boolean(shownQuote) && entryHtml.includes(shownQuote!.source)],
+  ['명언: 카드가 버튼(누를 수 있음)', entryHtml.includes('data-quote-card')],
+  ['명언: 화면에는 한 번에 한 개만', QUOTES.filter((q) => entryHtml.includes(q.text)).length === 1],
+]
+for (const [name, ok] of quoteChecks) {
   if (!ok) failed += 1
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)
 }
