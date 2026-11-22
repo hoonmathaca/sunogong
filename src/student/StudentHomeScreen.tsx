@@ -16,6 +16,10 @@ interface StudentHomeScreenProps {
   onQuestions: () => void
   /** 아직 열지 않은 답변 수 (배지) */
   unreadAnswers?: number
+  /** 자동 종료된 공부 중 문제 수를 아직 넣지 않은 건수 */
+  pendingProblems?: number
+  /** '지난번 푼 문제 수' 창 다시 열기 */
+  onPendingProblems?: () => void
   busy?: boolean
 }
 
@@ -30,6 +34,8 @@ export function StudentHomeScreen({
   onExit,
   onQuestions,
   unreadAnswers = 0,
+  pendingProblems = 0,
+  onPendingProblems,
   busy = false,
 }: StudentHomeScreenProps): JSX.Element {
   const [logs, setLogs] = useState<StudyLog[]>([])
@@ -141,6 +147,36 @@ export function StudentHomeScreen({
             <span className="rounded-full bg-white/10 px-2.5 py-1">이번 주 {formatMinutes(weekMinutes)}</span>
           </div>
         </section>
+
+        {/* 쉬는 시간이 길어 자동으로 마무리된 공부 — 문제 수를 아직 넣지 않았으면 여기서 들어간다 */}
+        {pendingProblems > 0 && onPendingProblems ? (
+          <button
+            type="button"
+            onClick={onPendingProblems}
+            className="mt-3 flex w-full items-center gap-3 rounded-3xl border border-[#E9A400]/35 bg-[#FFF6DA] px-4 py-3 text-left shadow-card transition active:scale-[0.99]"
+          >
+            <span
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-[18px] shadow-sm"
+              aria-hidden="true"
+            >
+              ✏️
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="flex flex-wrap items-center gap-1.5">
+                <span className="font-round text-[14.5px] font-extrabold text-[#7A5B00]">지난번 푼 문제 수</span>
+                <span className="rounded-full bg-[#E9A400] px-2 py-0.5 text-[10px] font-bold text-white tabular">
+                  {`${pendingProblems}개`}
+                </span>
+              </span>
+              <span className="mt-0.5 block text-[11.5px] font-semibold text-[#8A6A00]/70">
+                자동으로 마무리된 공부가 있어요 · 눌러서 입력
+              </span>
+            </span>
+            <span className="shrink-0 text-[20px] leading-none text-[#B8860B]/50" aria-hidden="true">
+              ›
+            </span>
+          </button>
+        ) : null}
 
         {/* 근두운 — 지금 공부 중인 친구들과 내 드래곤볼 */}
         <LiveKintounCard studentId={student.id} />

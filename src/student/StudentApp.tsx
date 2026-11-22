@@ -233,6 +233,8 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
           onExit={exitToCode}
           onQuestions={() => setPhase('questions')}
           unreadAnswers={unreadAnswers}
+          pendingProblems={pendingProblems.count}
+          onPendingProblems={pendingProblems.reopen}
           busy={busy}
         />
       ) : null}

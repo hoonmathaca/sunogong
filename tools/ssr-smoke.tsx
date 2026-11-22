@@ -168,6 +168,20 @@ const cases: [string, () => JSX.Element][] = [
     ),
   ],
   ['StudentHomeScreen', () => <StudentHomeScreen student={student} onStart={() => {}} onExit={() => {}} onQuestions={() => {}} unreadAnswers={2} />],
+  [
+    'StudentHomeScreen(지난 공부 문제 수 있음)',
+    () => (
+      <StudentHomeScreen
+        student={student}
+        onStart={() => {}}
+        onExit={() => {}}
+        onQuestions={() => {}}
+        unreadAnswers={0}
+        pendingProblems={2}
+        onPendingProblems={() => {}}
+      />
+    ),
+  ],
   ['QuestionBoardScreen', () => <QuestionBoardScreen student={student} onBack={() => {}} />],
   ['QuestionAskForm', () => <QuestionAskForm studentId={student.id} />],
   [
@@ -324,6 +338,7 @@ for (const [name, ok] of statsSplitChecks) {
 /* 쉬는 시간 30분 알림 · 60분 자동 종료 · 다음 접속 때 문제 수 입력 */
 const pausedHtml = rendered['TimerScreen(쉬는 중)'] ?? ''
 const pendingHtml = rendered['PendingProblemsModal(지난 공부 문제 수)'] ?? ''
+const pendingHomeHtml = rendered['StudentHomeScreen(지난 공부 문제 수 있음)'] ?? ''
 const pauseChecks: [string, boolean][] = [
   ['일시정지: 타이머에 일시정지 표시', pausedHtml.includes('일시정지 중이에요')],
   ['일시정지: 쉬는 시간 표시', pausedHtml.includes('쉬는 지')],
@@ -334,6 +349,10 @@ const pauseChecks: [string, boolean][] = [
   ['문제 수: 0도 가능 안내', pendingHtml.includes('0을 누르고 저장')],
   ['문제 수: 건너뛰기 버튼', pendingHtml.includes('건너뛰기')],
   ['문제 수: 저장 버튼', pendingHtml.includes('>저장<')],
+  ['문제 수: 홈에도 새로 입력할 카드', pendingHomeHtml.includes('지난번 푼 문제 수')],
+  ['문제 수: 홈 카드에 건수', pendingHomeHtml.includes('2개')],
+  ['문제 수: 홈 카드 안내 문구', pendingHomeHtml.includes('자동으로 마무리된 공부가 있어요')],
+  ['문제 수: 남은 공부가 없으면 홈 카드 없음', !homeHtml.includes('자동으로 마무리된 공부가 있어요')],
 ]
 for (const [name, ok] of pauseChecks) {
   if (!ok) failed += 1
