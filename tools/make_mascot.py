@@ -33,7 +33,7 @@ WHITE = (255, 255, 255)
 # 원본 1254×1254 기준 자리 (다른 크기 원본이면 비율로 맞춘다)
 BASE = 1254
 ART_BOX = (88, 88, 1172, 1172)      # 마스코트 + 주변 칠성구 전체
-FACE_BOX = (400, 292, 870, 762)     # 얼굴 (머리카락·안경·입) — 주변 성구·지팡이는 빼고
+FACE_BOX = (399, 280, 852, 698)     # 얼굴 (머리카락·안경·입·귀) — 목 아래 도복은 빼고
 
 
 def cutout(path: str) -> Image.Image:
@@ -115,11 +115,12 @@ def main() -> None:
     squared_art.alpha_composite(art_pad, ((side - art_pad.width) // 2, (side - art_pad.height) // 2))
     fit(squared_art, 800, 0.012).save(os.path.join(images, 'mascot-full.png'))
 
-    # 얼굴 — 머리 부분만. 아래쪽은 직선으로 잘린 티가 나지 않게 살짝 부드럽게 지운다
+    # 얼굴 — 머리 부분만. 목 아래 도복·왼손 지팡이는 아예 남기지 않고,
+    # 아래쪽은 턱선이 부드럽게 사라지게 살짝 흐려서 마무리한다
     face_box = scaled_box(FACE_BOX, full.width, full.height)
     part = character_only(full).crop(face_box)
     fp = np.array(part)
-    fade = max(1, int(part.height * 0.10))
+    fade = max(1, int(part.height * 0.045))
     for i in range(fade):
         row = part.height - fade + i
         fp[row, :, 3] = (fp[row, :, 3].astype(np.int32) * i // fade).astype(np.uint8)

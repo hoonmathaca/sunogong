@@ -2072,7 +2072,7 @@ alter table public.ticket_uses
   check (ticket in ('candy', 'point1000', 'point10000', 'secret'));
 
 -- ---------------------------------------------------------------------
--- 2. 검은용이 함께 나올지 — 1/10,000 (보너스)
+-- 2. 검은용이 함께 나올지 — 1/1,000 (보너스)
 --    · 앱(anon)에는 실행 권한을 주지 않는다 (함수 안에서만 쓴다)
 --    · 검증할 때는 set_config('sunogong.force_black','on'/'off',true) 로 결과를 고정한다
 -- ---------------------------------------------------------------------
@@ -2092,7 +2092,7 @@ begin
   if v_force = 'off' then
     return false;
   end if;
-  return random() < 0.0001;
+  return random() < 0.001;
 end;
 $$;
 

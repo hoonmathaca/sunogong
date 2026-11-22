@@ -1,7 +1,7 @@
 -- =====================================================================
 -- 선오공 · 히든 검은용 · 시크릿쿠폰 검증 (2026-11-22)
 --
---   · 검은용이 나올 확률(1/10,000)을 표본으로 확인
+--   · 검은용이 나올 확률(1/1,000)을 표본으로 확인
 --   · 강제 설정(set_config('sunogong.force_black'))으로 일반용 뽑기에
 --     검은용이 '보너스'로 함께 나오는지, 원래 일반용은 그대로 남는지 확인
 --   · 검은용 → 시크릿쿠폰 교환 → 관리자 사용 처리까지 확인
@@ -18,12 +18,12 @@ declare
   v_res     jsonb;
   v_student public.students;
 begin
-  /* 1) 확률 표본 — 40만 번 중 1/10,000 이면 40번 안팎 */
+  /* 1) 확률 표본 — 4만 번 중 1/1,000 이면 40번 안팎 */
   select count(*) into v_hits
-    from generate_series(1, 400000) as g
+    from generate_series(1, 40000) as g
    where public.roll_black_dragon();
-  raise notice '검은용 표본: 400000번 중 %번', v_hits;
-  if v_hits < 3 or v_hits > 140 then
+  raise notice '검은용 표본: 40000번 중 %번', v_hits;
+  if v_hits < 20 or v_hits > 70 then
     raise exception 'verify_failed: 확률이 너무 다릅니다 (%)', v_hits;
   end if;
 
