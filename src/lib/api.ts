@@ -214,7 +214,7 @@ export const listPendingProblemSessions = (studentId: string) =>
 
 export const listStudents = () =>
   run<Student[]>(() =>
-    supabase.from('students').select('id,name,code,grade,created_at,nickname,dragonball_count,dragonballs,dragons,rainbow_dragon_count,candy_tickets,point_1000_tickets,point_10000_tickets').order('name'),
+    supabase.from('students').select('id,name,code,grade,created_at,nickname,dragonball_count,dragonballs,dragons,rainbow_dragon_count,black_dragon_count,secret_tickets,candy_tickets,point_1000_tickets,point_10000_tickets').order('name'),
   )
 
 export const createStudent = (input: { name: string; code: string; grade: string }) =>

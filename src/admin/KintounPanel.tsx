@@ -417,18 +417,16 @@ export function KintounPanel({ students, studentsLoading, studentsError, reloadS
         ) : (
           <ul className="mt-2 divide-y divide-blue-line">
             {ticketStudents.map(({ student, counts }) => (
-              <li key={student.id} className="flex flex-wrap items-center gap-x-2 gap-y-1.5 py-2.5">
-                <div className="min-w-0 flex-1">
-                  <p className="flex min-w-0 items-baseline gap-1.5">
-                    <span className="truncate text-[13.5px] font-extrabold text-navy">{student.name}</span>
-                    <span className="shrink-0 text-[10.5px] font-semibold text-navy/35">{student.grade}</span>
-                  </p>
-                  <p className="mt-0.5 text-[10.5px] font-semibold text-navy/40">
-                    일반용 {dragonTotal(student.dragons)}마리 · 무지개용 {normalizeTicketCount(student.rainbow_dragon_count)}마리 · 성구{' '}
-                    {student.dragonball_count ?? 0}개
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5">
+              <li key={student.id} className="py-2.5">
+                <p className="flex min-w-0 items-baseline gap-1.5">
+                  <span className="truncate text-[13.5px] font-extrabold text-navy">{student.name}</span>
+                  <span className="shrink-0 text-[10.5px] font-semibold text-navy/35">{student.grade}</span>
+                </p>
+                <p className="mt-0.5 text-[10.5px] font-semibold text-navy/40">
+                  일반용 {dragonTotal(student.dragons)}마리 · 무지개용 {normalizeTicketCount(student.rainbow_dragon_count)}마리 · 성구{' '}
+                  {student.dragonball_count ?? 0}개
+                </p>
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                   {ticketChips(counts).map((ticket) => {
                     const count = counts[ticket.key]
                     return (

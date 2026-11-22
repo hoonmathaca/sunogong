@@ -196,7 +196,7 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
   const canRainbow = canCraftRainbowDragon(dragons)
   const canSecret = canExchangeSecretTicket(black)
   const missingStars = dex.filter((slot) => !slot.owned).map((slot) => `${slot.stars}성구`)
-  const missingColors = myDragons.filter((slot) => !slot.owned).map((slot) => slot.name.replace('용', ''))
+  const missingColors = myDragons.filter((slot) => !slot.owned).map((slot) => slot.name)
 
   /** 성구 2개 → 사탕교환권 */
   const exchangeCandy = async () => {
@@ -633,7 +633,7 @@ export function LiveKintounCard({ studentId }: LiveKintounCardProps): JSX.Elemen
           </div>
           {!canRainbow && missingColors.length > 0 ? (
             <p className="mt-1.5 text-center text-[10px] font-semibold text-[#A97516]/85">
-              {missingColors.join(' · ')} 용을 모으면 무지개용!
+              {missingColors.join(' · ')}을 모으면 무지개용!
             </p>
           ) : null}
 
