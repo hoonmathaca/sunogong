@@ -2,7 +2,7 @@ import { isSupabaseConfigured, SUPABASE_ANON_KEY, SUPABASE_URL, supabase } from 
 import type { SessionKind } from './kinds'
 import { editTotals, normalizeEditValues } from './logEdit'
 import { todayKst } from './time'
-import type { FinishResult, Student, StudyLog, StudySession } from './types'
+import type { FinishResult, Student, StudyLog, StudySession, AutoEndResult, PendingProblemsResult } from './types'
 
 export const NOT_CONFIGURED_MESSAGE =
   'Supabase 연결 정보가 없어요. .env 의 VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY 를 채우고 다시 빌드해주세요.'
@@ -43,6 +43,8 @@ export function friendlyError(error: unknown): string {
   }
   if (raw.includes('student_not_found')) return '학생 정보를 찾을 수 없어요.'
   if (raw.includes('session_not_found')) return '진행 중인 공부 기록을 찾을 수 없어요.'
+  if (raw.includes('session_not_finished')) return '아직 끝나지 않은 공부예요.'
+  if (raw.includes('problems_not_pending')) return '이미 문제 수를 입력한 공부예요.'
   if (raw.includes('invalid_code')) return '4자리 숫자 코드를 입력해주세요.'
   return raw
 }
@@ -186,6 +188,25 @@ export const resumeSession = (sessionId: string) =>
 
 export const finishSession = (sessionId: string, problems: number) =>
   rpc<FinishResult>('finish_session', { p_session_id: sessionId, p_problems: Math.max(0, Math.floor(problems) || 0) })
+
+/**
+ * 쉬는 시간이 60분을 넘은 세션을 자동 종료한다.
+ * 공부 시간은 쉬기 전까지로 저장되고, 문제 수는 problems_pending 으로 표시된다.
+ * (DB 마이그레이션 전에는 함수가 없어 오류가 나고, 앱은 세션을 그대로 둔다)
+ */
+export const autoEndPausedSession = (sessionId: string) =>
+  rpc<AutoEndResult>('auto_end_paused_session', { p_session_id: sessionId })
+
+/** 자동 종료된 세션에 문제 수를 입력 → 그 날 기록에 더한다 (한 세션에 한 번만) */
+export const setSessionProblems = (sessionId: string, problems: number) =>
+  rpc<PendingProblemsResult>('set_session_problems', {
+    p_session_id: sessionId,
+    p_problems: Math.max(0, Math.min(9999, Math.floor(problems) || 0)),
+  })
+
+/** 문제 수 입력을 기다리는(자동 종료된) 세션 목록 — 오래된 것부터 */
+export const listPendingProblemSessions = (studentId: string) =>
+  rpc<StudySession[]>('pending_problem_sessions', { p_student_id: studentId })
 
 /* ------------------------------------------------------------------ */
 /* 학생                                                                 */

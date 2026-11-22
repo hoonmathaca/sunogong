@@ -37,8 +37,12 @@ Supabase Dashboard → **SQL Editor** 에서 순서대로 실행합니다.
 4. **`supabase/migrate-2026-11-21-push.sql` — 관리자 '새 질문 알림'(웹 푸시)**
    - `push_subscriptions` 표(알림을 켠 관리자 기기), `study_questions.push_notified_at`(같은 질문에 한 번만 알림), RLS 정책을 만듭니다.
    - 운영 DB(`qdzlenhmhszdsnygslhp`)에는 **2026-11-21 적용 완료**입니다. 실행 전에는 관리자 화면의 알림 카드에 `알림 표가 아직 없어요` 안내가 뜨고, 질문·공부 기록은 그대로 동작합니다.
+5. **`supabase/migrate-2026-11-22-pause-autoend.sql` — 쉬는 시간 30분 알림 · 60분 자동 종료 · 다음 접속 때 문제 수 입력**
+   - `study_sessions.problems_pending`·`auto_ended` 열과 `auto_end_paused_session()`, `set_session_problems()`, `pending_problem_sessions()` 함수를 만듭니다.
+   - 운영 DB(`qdzlenhmhszdsnygslhp`)에는 **2026-11-22 적용 완료**입니다. 실행 전에도 타이머·기록은 그대로 동작하고, 자동 종료만 `알 수 없는 오류` 없이 원래대로 일시정지 상태로 남습니다.
 
 네 파일 모두 여러 번 실행해도 안전합니다(`if not exists` / `on conflict do nothing` / 정책은 지웠다가 다시 생성).
+
 실행 후 확인:
 
 ```sql
@@ -47,6 +51,7 @@ select count(*) from public.study_logs;       -- 2
 select count(*) from public.study_questions;      -- 0 (질문이 쌓이면 늘어남)
 select count(*) from public.push_subscriptions;   -- 0 (알림 켠 기기 수)
 select count(*) from public.students where rainbow_ball_count > 0;  -- 무지개 볼을 만든 학생 수
+select count(*) from public.study_sessions where problems_pending;   -- 문제 수 입력을 기다리는 세션 수
 select id, public, file_size_limit from storage.buckets where id = 'question-images';
 ```
 
@@ -58,6 +63,7 @@ select id, public, file_size_limit from storage.buckets where id = 'question-ima
 > - `supabase/migrate-2026-11-21-questions.sql` — 질문(Q&A) 표·Storage 버킷
 > - `supabase/migrate-2026-11-21-push.sql` — 새 질문 알림(웹 푸시) 구독 표 (2026-11-21 운영 DB 적용 완료)
 > - `supabase/migrate-2026-11-21-rainbow-ball.sql` — `students.rainbow_ball_count`, `craft_rainbow_ball()`(칠성구 합치기) (2026-11-21 운영 DB 적용 완료)
+> - `supabase/migrate-2026-11-22-pause-autoend.sql` — 일시정지 30분 알림·60분 자동 종료(`problems_pending`, `auto_ended` 열과 `auto_end_paused_session`·`set_session_problems`·`pending_problem_sessions`) (2026-11-22 운영 DB 적용 완료)
 
 ## 3. 실행 / 빌드
 
@@ -122,8 +128,14 @@ python3 tools/make_shenron.py <신룡_원본.png>
    - **아이폰** — 사파리는 일반 웹페이지 전체화면을 막으므로 오류 없이 안내 문구만 보여 준다(`‘홈 화면에 추가’로 열면 주소창 없이 쓸 수 있어요`).
    - 학원 공부: `🏫 학원 공부는 화면이 꺼져도 계속 가요` 안내
    - **`💬 선오공에게 질문하기`** — 공부 중에 바로 문제 사진을 올린다. 창을 여는 동안(사진 찍으러 카메라로 넘어가는 동안 포함) **타이머는 멈추지 않는다**.
+   - **😴 쉬는 지 30분 → `아직 공부 중인가요?`** — 일시정지한 채 30분이 지나면 화면 알림창과 함께 진동·안내음·브라우저 알림을 띄운다. `계속 공부할래요` / `공부 끝내고 문제 수 입력` 중에 고르면 되고, 그냥 닫으면 타이머 아래에 `쉬는 지 N분 · N분 더 쉬면 자동으로 마무리돼요` 가 계속 보인다.
+   - **⏱️ 쉬는 지 60분 → 자동 종료** — 30분 알림 뒤에도 응답이 없으면 세션을 자동으로 마무리한다. 공부 시간은 쉬기 전까지 실제로 공부한 시간으로 저장하고, 문제 수는 비워 둔 채(`problems_pending`) 홈으로 나가 바로 `지난번 푼 문제 수` 입력창을 띄운다.
 4. **종료** — `공부를 마칠까요?` → `오늘 푼 문제 수` 키패드(0 가능) → 저장
 5. **결과** — `오늘 ○시간 ○분 공부했어요` + 오늘 합계 · 오늘 학원/숙제 시간 · 푼 문제 수
+6. **지난번 푼 문제 수 (2026-11-22)** — 자동 종료된 공부가 남아 있으면, 다음에 코드를 넣고 홈에 들어올 때 `지난번 푼 문제 수` 창이 뜬다.
+   - `11월 21일 (토) · 🏠 숙제 공부 · 1시간 20분 공부` 처럼 어느 공부인지 보여 주고, 키패드로 문제 수를 넣으면 그 날 기록(문제 랭킹·통계)에 바로 더해진다.
+   - `0`도 입력할 수 있고 `건너뛰기`도 된다. 건너뛰면 이번 접속에서는 다시 묻지 않고 **다음 접속 때 다시 물어본다**(기록에는 그대로 남는다).
+   - 화면이 꺼진 채로 60분이 지나 있었어도, 다시 열면 그 자리에서 자동 종료 → 문제 수 입력으로 이어진다.
 
 ### 근두운 · 드래곤볼 (2026-11-21)
 
@@ -214,6 +226,9 @@ python3 tools/make_shenron.py <신룡_원본.png>
 | 10초마다 마지막 신호 시각만 갱신 (서버가 임의로 멈추지 않게) | `study_sessions.last_heartbeat_at` 직접 갱신 |
 | 일시정지 시간은 한 번만 뺀다 (멈춘 시각 = 마지막 신호면 그 뒤 시간은 이미 안 세므로 `paused_seconds` 를 또 더하지 않음) | `pause_session` |
 | 1회 최대 5시간(300분), 넘으면 자동 종료 | 클라이언트 안내 + 서버 18,000초 상한 |
+| **쉬는 지 30분 → `아직 공부 중인가요?` 알림창 + 진동·안내음·브라우저 알림** | 클라이언트 `pauseStage`·`alertPauseCheck` (`src/lib/pauseWatch.ts`, `src/lib/studentAlert.ts`) |
+| **응답 없이 쉬는 시간 총 60분 → 자동 종료** (공부 시간은 쉬기 전까지, 문제 수는 비워 둔 채 `problems_pending`) | `auto_end_paused_session` |
+| 자동 종료된 공부는 다음 접속 때 문제 수를 물어보고, 입력하면 그 날 기록에 더한다 | `pending_problem_sessions`, `set_session_problems` |
 | **자정(00:00) 전에 종료를 누르지 않으면 기록하지 않고 버린다** | 클라이언트 자정 타이머 + `discard_session`, `reconcile_session` |
 | 같은 종료 요청이 두 번 와도 기록이 두 번 쌓이지 않음 | `finish_session` 이 `finished` 상태를 먼저 확인 |
 
@@ -257,10 +272,12 @@ sunogong/
    │                          # questions.ts(Q&A DB·Storage), questionBoard.ts(질문 순수 함수), imageCompress.ts(사진 줄이기),
    │                          # push.ts(알림 켜기/끄기·구독 저장), pushBoard.ts(알림 순수 함수·VAPID 공개 키),
    │                          # kintoun.ts(근두운·드래곤볼 DB 함수), kintounBoard.ts(근두운 순수 함수 — 닉네임·순위·구름·드래곤볼),
-   │                          # adminSwipe.ts(관리자 좌우 스와이프 탭 이동 판정 — 거리·기울기·예외 영역)
+   │                          # adminSwipe.ts(관리자 좌우 스와이프 탭 이동 판정 — 거리·기울기·예외 영역),
+   │                          # pauseWatch.ts(쉬는 시간 30분·60분 판정과 문제 수 입력 순수 함수), studentAlert.ts(진동·안내음·브라우저 알림)
    ├─ components/             # ErrorBoundary, Brand(마스코트·로고·푸터), Keypad, Modal, ImageViewer(사진 확대), InstallBanner, DesktopBlockScreen(PC 안내), KintounCloud(구름·드래곤볼)
    ├─ student/                # StudentApp, CodeEntry, ChooseStudent, Home, Timer, Result, useStudyTimer,
-   │                          # QuestionBoardScreen(질문 화면), QuestionAskForm(질문 올리기 폼), LiveKintounCard(근두운·내 드래곤볼)
+   │                          # QuestionBoardScreen(질문 화면), QuestionAskForm(질문 올리기 폼), LiveKintounCard(근두운·내 드래곤볼),
+   │                          # PendingProblemsModal(지난번 푼 문제 수)·usePendingProblems(대기 목록)
    └─ admin/                  # AdminApp, AdminLogin, Dashboard, StudentsPanel, RankingPanel, QuestionsPanel(질문함), PushNotifyPanel(알림 설정), KintounPanel(실시간 탭·드래곤볼 쏘기), Charts, 모달들
 ```
 
@@ -311,9 +328,13 @@ python3 -c "import pglast; pglast.parse_sql(open('supabase/schema.sql').read())"
 
 # 4) 근두운·드래곤볼 SQL 검증 (검증용 학생을 만들었다가 자동으로 되돌립니다)
 #    Supabase SQL Editor 에 supabase/verify-2026-11-21-kintoun-dragonball.sql 을 붙여넣고 실행
+
+# 5) 쉬는 시간 30분·60분 자동 종료 실서비스 확인 (앱과 같은 anon 키로 실제 Supabase 에 붙음)
+#    시작 → 일시정지 → 61분 전에 멈춘 것으로 옮김 → 자동 종료 → 문제 수 입력 → 되돌리기
+node tools/e2e-pause-autoend.mjs
 ```
 
-결과: 단위 테스트 전부 통과(**319건** — 날짜·집계·학원/숙제 분리 집계·기록 수정 계산·비율·랭킹·타이머·기기 판별·질문(Q&A)·알림(VAPID 키·기기 판별·구독 저장 모양·오류 문구)·근두운(닉네임·시간·구름·실시간 순위·타이머 근두운 줄·드래곤볼) 계산, 랭킹 전체/학원/숙제 분리·드래곤볼 순위·동점 처리, 무지개 볼(합치기 조건·아이콘·힘 계산)·통계 구분(전체/학원/숙제 — 학생별·하루 기록·미제출 명단) 포함, 관리자 좌우 스와이프 42건(60px·1.5배 기준, 첫/끝 탭, 입력창·모달·가로 스크롤 예외, 컨테이너 바깥 무시)), **21개 화면** + 무지개 볼 배지·합치기 버튼·관리자 무지개 볼 안내·통계 구분 필터·실시간 학원/숙제 인원까지 렌더 성공(스모크 81건)(관리자 알림 카드·근두운 패널·세션 넘긴 근두운 줄 포함), `schema.sql`/`seed.sql`/`migrate-2026-11-21-questions.sql`/`migrate-2026-11-21-push.sql`/`migrate-2026-11-21-kintoun-dragonball.sql`/`migrate-2026-11-21-dragonball-stars.sql`/`migrate-2026-11-21-rainbow-ball.sql` 문법 오류 없음, 근두운 SQL 검증 7건 통과(검증 데이터는 되돌림 — 남은 검증용 학생 0명).
+결과: 단위 테스트 전부 통과(**339건** — 날짜·집계·학원/숙제 분리 집계·기록 수정 계산·비율·랭킹·타이머(경과·쉬는 시간·자동 종료 단계)·기기 판별·질문(Q&A)·알림(VAPID 키·기기 판별·구독 저장 모양·오류 문구)·근두운(닉네임·시간·구름·실시간 순위·타이머 근두운 줄·드래곤볼) 계산, 랭킹 전체/학원/숙제 분리·드래곤볼 순위·동점 처리, 무지개 볼(합치기 조건·아이콘·힘 계산)·통계 구분(전체/학원/숙제 — 학생별·하루 기록·미제출 명단), 관리자 좌우 스와이프 42건(60px·1.5배 기준, 첫/끝 탭, 입력창·모달·가로 스크롤 예외, 컨테이너 바깥 무시), 문제 수 대기 목록·지난 공부 표시·자동 종료 안내 문구), **22개 화면** + 무지개 볼 배지·합치기 버튼·관리자 무지개 볼 안내·통계 구분 필터·실시간 학원/숙제 인원·일시정지 중 타이머·지난번 푼 문제 수 창까지 렌더 성공(스모크 92건)(관리자 알림 카드·근두운 패널·세션 넘긴 근두운 줄 포함), `schema.sql`/`seed.sql`/`migrate-2026-11-21-questions.sql`/`migrate-2026-11-21-push.sql`/`migrate-2026-11-21-kintoun-dragonball.sql`/`migrate-2026-11-21-dragonball-stars.sql`/`migrate-2026-11-21-rainbow-ball.sql`/`migrate-2026-11-22-pause-autoend.sql` 문법 오류 없음, 근두운 SQL 검증 7건 통과, **쉬는 시간 자동 종료 실서비스 E2E 20건 통과**(60분 초과 자동 종료 → 40분 저장·문제 수 미입력 → 다음 접속 목록 → 23문제 입력 → 숙제 23문제·40분 반영, 두 번 입력 거절·공부 중이면 종료 안 함 포함). 검증 데이터는 되돌려 남은 검증용 학생·세션·기록 0건입니다.
 기기 판별(학생 화면 PC 차단) 테스트 16건도 함께 통과합니다 — 아이폰·아이패드·안드로이드 허용, 윈도우·맥·리눅스·크롬북(터치 노트북 포함) 차단.
 화면 점검에는 `선오공에게 질문하기` 홈·타이머 버튼, 학생 질문 화면, 질문 올리기 폼, 관리자 질문함(자동 정리 안내 포함), 관리자 상단 탭 이름(`실시간`), 숙제 타이머의 근두운 줄(학원 타이머에는 없음), 학생 관리의 닉네임 열·`바꾸기` 버튼이 모두 들어 있습니다.
 `'선오공이에게'` 대신 `'선오공에게'` 로만 표기되는지도 테스트로 확인합니다.

@@ -15,8 +15,10 @@ import {
   type Platform,
 } from '../lib/fullscreen'
 import { KIND_EMOJI, KIND_LABEL } from '../lib/kinds'
+import { PAUSE_CHECK_SECONDS, pauseStage, secondsUntilAutoEnd } from '../lib/pauseWatch'
+import { alertPauseCheck } from '../lib/studentAlert'
 import { formatHMS, formatMinutes, MAX_SESSION_SECONDS } from '../lib/time'
-import type { FinishResult, Student, StudySession } from '../lib/types'
+import type { AutoEndResult, FinishResult, Student, StudySession } from '../lib/types'
 import { LiveKintounStrip } from './LiveKintounStrip'
 import { QuestionAskForm } from './QuestionAskForm'
 import { useStudyTimer, type DiscardReason, type FinishReason } from './useStudyTimer'
@@ -26,12 +28,14 @@ interface TimerScreenProps {
   initialSession?: StudySession | null
   onFinished: (result: FinishResult, reason: FinishReason) => void
   onDiscarded: (reason: DiscardReason) => void
+  /** 쉬는 시간이 60분을 넘어 자동 종료됐을 때 (문제 수는 다음에 입력) */
+  onAutoEnded?: (result: AutoEndResult) => void
   onExit: () => void
 }
 
 /** 공부 타이머 화면 */
-export function TimerScreen({ student, initialSession = null, onFinished, onDiscarded, onExit }: TimerScreenProps): JSX.Element {
-  const timer = useStudyTimer({ studentId: student.id, initialSession, onFinished, onDiscarded })
+export function TimerScreen({ student, initialSession = null, onFinished, onDiscarded, onAutoEnded, onExit }: TimerScreenProps): JSX.Element {
+  const timer = useStudyTimer({ studentId: student.id, initialSession, onFinished, onDiscarded, onAutoEnded })
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [problemOpen, setProblemOpen] = useState(false)
   /* 공부 중에 바로 문제 사진을 올리는 '선오공에게 질문하기' 창 */
@@ -39,6 +43,9 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
   const [askBusy, setAskBusy] = useState(false)
   const [problems, setProblems] = useState('')
   const [pendingReason, setPendingReason] = useState<FinishReason>('manual')
+  /* 쉬는 지 30분이 지나면 띄우는 "아직 공부 중인가요?" 알림 */
+  const [pauseCheckOpen, setPauseCheckOpen] = useState(false)
+  const pauseCheckShown = useRef(false)
   /* 화면보호 모드(저조도) — 숙제 공부에서만 쓴다. 기본은 꺼짐. */
   const [shield, setShield] = useState(false)
   /* 전체화면 — 브라우저 주소창·하단 내비게이션 바를 숨긴다 */
@@ -57,9 +64,29 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
   const autoHintShown = useRef(false)
   const limitModalShown = useRef(false)
 
-  const { session, status, elapsedSeconds, busy, error, notice, limitReached, wakeLockOk, kind } = timer
+  const { session, status, elapsedSeconds, pausedSeconds, busy, error, notice, limitReached, wakeLockOk, kind } = timer
   const isHomework = kind === 'homework'
   const dim = isHomework && shield
+  /* 쉬는 시간 단계 — 30분(check)에 알림, 60분(auto)에 자동 종료 */
+  const autoEndLeft = secondsUntilAutoEnd(pausedSeconds)
+
+  /* 쉬는 지 30분이 지나면 "아직 공부 중인가요?" — 화면 알림창 + 진동·소리·브라우저 알림 */
+  useEffect(() => {
+    if (status !== 'paused') {
+      pauseCheckShown.current = false
+      setPauseCheckOpen(false)
+      return
+    }
+    if (pauseCheckShown.current) return
+    if (pausedSeconds < PAUSE_CHECK_SECONDS) return
+    pauseCheckShown.current = true
+    if (pauseStage(pausedSeconds) !== 'check') return
+    setPauseCheckOpen(true)
+    void alertPauseCheck(
+      '선오공 · 아직 공부 중인가요?',
+      `쉬는 지 ${formatMinutes(Math.floor(pausedSeconds / 60))}이 지났어요. 30분 더 지나면 자동으로 마무리해요.`,
+    )
+  }, [status, pausedSeconds])
 
   /* 5시간이 되면 자동으로 종료 안내 (문제 수는 그대로 입력) */
   useEffect(() => {
@@ -185,9 +212,16 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
 
   const openProblemInput = () => {
     setConfirmOpen(false)
+    setPauseCheckOpen(false)
     setPendingReason('manual')
     setProblems('')
     setProblemOpen(true)
+  }
+
+  /* "계속 공부할래요" — 알림을 닫고 타이머를 다시 돌린다 */
+  const resumeFromPauseCheck = () => {
+    setPauseCheckOpen(false)
+    void timer.resume()
   }
 
   const saveAndFinish = async () => {
@@ -378,6 +412,14 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
               }`}
             >
               {notice ?? '일시정지 중이에요'} · 계속하려면 아래 버튼을 눌러주세요
+              <span
+                className={`mt-1 block text-[11px] font-semibold ${dim ? 'text-[#5A6478]' : 'text-navy/45'}`}
+              >
+                쉬는 지 {formatMinutes(Math.floor(pausedSeconds / 60))}
+                {autoEndLeft > 0
+                  ? ` · ${Math.max(1, Math.ceil(autoEndLeft / 60))}분 더 쉬면 자동으로 마무리돼요`
+                  : ' · 자동으로 마무리하는 중이에요'}
+              </span>
             </div>
           ) : null}
 
@@ -470,6 +512,34 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
         onClose={closeAsk}
       >
         <QuestionAskForm studentId={student.id} onBusyChange={setAskBusy} compact />
+      </Modal>
+
+      {/* 쉬는 지 30분 — 아직 공부 중인지 물어보기 (30분 더 응답 없으면 자동 종료) */}
+      <Modal
+        open={pauseCheckOpen}
+        title="아직 공부 중인가요?"
+        onClose={() => setPauseCheckOpen(false)}
+        footer={
+          <>
+            <button type="button" className="btn-outline" onClick={openProblemInput} disabled={busy}>
+              공부 끝내고 문제 수 입력
+            </button>
+            <button type="button" className="btn-navy" onClick={resumeFromPauseCheck} disabled={busy}>
+              계속 공부할래요
+            </button>
+          </>
+        }
+      >
+        <div className="rounded-2xl bg-blue-soft px-4 py-3 text-[13px] leading-relaxed text-navy/70">
+          쉬는 지 <strong className="text-navy">{formatMinutes(Math.floor(pausedSeconds / 60))}</strong>이 지났어요.
+          <br />
+          계속 공부하려면 <strong className="text-navy">계속 공부할래요</strong>를, 다 끝났으면{' '}
+          <strong className="text-navy">공부 끝내고 문제 수 입력</strong>을 눌러주세요.
+          <br />
+          <span className="text-navy/50">
+            {Math.max(1, Math.ceil(autoEndLeft / 60))}분 더 응답이 없으면 자동으로 마무리하고, 다음에 접속할 때 푼 문제 수를 물어봐요.
+          </span>
+        </div>
       </Modal>
 
       {/* 종료 확인 */}

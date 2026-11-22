@@ -12,6 +12,8 @@
 --    · 학원 공부(academy): 화면을 끄거나 앱을 잠깐 벗어나도 타이머가 멈추지 않습니다(공부 시간으로 인정).
 --    · 숙제 공부(homework): 화면을 끄거나 나가면 즉시 일시정지합니다.
 --      (클라이언트가 pause_session 을 보내고, 신호가 끊기면 서버도 30초 뒤 일시정지)
+--  · 쉬는 중(일시정지) 30분이 지나면 앱이 "아직 공부 중인가요?" 알림을 띄우고,
+--    총 60분이 지나면 세션을 자동 종료합니다(문제 수는 다음 접속 때 입력받습니다).
 -- =====================================================================
 
 create extension if not exists pgcrypto;
@@ -46,11 +48,16 @@ create table if not exists public.study_sessions (
   date                date not null default ((now() at time zone 'Asia/Seoul')::date),
   minutes             integer,
   problems            integer,
+  problems_pending    boolean not null default false,
+  auto_ended          boolean not null default false,
   created_at          timestamptz not null default now()
 );
 
 create index if not exists study_sessions_student_idx on public.study_sessions (student_id, status);
 create index if not exists study_sessions_date_idx on public.study_sessions (date);
+create index if not exists study_sessions_pending_problems_idx
+  on public.study_sessions (student_id, ended_at)
+  where problems_pending;
 
 -- 학생 한 명은 동시에 하나의 세션만 (끝난 세션은 여러 개 가능)
 create unique index if not exists study_sessions_one_active_idx
@@ -78,6 +85,8 @@ create index if not exists study_logs_date_idx on public.study_logs (date);
 alter table public.study_sessions add column if not exists last_pause_auto boolean not null default false;
 alter table public.study_sessions add column if not exists minutes integer;
 alter table public.study_sessions add column if not exists problems integer;
+alter table public.study_sessions add column if not exists problems_pending boolean not null default false;
+alter table public.study_sessions add column if not exists auto_ended boolean not null default false;
 alter table public.study_logs add column if not exists updated_at timestamptz not null default now();
 
 -- 공부 종류(학원/숙제) — 기존 기록은 'academy' 로 두고 데이터는 그대로 둔다
@@ -544,6 +553,254 @@ begin
   get diagnostics v_deleted = row_count;
   return v_deleted > 0;
 end;
+$$;
+
+-- ---------------------------------------------------------------------
+-- 3.2 일시정지 30분 알림 · 60분 자동 종료 · 다음 접속 때 문제 수 입력 (2026-11-22 추가)
+--     자세한 변경 이유는 supabase/migrate-2026-11-22-pause-autoend.sql
+--     · 일시정지 60분 경과 → auto_end_paused_session() 이 세션을 끝내고
+--       problems_pending = true 로 표시한다(문제 수는 아직 모름, study_logs 문제 수 0).
+--     · 학생이 다음에 접속해 문제 수를 넣으면 set_session_problems() 가
+--       그 날 기록에 문제 수를 더한다 → 통계·랭킹에 반영.
+-- ---------------------------------------------------------------------
+
+create or replace function public.auto_end_paused_session(p_session_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  s      public.study_sessions;
+  v_end  timestamptz;
+  v_cap  timestamptz;
+  v_secs integer;
+  v_mins integer;
+  v_kind text;
+  v_log  public.study_logs;
+begin
+  select * into s from public.study_sessions where id = p_session_id for update;
+  if not found then
+    raise exception 'session_not_found' using errcode = 'P0002';
+  end if;
+
+  -- 이미 끝난 세션 → 그대로
+  if s.status = 'finished' then
+    select * into v_log
+      from public.study_logs
+     where student_id = s.student_id and date = s.date;
+
+    return jsonb_build_object(
+      'session',          to_jsonb(s),
+      'log',              to_jsonb(v_log),
+      'seconds',          coalesce(s.minutes, 0) * 60,
+      'minutes',          coalesce(s.minutes, 0),
+      'problems',         coalesce(s.problems, 0),
+      'total_minutes',    coalesce(v_log.minutes, 0),
+      'total_problems',   coalesce(v_log.problems, 0),
+      'date',             s.date,
+      'kind',             s.kind,
+      'problems_pending', s.problems_pending,
+      'already_finished', true
+    );
+  end if;
+
+  -- 공부 중인 세션은 자동 종료하지 않는다 (쉬는 중일 때만)
+  if s.status <> 'paused' then
+    return jsonb_build_object(
+      'session',          to_jsonb(s),
+      'log',              null,
+      'seconds',          0,
+      'minutes',          0,
+      'problems',         0,
+      'total_minutes',    0,
+      'total_problems',   0,
+      'date',             s.date,
+      'kind',             s.kind,
+      'problems_pending', false,
+      'not_paused',       true
+    );
+  end if;
+
+  -- 공부를 멈춘 시각까지가 공부 시간이다 (쉬는 동안의 시간은 세지 않는다)
+  v_end := coalesce(s.paused_at, now());
+
+  -- 그 날 자정을 넘긴 공부는 기록하지 않고 세션만 버린다 (기존 규칙과 같다)
+  v_cap := ((s.date + 1)::timestamp at time zone 'Asia/Seoul') - interval '1 second';
+  if v_end > v_cap then
+    delete from public.study_sessions where id = s.id;
+
+    select * into v_log
+      from public.study_logs
+     where student_id = s.student_id and date = s.date;
+
+    return jsonb_build_object(
+      'session',          null,
+      'log',              null,
+      'seconds',          0,
+      'minutes',          0,
+      'problems',         0,
+      'total_minutes',    coalesce(v_log.minutes, 0),
+      'total_problems',   coalesce(v_log.problems, 0),
+      'date',             s.date,
+      'kind',             s.kind,
+      'problems_pending', false,
+      'discarded',        true
+    );
+  end if;
+
+  v_secs := greatest(0, floor(extract(epoch from (v_end - s.started_at)))::integer - s.paused_seconds);
+  if v_secs > 18000 then
+    v_secs := 18000;
+  end if;
+  v_mins := (v_secs / 60)::integer;
+  v_kind := case when s.kind = 'homework' then 'homework' else 'academy' end;
+
+  update public.study_sessions
+     set status           = 'finished',
+         ended_at         = v_end,
+         paused_at        = null,
+         last_pause_auto  = false,
+         minutes          = v_mins,
+         problems         = null,          -- 아직 모른다 (problems_pending 으로 표시)
+         problems_pending = true,
+         auto_ended       = true
+   where id = s.id
+   returning * into s;
+
+  -- 문제 수는 0으로 넣어 두고, 나중에 set_session_problems() 가 더한다
+  insert into public.study_logs as l (
+    student_id, date, minutes, problems,
+    academy_minutes, academy_problems, homework_minutes, homework_problems, updated_at
+  )
+  values (
+    s.student_id, s.date, v_mins, 0,
+    case when v_kind = 'academy'  then v_mins else 0 end,
+    0,
+    case when v_kind = 'homework' then v_mins else 0 end,
+    0,
+    now()
+  )
+  on conflict (student_id, date) do update
+    set minutes           = l.minutes + excluded.minutes,
+        problems          = l.problems + excluded.problems,
+        academy_minutes   = l.academy_minutes + excluded.academy_minutes,
+        academy_problems  = l.academy_problems + excluded.academy_problems,
+        homework_minutes  = l.homework_minutes + excluded.homework_minutes,
+        homework_problems = l.homework_problems + excluded.homework_problems,
+        updated_at        = now()
+  returning * into v_log;
+
+  return jsonb_build_object(
+    'session',          to_jsonb(s),
+    'log',              to_jsonb(v_log),
+    'seconds',          v_secs,
+    'minutes',          v_mins,
+    'problems',         0,
+    'total_minutes',    coalesce(v_log.minutes, 0),
+    'total_problems',   coalesce(v_log.problems, 0),
+    'date',             s.date,
+    'kind',             v_kind,
+    'problems_pending', true,
+    'auto_ended',       true
+  );
+end;
+$$;
+
+-- 자동 종료된 세션의 문제 수 입력 → 그 날 기록에 더한다 (한 세션에 한 번만)
+create or replace function public.set_session_problems(p_session_id uuid, p_problems integer)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  s          public.study_sessions;
+  v_problems integer := greatest(0, least(9999, coalesce(p_problems, 0)));
+  v_kind     text;
+  v_log      public.study_logs;
+begin
+  select * into s from public.study_sessions where id = p_session_id for update;
+  if not found then
+    raise exception 'session_not_found' using errcode = 'P0002';
+  end if;
+
+  if s.status <> 'finished' then
+    raise exception 'session_not_finished' using errcode = 'P0002';
+  end if;
+
+  if not s.problems_pending then
+    raise exception 'problems_not_pending' using errcode = 'P0002';
+  end if;
+
+  v_kind := case when s.kind = 'homework' then 'homework' else 'academy' end;
+
+  update public.study_sessions
+     set problems         = v_problems,
+         problems_pending = false
+   where id = s.id
+   returning * into s;
+
+  update public.study_logs
+     set problems          = problems + v_problems,
+         academy_problems  = academy_problems  + case when v_kind = 'academy'  then v_problems else 0 end,
+         homework_problems = homework_problems + case when v_kind = 'homework' then v_problems else 0 end,
+         updated_at        = now()
+   where student_id = s.student_id and date = s.date
+   returning * into v_log;
+
+  -- 그 날 기록이 지워졌으면 세션 시간으로 다시 만들어 둔다
+  if v_log.id is null then
+    insert into public.study_logs as l (
+      student_id, date, minutes, problems,
+      academy_minutes, academy_problems, homework_minutes, homework_problems, updated_at
+    )
+    values (
+      s.student_id, s.date, coalesce(s.minutes, 0), v_problems,
+      case when v_kind = 'academy'  then coalesce(s.minutes, 0) else 0 end,
+      case when v_kind = 'academy'  then v_problems else 0 end,
+      case when v_kind = 'homework' then coalesce(s.minutes, 0) else 0 end,
+      case when v_kind = 'homework' then v_problems else 0 end,
+      now()
+    )
+    on conflict (student_id, date) do update
+      set problems          = l.problems + excluded.problems,
+          academy_problems  = l.academy_problems  + excluded.academy_problems,
+          homework_problems = l.homework_problems + excluded.homework_problems,
+          updated_at        = now()
+    returning * into v_log;
+  end if;
+
+  return jsonb_build_object(
+    'session',          to_jsonb(s),
+    'log',              to_jsonb(v_log),
+    'problems',         v_problems,
+    'minutes',          coalesce(s.minutes, 0),
+    'total_minutes',    coalesce(v_log.minutes, 0),
+    'total_problems',   coalesce(v_log.problems, 0),
+    'date',             s.date,
+    'kind',             v_kind,
+    'problems_pending', false
+  );
+end;
+$$;
+
+-- 문제 수 입력을 기다리는 세션 목록 (오래된 것부터, 최근 30일)
+create or replace function public.pending_problem_sessions(p_student_id uuid)
+returns setof public.study_sessions
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select *
+    from public.study_sessions
+   where student_id = p_student_id
+     and status = 'finished'
+     and problems_pending
+     and coalesce(minutes, 0) > 0
+     and date >= (public.kst_today() - 30)
+   order by coalesce(ended_at, created_at) asc, created_at asc;
 $$;
 
 -- ---------------------------------------------------------------------
@@ -1087,6 +1344,9 @@ grant execute on function public.resume_session(uuid) to anon, authenticated;
 grant execute on function public.heartbeat(uuid) to anon, authenticated;
 grant execute on function public.finish_session(uuid, integer) to anon, authenticated;
 grant execute on function public.discard_session(uuid) to anon, authenticated;
+grant execute on function public.auto_end_paused_session(uuid) to anon, authenticated;
+grant execute on function public.set_session_problems(uuid, integer) to anon, authenticated;
+grant execute on function public.pending_problem_sessions(uuid) to anon, authenticated;
 grant execute on function public.set_student_nickname(uuid, text) to anon, authenticated;
 grant execute on function public.student_profile(uuid) to anon, authenticated;
 grant execute on function public.student_dragonballs(uuid) to anon, authenticated;

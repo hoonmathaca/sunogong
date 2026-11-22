@@ -42,3 +42,14 @@ export function isHeartbeatStale(session: StudySession, serverNowMs: number, tim
 export function elapsedMinutes(seconds: number): number {
   return Math.max(0, Math.floor(seconds / 60))
 }
+
+/**
+ * 쉬는 중(일시정지)인 시간(초) — 서버 시각 보정값 기준.
+ * 일시정지가 아니면 0.
+ */
+export function pausedSecondsOf(session: StudySession | null | undefined, serverNowMs: number): number {
+  if (!session || session.status !== 'paused') return 0
+  const pausedMs = parseMs(session.paused_at)
+  const base = Number.isFinite(pausedMs) ? pausedMs : serverNowMs
+  return Math.max(0, Math.floor((serverNowMs - base) / 1000))
+}

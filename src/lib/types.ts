@@ -34,6 +34,10 @@ export interface StudySession {
   date: string
   minutes: number | null
   problems: number | null
+  /** 쉬는 시간이 60분을 넘어 자동 종료됐고 문제 수를 아직 입력받지 못했다 (2026-11-22 추가) */
+  problems_pending?: boolean
+  /** 일시정지 60분 경과로 자동 종료된 세션 (2026-11-22 추가) */
+  auto_ended?: boolean
   created_at: string
 }
 
@@ -94,4 +98,40 @@ export interface FinishResult {
   date: string
   kind?: SessionKind
   discarded?: boolean
+}
+
+/** 일시정지 60분 경과 → 자동 종료 결과 (auto_end_paused_session) */
+export interface AutoEndResult {
+  session: StudySession | null
+  log: StudyLog | null
+  seconds: number
+  minutes: number
+  problems: number
+  total_minutes: number
+  total_problems: number
+  date: string
+  kind?: SessionKind
+  /** 문제 수를 아직 입력받지 못했다 */
+  problems_pending?: boolean
+  /** 이번 요청으로 자동 종료됐다 */
+  auto_ended?: boolean
+  /** 이미 끝나 있던 세션 */
+  already_finished?: boolean
+  /** 쉬는 중이 아니라 자동 종료하지 않았다 */
+  not_paused?: boolean
+  /** 자정을 넘긴 공부라 기록하지 않고 버렸다 */
+  discarded?: boolean
+}
+
+/** 자동 종료된 세션에 문제 수를 입력한 결과 (set_session_problems) */
+export interface PendingProblemsResult {
+  session: StudySession
+  log: StudyLog | null
+  problems: number
+  minutes: number
+  total_minutes: number
+  total_problems: number
+  date: string
+  kind?: SessionKind
+  problems_pending?: boolean
 }

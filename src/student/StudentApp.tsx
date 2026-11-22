@@ -1,14 +1,17 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import * as api from '../lib/api'
 import * as questionsApi from '../lib/questions'
 import { normalizeKind, type SessionKind } from '../lib/kinds'
-import type { FinishResult, Student, StudySession } from '../lib/types'
+import { autoEndNotice } from '../lib/pauseWatch'
+import type { AutoEndResult, FinishResult, Student, StudySession } from '../lib/types'
 import { ChooseStudentScreen } from './ChooseStudentScreen'
 import { CodeEntryScreen } from './CodeEntryScreen'
+import { PendingProblemsModal } from './PendingProblemsModal'
 import { QuestionBoardScreen } from './QuestionBoardScreen'
 import { ResultScreen } from './ResultScreen'
 import { StudentHomeScreen } from './StudentHomeScreen'
 import { TimerScreen } from './TimerScreen'
+import { usePendingProblems } from './usePendingProblems'
 import type { DiscardReason, FinishReason } from './useStudyTimer'
 
 type Phase = 'code' | 'choose' | 'home' | 'timer' | 'result' | 'questions'
@@ -70,6 +73,8 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
   const [lastKind, setLastKind] = useState<SessionKind>('academy')
   /* 새로 온 선오공이 답변 수 (홈 배지) */
   const [unreadAnswers, setUnreadAnswers] = useState(0)
+  /* 자동 종료된 지난 공부의 문제 수 입력 (다음 접속 때) */
+  const pendingProblems = usePendingProblems(student?.id ?? null)
 
   const discardMessage = (reason: DiscardReason) =>
     reason === 'stale'
@@ -181,6 +186,17 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
     setPhase('result')
   }, [])
 
+  /* 쉬는 시간이 60분을 넘어 자동 종료 → 홈으로 나가 문제 수를 바로 입력받는다 */
+  const reloadPendingRef = useRef(pendingProblems.reload)
+  reloadPendingRef.current = pendingProblems.reload
+  const handleAutoEnded = useCallback((data: AutoEndResult) => {
+    setInitialSession(null)
+    setResult(null)
+    setFlash(autoEndNotice(data.minutes))
+    setPhase('home')
+    void reloadPendingRef.current()
+  }, [])
+
   /* 홈으로 돌아올 때마다 새 답변 배지를 새로 읽는다 */
   useEffect(() => {
     if (!student || (phase !== 'home' && phase !== 'result')) return
@@ -234,6 +250,7 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
           student={student}
           initialSession={initialSession}
           onFinished={handleFinished}
+          onAutoEnded={handleAutoEnded}
           onDiscarded={(reason: DiscardReason) => {
             setInitialSession(null)
             setResult(null)
@@ -241,6 +258,18 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
             setPhase('home')
           }}
           onExit={() => setPhase('home')}
+        />
+      ) : null}
+
+      {/* 자동 종료된 지난 공부의 문제 수 — 홈에 들어오면 한 번 물어본다 */}
+      {phase === 'home' && student && pendingProblems.current ? (
+        <PendingProblemsModal
+          key={pendingProblems.current.id}
+          session={pendingProblems.current}
+          busy={pendingProblems.busy}
+          error={pendingProblems.error}
+          onSubmit={(problems) => void pendingProblems.submit(problems)}
+          onSkip={pendingProblems.skip}
         />
       ) : null}
 

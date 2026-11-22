@@ -20,6 +20,7 @@ import { QuestionBoardScreen } from '../src/student/QuestionBoardScreen'
 import { StudentHomeScreen } from '../src/student/StudentHomeScreen'
 import { ResultScreen } from '../src/student/ResultScreen'
 import { LiveKintounStrip } from '../src/student/LiveKintounStrip'
+import { PendingProblemsModal } from '../src/student/PendingProblemsModal'
 import { TimerScreen } from '../src/student/TimerScreen'
 import { ErrorBoundary } from '../src/components/ErrorBoundary'
 import { DesktopBlockScreen } from '../src/components/DesktopBlockScreen'
@@ -91,6 +92,30 @@ const runningSession = (kind: 'academy' | 'homework'): StudySession => ({
   problems: null,
 })
 
+/* 쉬는 중(일시정지) 세션 — 30분 알림·60분 자동 종료 화면 확인용 */
+const pausedSession: StudySession = {
+  ...runningSession('homework'),
+  id: 'paused-homework',
+  status: 'paused',
+  paused_at: '2026-11-19T05:00:00Z',
+  last_heartbeat_at: '2026-11-19T05:00:00Z',
+}
+
+/* 자동 종료된 지난 공부 (문제 수 미입력) */
+const pendingSession: StudySession = {
+  ...pausedSession,
+  id: 'pending-1',
+  status: 'finished',
+  kind: 'homework',
+  date: '2026-11-21',
+  paused_at: null,
+  ended_at: '2026-11-21T10:00:00Z',
+  minutes: 80,
+  problems: null,
+  problems_pending: true,
+  auto_ended: true,
+}
+
 const cases: [string, () => JSX.Element][] = [
   [
     'TimerScreen(숙제)',
@@ -117,6 +142,25 @@ const cases: [string, () => JSX.Element][] = [
     ),
   ],
   ['CodeEntryScreen', () => <CodeEntryScreen onSubmit={async () => ({ ok: true })} onAdmin={() => {}} />],
+  [
+    'TimerScreen(쉬는 중)',
+    () => (
+      <TimerScreen
+        student={student}
+        initialSession={pausedSession}
+        onFinished={() => {}}
+        onDiscarded={() => {}}
+        onAutoEnded={() => {}}
+        onExit={() => {}}
+      />
+    ),
+  ],
+  [
+    'PendingProblemsModal(지난 공부 문제 수)',
+    () => (
+      <PendingProblemsModal session={pendingSession} onSubmit={() => {}} onSkip={() => {}} />
+    ),
+  ],
   [
     'ChooseStudentScreen',
     () => (
@@ -273,6 +317,25 @@ const statsSplitChecks: [string, boolean][] = [
   ['분리: 랭킹 학원·숙제 분리 안내', rankingHtml.includes('전체 / 🏫 학원 / 🏠 숙제로 따로')],
 ]
 for (const [name, ok] of statsSplitChecks) {
+  if (!ok) failed += 1
+  console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)
+}
+
+/* 쉬는 시간 30분 알림 · 60분 자동 종료 · 다음 접속 때 문제 수 입력 */
+const pausedHtml = rendered['TimerScreen(쉬는 중)'] ?? ''
+const pendingHtml = rendered['PendingProblemsModal(지난 공부 문제 수)'] ?? ''
+const pauseChecks: [string, boolean][] = [
+  ['일시정지: 타이머에 일시정지 표시', pausedHtml.includes('일시정지 중이에요')],
+  ['일시정지: 쉬는 시간 표시', pausedHtml.includes('쉬는 지')],
+  ['일시정지: 자동 마무리 안내', pausedHtml.includes('자동으로 마무리')],
+  ['일시정지: 계속 버튼', pausedHtml.includes('>계속<')],
+  ['문제 수: 지난 공부 제목', pendingHtml.includes('지난번 푼 문제 수')],
+  ['문제 수: 지난 공부 요약(날짜·종류·시간)', pendingHtml.includes('11월 21일') && pendingHtml.includes('숙제 공부') && pendingHtml.includes('1시간 20분')],
+  ['문제 수: 0도 가능 안내', pendingHtml.includes('0을 누르고 저장')],
+  ['문제 수: 건너뛰기 버튼', pendingHtml.includes('건너뛰기')],
+  ['문제 수: 저장 버튼', pendingHtml.includes('>저장<')],
+]
+for (const [name, ok] of pauseChecks) {
   if (!ok) failed += 1
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)
 }

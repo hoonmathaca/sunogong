@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as api from '../lib/api'
 import { normalizeKind, pausesOnLeave, type SessionKind } from '../lib/kinds'
-import { computeElapsedSeconds, isHeartbeatStale } from '../lib/session'
+import { computeElapsedSeconds, isHeartbeatStale, pausedSecondsOf } from '../lib/session'
+import { PAUSE_AUTO_END_SECONDS } from '../lib/pauseWatch'
 import { HEARTBEAT_INTERVAL_MS, MAX_SESSION_SECONDS, kstMidnightMs, parseMs, todayKst } from '../lib/time'
-import type { FinishResult, StudySession } from '../lib/types'
+import type { AutoEndResult, FinishResult, StudySession } from '../lib/types'
 
 export type FinishReason = 'manual' | 'limit'
 /** 기록 없이 버린 이유 — 자정이 지나서 / 이미 지난 날의 세션이라서 */
@@ -25,6 +26,8 @@ export interface UseStudyTimerOptions {
   onFinished?: (result: FinishResult, reason: FinishReason) => void
   /** 자정을 넘겨 기록 없이 버려졌을 때 */
   onDiscarded?: (reason: DiscardReason) => void
+  /** 쉬는 시간이 60분을 넘어 자동 종료됐을 때 (문제 수는 다음에 입력) */
+  onAutoEnded?: (result: AutoEndResult) => void
 }
 
 export interface StudyTimer {
@@ -32,6 +35,8 @@ export interface StudyTimer {
   status: 'loading' | 'idle' | 'running' | 'paused' | 'finished'
   kind: SessionKind
   elapsedSeconds: number
+  /** 쉬는 중(일시정지)인 시간(초) — 30분에 알림, 60분에 자동 종료 */
+  pausedSeconds: number
   loading: boolean
   busy: boolean
   error: string | null
@@ -61,14 +66,17 @@ export interface StudyTimer {
  * - 숙제 공부(homework): 화면을 끄거나 다른 화면·앱으로 나가면 즉시 일시정지한다.
  *   (요청이 화면 꺼짐에 끊기지 않도록 keepalive 로 보내고, 화면에는 바로 반영한다)
  * - 5시간(300분)을 넘으면 자동 종료 안내, 자정(00:00)을 넘기면 기록 없이 버린다.
+ * - 쉬는 중(일시정지)이 30분을 넘으면 화면이 "아직 공부 중인가요?" 알림을 띄우고,
+ *   총 60분을 넘으면 세션을 자동 종료한다(공부 시간은 쉬기 전까지, 문제 수는 다음 접속 때 입력).
  */
-export function useStudyTimer({ studentId, initialSession = null, onFinished, onDiscarded }: UseStudyTimerOptions): StudyTimer {
+export function useStudyTimer({ studentId, initialSession = null, onFinished, onDiscarded, onAutoEnded }: UseStudyTimerOptions): StudyTimer {
   const [session, setSession] = useState<StudySession | null>(initialSession)
   const [loading, setLoading] = useState(!initialSession)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [elapsed, setElapsed] = useState(0)
+  const [pausedFor, setPausedFor] = useState(0)
   const [limitReached, setLimitReached] = useState(false)
   const [wakeLockOk, setWakeLockOk] = useState(true)
   const [kind, setKind] = useState<SessionKind>(normalizeKind(initialSession?.kind))
@@ -81,10 +89,16 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
   const kindRef = useRef<SessionKind>(normalizeKind(initialSession?.kind))
   const onFinishedRef = useRef(onFinished)
   const onDiscardedRef = useRef(onDiscarded)
+  const onAutoEndedRef = useRef(onAutoEnded)
   /** 질문 창을 여는 동안 화면을 벗어나도 멈추지 않기 (숙제 공부) */
   const leaveHoldRef = useRef(false)
+  /** 자동 종료 요청이 도는 중인지 (같은 요청이 겹치지 않게) */
+  const autoEndingRef = useRef(false)
+  /** 자동 종료가 실패한 세션 — 계속 다시 시도하지 않는다(DB 함수가 아직 없을 때) */
+  const autoEndFailedIdRef = useRef<string | null>(null)
   onFinishedRef.current = onFinished
   onDiscardedRef.current = onDiscarded
+  onAutoEndedRef.current = onAutoEnded
 
   const applySession = useCallback((next: StudySession | null) => {
     sessionRef.current = next
@@ -124,9 +138,13 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
     [computeElapsed],
   )
 
-  /* 1초마다 화면 숫자 갱신 */
+  /* 1초마다 화면 숫자 갱신 (쉬는 시간도 함께 센다) */
   useEffect(() => {
-    const tick = () => setElapsed(computeElapsed())
+    const tick = () => {
+      const current = sessionRef.current
+      setElapsed(computeElapsed(current))
+      setPausedFor(pausedSecondsOf(current, Date.now() + offsetRef.current))
+    }
     tick()
     const id = window.setInterval(tick, 500)
     return () => window.clearInterval(id)
@@ -340,6 +358,51 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
     [applySession, computeElapsed, discard],
   )
 
+  /* 쉬는 시간이 60분을 넘으면 자동 종료 (공부 시간은 쉬기 전까지, 문제 수는 다음 접속 때) */
+  const autoEnd = useCallback(async () => {
+    const current = sessionRef.current
+    if (!current || current.status !== 'paused') return
+    if (autoEndingRef.current || finishingRef.current) return
+    // DB 함수가 아직 없어 한 번 실패했다면 같은 세션으로 계속 다시 시도하지 않는다
+    if (autoEndFailedIdRef.current === current.id) return
+    autoEndingRef.current = true
+    setBusy(true)
+    const res = await api.autoEndPausedSession(current.id)
+    autoEndingRef.current = false
+    setBusy(false)
+    if (!res.ok) {
+      autoEndFailedIdRef.current = current.id
+      setError(res.error)
+      return
+    }
+    const data = res.data
+    if (data.discarded) {
+      // 자정을 넘긴 공부 — 기록 없이 버린다 (기존 규칙)
+      applySession(null)
+      setElapsed(0)
+      setPausedFor(0)
+      onDiscardedRef.current?.('stale')
+      return
+    }
+    if (!data.session) return
+    applySession(data.session)
+    setElapsed(computeElapsed(data.session))
+    setPausedFor(0)
+    setNotice(null)
+    try {
+      onAutoEndedRef.current?.(data)
+    } catch (callbackError) {
+      console.error('[sunogong] 자동 종료 처리 중 오류:', callbackError)
+    }
+  }, [applySession, computeElapsed])
+
+  /* 30분 알림 뒤에도 응답이 없어 60분을 채우면 자동 종료 */
+  useEffect(() => {
+    if (!session || session.status !== 'paused') return
+    if (pausedFor < PAUSE_AUTO_END_SECONDS) return
+    void autoEnd()
+  }, [pausedFor, session?.id, session?.status, autoEnd])
+
   /* 하트비트 (10초) — 마지막 신호 시각만 갱신한다.
      화면이 꺼져 타이머가 느려지더라도 서버가 임의로 일시정지하지 않게 하기 위해서다. */
   useEffect(() => {
@@ -529,6 +592,7 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
     kind,
     status: loading ? 'loading' : !session ? 'idle' : session.status,
     elapsedSeconds: elapsed,
+    pausedSeconds: pausedFor,
     loading,
     busy,
     error,

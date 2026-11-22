@@ -2,7 +2,17 @@
 import { addDays, formatHMS, formatMinutes, formatMinutesCompact, kstDateString, monthRange, rangeDates, weekRange, weekdayOf, kstDayEndMs, kstMidnightMs } from '../src/lib/time'
 import { buildStats, hasScopedLog, indexLogs, longestStreakAllTime, longestStreakInRange, rankByKind, rankEntries, rankValue, scopeLabel, scopeShortLabel, scopedDays, scopedLogMinutes, scopedLogProblems, scopedMinutes, scopedProblems, splitLog, splitPercents, studentsWithoutKind, sumSplits } from '../src/lib/stats'
 import { editTotals, editValuesFromLog, normalizeEditValues } from '../src/lib/logEdit'
-import { computeElapsedSeconds, isHeartbeatStale } from '../src/lib/session'
+import { computeElapsedSeconds, isHeartbeatStale, pausedSecondsOf } from '../src/lib/session'
+import {
+  autoEndNotice,
+  PAUSE_AUTO_END_SECONDS,
+  PAUSE_CHECK_SECONDS,
+  pauseStage,
+  pendingProblemQueue,
+  pendingProblemSummary,
+  problemsFromInput,
+  secondsUntilAutoEnd,
+} from '../src/lib/pauseWatch'
 import { normalizeKind, pausesOnLeave } from '../src/lib/kinds'
 import {
   ANSWER_MEDIA_MAX_BYTES,
@@ -116,7 +126,7 @@ import {
   tabAfterSwipe,
   type SwipeNode,
 } from '../src/lib/adminSwipe'
-import type { Student, StudyLog } from '../src/lib/types'
+import type { Student, StudyLog, StudySession } from '../src/lib/types'
 import type { StudyQuestion } from '../src/lib/types'
 
 let failed = 0
@@ -418,6 +428,65 @@ eq('경과(시작 전)', computeElapsedSeconds(baseSession, at('2026-11-19T00:50
 eq('하트비트 끊김(30초 초과)', isHeartbeatStale(baseSession, at('2026-11-19T01:10:31Z')), true)
 eq('하트비트 살아있음', isHeartbeatStale(baseSession, at('2026-11-19T01:10:10Z')), false)
 eq('하트비트(일시정지 중엔 해당 없음)', isHeartbeatStale({ ...baseSession, status: 'paused' }, at('2026-11-19T05:00:00Z')), false)
+
+/* 쉬는 시간(일시정지) — 30분 알림 · 60분 자동 종료 */
+eq('쉬는 시간 상수', [PAUSE_CHECK_SECONDS, PAUSE_AUTO_END_SECONDS], [1800, 3600])
+eq('쉬는 시간(진행 중이면 0)', pausedSecondsOf(baseSession, at('2026-11-19T03:00:00Z')), 0)
+eq('쉬는 시간(끝난 세션이면 0)', pausedSecondsOf({ ...baseSession, status: 'finished' }, at('2026-11-19T03:00:00Z')), 0)
+eq('쉬는 시간(없으면 0)', [pausedSecondsOf(null, at('2026-11-19T03:00:00Z')), pausedSecondsOf(undefined, Date.now())], [0, 0])
+eq(
+  '쉬는 시간(일시정지 25분 30초)',
+  pausedSecondsOf({ ...baseSession, status: 'paused', paused_at: '2026-11-19T01:05:00Z' }, at('2026-11-19T01:30:30Z')),
+  1530,
+)
+eq(
+  '쉬는 시간(일시정지 시각이 없으면 0)',
+  pausedSecondsOf({ ...baseSession, status: 'paused', paused_at: null }, at('2026-11-19T03:00:00Z')),
+  0,
+)
+eq('단계: 아직', [pauseStage(0), pauseStage(1799)], ['none', 'none'])
+eq('단계: 30분 알림', [pauseStage(1800), pauseStage(3599)], ['check', 'check'])
+eq('단계: 60분 자동 종료', [pauseStage(3600), pauseStage(9000)], ['auto', 'auto'])
+eq('단계: 값이 이상하면 아직', [pauseStage(-5), pauseStage(Number.NaN)], ['none', 'none'])
+eq('자동 종료까지', [secondsUntilAutoEnd(0), secondsUntilAutoEnd(1800), secondsUntilAutoEnd(3599)], [3600, 1800, 1])
+eq('자동 종료까지(지났으면 0)', [secondsUntilAutoEnd(3600), secondsUntilAutoEnd(7200)], [0, 0])
+eq('문제 수 입력값', [problemsFromInput(''), problemsFromInput('0'), problemsFromInput('017')], [0, 0, 17])
+eq('문제 수 입력값(문자·최대값)', [problemsFromInput('12a3'), problemsFromInput('12345'), problemsFromInput('-7')], [123, 9999, 7])
+
+/* 자동 종료된 지난 공부 — 문제 수를 물어볼 목록 */
+const pendingBase: StudySession = {
+  ...baseSession,
+  status: 'finished',
+  kind: 'homework',
+  date: '2026-11-21',
+  ended_at: '2026-11-21T10:00:00Z',
+  minutes: 80,
+  problems: null,
+  problems_pending: true,
+}
+const later = { ...pendingBase, id: 'p2', ended_at: '2026-11-21T12:00:00Z' }
+const earlier = { ...pendingBase, id: 'p1', ended_at: '2026-11-21T09:00:00Z' }
+eq(
+  '문제 수 대기 목록: 끝난·미입력·공부한 세션만 오래된 것부터',
+  pendingProblemQueue([
+    later,
+    { ...pendingBase, id: 'running', status: 'running' },
+    { ...pendingBase, id: 'done', problems_pending: false, problems: 12 },
+    { ...pendingBase, id: 'zero', minutes: 0 },
+    earlier,
+    later,
+  ]).map((session) => session.id),
+  ['p1', 'p2'],
+)
+eq('문제 수 대기 목록(없으면 빈 목록)', [pendingProblemQueue(null), pendingProblemQueue([])], [[], []])
+eq('지난 공부 표시', pendingProblemSummary(pendingBase), '11월 21일 (토) · 🏠 숙제 공부 · 1시간 20분 공부')
+eq('지난 공부 표시(학원·짧은 공부)', pendingProblemSummary({ ...pendingBase, kind: 'academy', minutes: 25 }), '11월 21일 (토) · 🏫 학원 공부 · 25분 공부')
+eq(
+  '자동 종료 안내',
+  autoEndNotice(70),
+  '쉬는 지 60분이 지나서 자동으로 마무리했어요. 1시간 10분 공부한 것으로 저장했고, 푼 문제 수를 입력해 주세요.',
+)
+eq('자동 종료 안내(0분)', autoEndNotice(0), '쉬는 지 60분이 지나서 자동으로 마무리했어요. 푼 문제 수를 입력해 주세요.')
 
 /* 근두운 — 닉네임 · 실시간 현황 · 드래곤볼 */
 eq('근두운: 닉네임 앞뒤 공백', normalizeNickname('  수학왕  '), '수학왕')
