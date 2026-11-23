@@ -108,6 +108,8 @@ try {
     Boolean(rowBox) && rowBox.x >= 0 && rowBox.x + rowBox.width <= 360,
     JSON.stringify(rowBox),
   )
+  await rowButton.scrollIntoViewIfNeeded()
+  await admin.waitForTimeout(500)
   await admin.screenshot({ path: `${shotDir}/sunogong-admin-end-study-list-360.png`, fullPage: false })
 
   await rowButton.click()
