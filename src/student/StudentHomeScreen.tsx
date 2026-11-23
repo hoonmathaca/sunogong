@@ -32,6 +32,8 @@ interface StudentHomeScreenProps {
   pendingHomework?: boolean
   /** '지난번 푼 문제 수' 창 다시 열기 */
   onPendingProblems?: () => void
+  /** 지난 공부를 마저 내면 홈 목록을 다시 읽는다 (값이 바뀌면 새로 불러옴) */
+  refreshKey?: number
   busy?: boolean
 }
 
@@ -49,6 +51,7 @@ export function StudentHomeScreen({
   pendingProblems = 0,
   pendingHomework = false,
   onPendingProblems,
+  refreshKey = 0,
   busy = false,
 }: StudentHomeScreenProps): JSX.Element {
   const [logs, setLogs] = useState<StudyLog[]>([])
@@ -79,7 +82,9 @@ export function StudentHomeScreen({
 
   useEffect(() => {
     void load()
-  }, [load])
+    // refreshKey — 지난 공부를 마저 내면 그 자리에서 목록을 다시 읽는다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [load, refreshKey])
 
   const periodStart = addDays(today, -(period - 1))
 

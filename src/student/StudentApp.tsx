@@ -73,6 +73,8 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
   const [lastKind, setLastKind] = useState<SessionKind>('academy')
   /* 새로 온 선오공이 답변 수 (홈 배지) */
   const [unreadAnswers, setUnreadAnswers] = useState(0)
+  /* 지난 공부를 마저 내면 홈의 숙제 제출 목록을 다시 읽게 하는 값 */
+  const [homeRefresh, setHomeRefresh] = useState(0)
   /* 자동 종료된 지난 공부의 문제 수 입력 (다음 접속 때) */
   const pendingProblems = usePendingProblems(student?.id ?? null)
 
@@ -236,6 +238,7 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
           pendingProblems={pendingProblems.count}
           pendingHomework={pendingProblems.hasHomework}
           onPendingProblems={pendingProblems.reopen}
+          refreshKey={homeRefresh}
           busy={busy}
         />
       ) : null}
@@ -272,7 +275,11 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
           item={pendingProblems.current}
           busy={pendingProblems.busy}
           error={pendingProblems.error}
-          onSubmit={(problems, photoPaths) => void pendingProblems.submit(problems, photoPaths)}
+          onSubmit={(problems, photoPaths) => {
+            void pendingProblems.submit(problems, photoPaths).then((ok) => {
+              if (ok) setHomeRefresh((value) => value + 1)
+            })
+          }}
           onSkip={pendingProblems.skip}
         />
       ) : null}
