@@ -43,6 +43,9 @@ Supabase Dashboard → **SQL Editor** 에서 순서대로 실행합니다.
 6. **`supabase/migrate-2026-11-23-homework-photo-approval.sql` — 숙제 공부 사진 인증 · 시간/문항수 분리 승인 · 관리자 `숙제관리`**
    - `homework_submissions` 표, `close_homework_session()`·`submit_homework()`·`submit_pending_homework()`·`review_homework_submission()`·`pending_homework_submissions()`, Storage 버킷 `homework-photos`(비공개, 1개 5MB, 사진만), RLS 정책을 만들고 `finish_session`·`auto_end_paused_session`·`pending_problem_sessions` 를 새 규칙으로 바꿉니다.
    - 운영 DB(`qdzlenhmhszdsnygslhp`)에는 **2026-11-23 적용 완료**입니다. 실행 전에는 숙제 공부도 예전처럼 바로 기록에 들어가고, 학생 화면에는 `숙제 사진 기능을 아직 준비 중이에요` 가 뜰 수 있습니다.
+7. **`supabase/migrate-2026-11-23-homework-photo-resume.sql` — 숙제 사진 초안 (카메라 전환으로 탭이 튕겨도 이어서 제출)**
+   - `homework_submissions` 에 초안 열(`draft_active`·`draft_problems`·`draft_open`), `save_homework_draft()`·`clear_homework_draft()`, 초안 줄이 있어도 세션을 제대로 마무리하도록 고친 `close_homework_session()`, 초안을 빼고 진짜 제출만 돌려주는 `pending_homework_submissions()`, 세션이 지워질 때 초안도 정리하는 트리거를 만듭니다.
+   - 운영 DB(`qdzlenhmhszdsnygslhp`)에는 **2026-11-23 적용 완료**입니다. 실행 전에도 사진 제출은 되지만, 탭이 튕기면 찍어 둔 사진이 사라집니다(초안 저장이 없음).
 
 네 파일 모두 여러 번 실행해도 안전합니다(`if not exists` / `on conflict do nothing` / 정책은 지웠다가 다시 생성).
 
@@ -55,7 +58,8 @@ select count(*) from public.study_questions;      -- 0 (질문이 쌓이면 늘�
 select count(*) from public.push_subscriptions;   -- 0 (알림 켠 기기 수)
 select count(*) from public.students where dragons <> '{"red":0,"orange":0,"yellow":0,"green":0,"blue":0,"navy":0,"purple":0}';  -- 일반용을 만든 학생 수
 select count(*) from public.study_sessions where problems_pending;   -- 문제 수 입력을 기다리는 세션 수
-select count(*) from public.homework_submissions where status = 'pending';  -- 승인을 기다리는 숙제 제출 수
+select count(*) from public.homework_submissions where status = 'pending' and not draft_active;  -- 승인을 기다리는 숙제 제출 수(초안 제외)
+select count(*) from public.homework_submissions where draft_active;  -- 아직 제출 전인 사진 초안 수(보통 0~1)
 select id, public, file_size_limit from storage.buckets where id = 'question-images';
 select id, public, file_size_limit from storage.buckets where id = 'homework-photos';
 ```
@@ -69,7 +73,8 @@ select id, public, file_size_limit from storage.buckets where id = 'homework-pho
 > - `supabase/migrate-2026-11-21-push.sql` — 새 질문 알림(웹 푸시) 구독 표 (2026-11-21 운영 DB 적용 완료)
 > - `supabase/migrate-2026-11-21-rainbow-ball.sql` — `students.rainbow_ball_count`, `craft_rainbow_ball()`(칠성구 합치기) (2026-11-21 운영 DB 적용 완료)
 > - `supabase/migrate-2026-11-22-pause-autoend.sql` — 일시정지 30분 알림·60분 자동 종료(`problems_pending`, `auto_ended` 열과 `auto_end_paused_session`·`set_session_problems`·`pending_problem_sessions`) (2026-11-22 운영 DB 적용 완료)
-> - `supabase/migrate-2026-11-23-homework-photo-approval.sql` — 숙제 공부 사진 인증·시간/문항수 분리 승인(`homework_submissions`, `submit_homework`·`submit_pending_homework`·`review_homework_submission`, Storage `homework-photos`) (2026-11-23 운영 DB 적용 완료)
+- `supabase/migrate-2026-11-23-homework-photo-approval.sql` — 숙제 공부 사진 인증·시간/문항수 분리 승인(`homework_submissions`, `submit_homework`·`submit_pending_homework`·`review_homework_submission`, Storage `homework-photos`) (2026-11-23 운영 DB 적용 완료)
+> - `supabase/migrate-2026-11-23-homework-photo-resume.sql` — 숙제 사진 초안(`draft_active`·`draft_problems`·`draft_open`, `save_homework_draft`·`clear_homework_draft`, 초안이 있어도 세션을 마무리하는 `close_homework_session`) (2026-11-23 운영 DB 적용 완료)
 
 ## 3. 실행 / 빌드
 
@@ -318,6 +323,7 @@ sunogong/
 │  ├─ migrate-2026-11-22-candy-pick-stars.sql       # 사탕교환권 — 쓸 성구 2개를 직접 고르기
 │  ├─ migrate-2026-11-22-secret-black-dragon.sql    # 히든 검은용·시크릿쿠폰
 │  ├─ migrate-2026-11-23-homework-photo-approval.sql  # 숙제 사진 인증·시간/문항수 승인·Storage homework-photos
+│  ├─ migrate-2026-11-23-homework-photo-resume.sql    # 숙제 사진 초안(탭이 튕겨도 이어서 제출)
 │  ├─ verify-2026-11-22-secret-black-dragon.sql     # 검은용 확률·보너스·교환 검증(되돌림)
 │  ├─ verify-2026-11-22-candy-pick-stars.sql        # 사탕교환권 성구 고르기 검증(되돌림)
 │  └─ verify-2026-11-21-kintoun-dragonball.sql   # 근두운·드래곤볼 SQL 검증(되돌림)
@@ -332,6 +338,7 @@ sunogong/
 ├─ tools/ssr-smoke.tsx        # 모든 화면 렌더 확인(개발용)
 ├─ tools/check-login-quotes.mjs # 배포된 로그인 화면 360px — 오늘의 한줄 카드 표시·눌러도 그대로·새로 열면 무작위 + 스크린샷(개발용)
 ├─ tools/e2e-homework-approval.mjs # 숙제 사진 제출·시간/문항수 승인 실서비스 E2E(검증용 학생은 끝나고 삭제)
+├─ tools/e2e-homework-draft.mjs    # 숙제 사진 초안(사진 1장씩 저장·이어서 제출·자동 종료·정리) 실서비스 E2E
 ├─ tools/check-homework-ui.mjs  # 배포된 화면 360px — 학생 숙제 제출 창·홈 승인 표시·관리자 숙제관리 상세 + 스크린샷(개발용)
 └─ src/
    ├─ main.tsx, App.tsx, index.css
@@ -343,14 +350,16 @@ sunogong/
    │                          # pauseWatch.ts(쉬는 시간 30분·60분 판정과 문제 수 입력 순수 함수), studentAlert.ts(진동·안내음·브라우저 알림),
    │                          # quotes.ts(학생 코드 입력 화면의 「오늘의 한줄」 124개 · 무작위로 하나 고르는 pickQuote),
    │                          # homework.ts(숙제 제출 DB·Storage), homeworkBoard.ts(숙제 제출 순수 함수 — 사진 수·상태·승인 결과·대기 합치기),
-   │                          # photoPick.ts(사진 고르기 순수 함수 — 바로 찍기/앨범 버튼 이름·5장 합치기·사진 여부)
+   │                          # photoPick.ts(사진 고르기 순수 함수 — 바로 찍기/앨범 버튼 이름·5장 합치기·사진 여부),
+   │                          # homeworkPhotos.ts(숙제 사진 초안 순수 함수 — 항목·경로·문제 수 변환·다시 열기 판단)
    ├─ components/             # ErrorBoundary, Brand(마스코트·로고·푸터), Keypad, Modal, ImageViewer(사진 확대), PhotoPager(사진 좌우 넘기기), InstallBanner, DesktopBlockScreen(PC 안내), KintounCloud(구름·드래곤볼),
    │                          # QuoteCard(오늘의 한줄 카드 — 화면을 열 때 무작위 한 개, 누를 수 없음),
    │                          # PhotoInputButton(사진 고르기 버튼 — 누를 수 있는 투명 input 을 버튼 위에 겹쳐 안드로이드에서 몇 번을 다시 눌러도 카메라·앨범이 열린다)
    ├─ student/                # StudentApp, CodeEntry, ChooseStudent, Home, Timer, Result, useStudyTimer,
    │                          # QuestionBoardScreen(질문 화면), QuestionAskForm(질문 올리기 폼), LiveKintounCard(근두운·내 드래곤볼·일반용·교환권), CandyPickModal(사탕교환권 성구 고르기),
    │                          # PendingProblemsModal(지난번 푼 문제 수·지난 숙제 제출)·usePendingProblems(대기 목록),
-   │                          # HomeworkPhotoPicker(숙제 사진 고르기 — 📷 바로 찍기(capture=environment·한 장) + 🖼️ 앨범에서 고르기(multiple), 합쳐서 5장·미리 보기)
+   │                          # HomeworkPhotoPicker(숙제 사진 고르기 — 📷 바로 찍기(capture=environment·한 장) + 🖼️ 앨범에서 고르기(multiple), 합쳐서 5장·미리 보기),
+   │                          # useHomeworkPhotos(사진을 고르는 즉시 1장씩 줄여 업로드 + DB 초안 저장·되살리기)
    └─ admin/                  # AdminApp, AdminLogin, Dashboard, StudentsPanel, RankingPanel, QuestionsPanel(질문함), PushNotifyPanel(알림 설정), KintounPanel(실시간 탭·드래곤볼 쏘기), HomeworkPanel(숙제관리), Charts, 모달들
 ```
 
@@ -423,11 +432,16 @@ node tools/e2e-pause-autoend.mjs
 #    기록에 승인분만 반영 → 드래곤볼은 지급하지 않음 → 60분 자동 종료 뒤 문제 수·사진 채우기 → 학원 공부는 그대로
 node tools/e2e-homework-approval.mjs
 
+# 6-2) 숙제 사진 초안(탭이 튕겨도 이어서 제출) 실서비스 E2E — 검증용 학생은 끝나고 삭제
+#      초안 저장(사진 1장씩) → 목록에 안 보임 → 제출하면 초안이 제출로 → 60분 자동 종료가 초안의 사진·문제 수를 살림 →
+#      같은 세션 두 번 제출해도 한 줄 → 초안 지우기 → 1분 미만은 남길 것 없음 → 세션 삭제 시 초안 정리
+node tools/e2e-homework-draft.mjs
+
 # 7) 배포된 화면 360px 확인 + 스크린샷 (학생 숙제 제출 창·홈 승인 표시·관리자 숙제관리 상세)
 node tools/check-homework-ui.mjs https://sunogong.vercel.app /workspace/downloads
 ```
 
-결과: 단위 테스트 전부 통과(**445건** — 날짜·집계·학원/숙제 분리 집계·기록 수정 계산·비율·랭킹·타이머(경과·쉬는 시간·자동 종료 단계)·기기 판별·질문(Q&A)·알림(VAPID 키·기기 판별·구독 저장 모양·오류 문구)·근두운(닉네임·시간·구름·실시간 순위·타이머 근두운 줄·드래곤볼) 계산, 랭킹 전체/학원/숙제 분리·드래곤볼 순위·동점 처리, **일반용 7종(색 맵·총 마리·모은 색·도감·뽑기 조건)·무지개용 합성 조건·교환권(사탕·1,000P·10,000P 개수와 문구)·드래곤볼 힘(일반용=성구 7개, 무지개용=성구 49개)**·통계 구분(전체/학원/숙제 — 학생별·하루 기록·미제출 명단), 관리자 좌우 스와이프 42건(60px·1.5배 기준, 첫/끝 탭, 입력창·모달·가로 스크롤 예외, 컨테이너 바깥 무시), 문제 수 대기 목록·지난 공부 표시·자동 종료 안내 문구, **「오늘의 한줄」 124개·모든 명언의 출처·문구 중복 없음·무작위 번호 범위(난수 0·1·범위 밖·NaN)·124개 전부 고를 수 있음·1,001번 범위 확인 15건**), **22개 화면** + 일반용 뽑기·무지개용 합성·사탕교환권·포인트 교환권 버튼, 관리자 교환권 사용 처리 칸·이름 찾기·일반용/무지개용 안내, 통계 구분 필터·실시간 학원/숙제 인원·일시정지 중 타이머·지난번 푼 문제 수 창까지 렌더 성공(스모크 140건 — 코드 입력 화면의 오늘의 한줄 카드 7건 포함)(관리자 알림 카드·근두운 패널·세션 넘긴 근두운 줄 포함), `schema.sql`/`seed.sql`/`migrate-2026-11-21-questions.sql`/`migrate-2026-11-21-push.sql`/`migrate-2026-11-21-kintoun-dragonball.sql`/`migrate-2026-11-21-dragonball-stars.sql`/`migrate-2026-11-21-rainbow-ball.sql`/`migrate-2026-11-22-pause-autoend.sql`/`migrate-2026-11-22-color-dragons-tickets.sql`/`migrate-2026-11-22-secret-black-dragon.sql` 문법 오류 없음, 근두운 SQL 검증 7건 통과, **검은용 SQL 검증 통과**(40만 번 표본 확률·강제 보너스·원래 용 유지·시크릿쿠폰 교환·사용), **쉬는 시간 자동 종료 실서비스 E2E 23건 통과**, **일반용·무지개용·교환권·검은용 실서비스 E2E 49건 통과**(21개 지급 → 성구 2개 → 사탕교환권 → 1~7성구 → 일반용 랜덤 → 7종 → 무지개용 → 1,000P·10,000P 교환권 → 관리자 사용 처리·두 번 사용 거절·사용 기록·검은용→시크릿쿠폰·시크릿쿠폰 사용 처리·앱에서 확률 함수를 부를 수 없음·예전 함수 이름 호환까지). 검증 데이터는 되돌려 남은 검증용 학생·세션·기록 0건입니다.
+결과: 단위 테스트 전부 통과(**474건** — 날짜·집계·학원/숙제 분리 집계·기록 수정 계산·비율·랭킹·타이머(경과·쉬는 시간·자동 종료 단계)·기기 판별·질문(Q&A)·알림(VAPID 키·기기 판별·구독 저장 모양·오류 문구)·근두운(닉네임·시간·구름·실시간 순위·타이머 근두운 줄·드래곤볼) 계산, 랭킹 전체/학원/숙제 분리·드래곤볼 순위·동점 처리, **일반용 7종(색 맵·총 마리·모은 색·도감·뽑기 조건)·무지개용 합성 조건·교환권(사탕·1,000P·10,000P 개수와 문구)·드래곤볼 힘(일반용=성구 7개, 무지개용=성구 49개)**·통계 구분(전체/학원/숙제 — 학생별·하루 기록·미제출 명단), 관리자 좌우 스와이프 42건(60px·1.5배 기준, 첫/끝 탭, 입력창·모달·가로 스크롤 예외, 컨테이너 바깥 무시), 문제 수 대기 목록·지난 공부 표시·자동 종료 안내 문구, **「오늘의 한줄」 124개·모든 명언의 출처·문구 중복 없음·무작위 번호 범위(난수 0·1·범위 밖·NaN)·124개 전부 고를 수 있음·1,001번 범위 확인 15건·사진 초안 19건**), **31개 화면** + 일반용 뽑기·무지개용 합성·사탕교환권·포인트 교환권 버튼, 관리자 교환권 사용 처리 칸·이름 찾기·일반용/무지개용 안내, 통계 구분 필터·실시간 학원/숙제 인원·일시정지 중 타이머·지난번 푼 문제 수 창까지 렌더 성공(스모크 152건 — 코드 입력 화면의 오늘의 한줄 카드 7건 포함)(관리자 알림 카드·근두운 패널·세션 넘긴 근두운 줄 포함), `schema.sql`/`seed.sql`/`migrate-2026-11-21-questions.sql`/`migrate-2026-11-21-push.sql`/`migrate-2026-11-21-kintoun-dragonball.sql`/`migrate-2026-11-21-dragonball-stars.sql`/`migrate-2026-11-21-rainbow-ball.sql`/`migrate-2026-11-22-pause-autoend.sql`/`migrate-2026-11-22-color-dragons-tickets.sql`/`migrate-2026-11-22-secret-black-dragon.sql`/`migrate-2026-11-23-homework-photo-approval.sql`/`migrate-2026-11-23-homework-photo-resume.sql` 문법 오류 없음, 근두운 SQL 검증 7건 통과, **검은용 SQL 검증 통과**(40만 번 표본 확률·강제 보너스·원래 용 유지·시크릿쿠폰 교환·사용), **쉬는 시간 자동 종료 실서비스 E2E 23건 통과**, **일반용·무지개용·교환권·검은용 실서비스 E2E 49건 통과**(21개 지급 → 성구 2개 → 사탕교환권 → 1~7성구 → 일반용 랜덤 → 7종 → 무지개용 → 1,000P·10,000P 교환권 → 관리자 사용 처리·두 번 사용 거절·사용 기록·검은용→시크릿쿠폰·시크릿쿠폰 사용 처리·앱에서 확률 함수를 부를 수 없음·예전 함수 이름 호환까지). 검증 데이터는 되돌려 남은 검증용 학생·세션·기록 0건입니다.
 배포 뒤 실제 화면에서도 확인했습니다 — **관리자 360px·390px**: `김민수 열공몬 / 공부 중 · 53:21 / 5개 4/7종 · 2마리 2/7색` 처럼 세 줄이 잘리지 않고 나오고 오른쪽 끝에 드래곤볼 아이콘만 있는 쏘기 버튼이 있습니다(스크린샷 `browser/sunogong-admin-live-list-360-*.png`, `...-390-*.png`). **교환권 사용 처리**: 시크릿쿠폰 1장을 눌러 확인 창 → `사용 처리` 로 0장이 되고 `ticket_uses` 에 `secret` 1줄이 남으며 칩이 사라지는 것까지 확인했습니다(9건, `browser/sunogong-admin-ticket-used-390-*.png`). **학생 홈 360·390px**: 교환권·성구 도감·일반용 7종·무지개용·검은용(가진 학생만)이 한 화면 폭에서 읽히고(`browser/sunogong-student-dragons-360-*.png` 등), 검은용이 없는 학생 화면에는 `검은용`·`시크릿쿠폰`·확률 문구가 하나도 없습니다(5건, `browser/sunogong-student-dragons-noblack-390-*.png`). 검증용 학생·세션·기록은 모두 지워 남은 검증 데이터 0건입니다.
 화면 점검에는 `선오공에게 질문하기` 홈·타이머 버튼, 학생 질문 화면, 질문 올리기 폼, 관리자 질문함(자동 정리 안내 포함), 관리자 상단 탭 이름(`실시간`), 숙제 타이머의 근두운 줄(학원 타이머에는 없음), 학생 관리의 닉네임 열·`바꾸기` 버튼, 학생 홈의 `7색 드래곤` 대신 **`일반용`·`무지개용`·교환권** 표기가 모두 들어 있습니다. `'무지개 볼'` 표현은 홈·관리자 화면에서 모두 사라졌는지도 테스트로 확인합니다.
 
@@ -445,6 +459,24 @@ node tools/check-homework-ui.mjs https://sunogong.vercel.app /workspace/download
 검증: 단위 **455건**(사진 고르기 10건 — 버튼 이름·남은 자리·5장 합치기·사진 아닌 파일 제외), 스모크 **144건**(두 버튼 이름, 카메라 `capture="environment"`·`multiple` 없음, 앨범 `multiple`, input 이 `opacity-0` 오버레이인지) 전부 통과, `npm run build` 통과. 배포한 `https://sunogong.vercel.app`(새 번들 `index-BPkdzr1H.js`)를 360×780 으로 열어 `node tools/check-homework-ui.mjs` **55건** 통과 — 두 버튼이 32~327px 안에 나란히(카메라 44px·앨범 42px 높이) 잘리지 않고, 앨범 버튼을 **세 번 다시 눌러도 3/3 열리고** 바로 찍기도 2/2 열리며, 5장을 담으면 5/5·두 버튼 잠김·안내 문구가 바뀌고 하나를 빼면 다시 열립니다. 질문 창의 두 버튼도 실제로 파일 선택기가 열립니다. 검증용 학생·기록·사진은 지워 남은 데이터 0건입니다.
 스크린샷: `downloads/sunogong-homework-picker-empty-360.png`(0/5 두 버튼), `downloads/sunogong-homework-picker-full-360.png`(5/5 잠김), `downloads/sunogong-homework-picker-360.png`(1/5 미리 보기).
 
+**숙제 사진 — 카메라 전환으로 탭이 튕겨도 이어서 제출 (2026-11-23)** — 원장님이 실기기(안드로이드)에서 제보한 `사진찍기로 2장 정도 올리니까 튕겨나가고, 다시 접속하니 사진 못 올리고 종료됨` 을 원인부터 고쳤습니다.
+
+1. **왜 튕겼나**: 안드로이드 크롬에서 `<input capture="environment">` 로 폰 카메라 앱을 열면 OS 가 배경 탭을 메모리에서 회수해 **페이지를 강제 새로고침**합니다. 그 위에 사진을 줄일 때마다 `createImageBitmap(file)` 이 **12~50MP 원본을 통째로 디코딩**(수백 MB)했고, 미리 보기 `<img>` 도 **원본 파일 주소**를 써서 화면을 그릴 때마다 원본을 다시 열었습니다. 사진 2장째에서 그 두 가지가 겹쳐 탭이 죽었습니다.
+2. **왜 다시 접속하면 사진을 못 올렸나**: 사진·문제 수가 **React 상태에만** 있었고, 종료 창을 열 때 타이머는 이미 일시정지된 상태라 새로고침 뒤에는 **일시정지된 타이머 화면 + 빈 제출 창**으로 돌아왔습니다. 남은 길은 사진 없이 0문제로 내는 것뿐이었고, 그러면 `1분 미만 · 0문제` 는 `nothing` 으로 기록에 남지 않아 `종료됨` 처럼 보였습니다.
+3. **1분 미만 확인 결과**: 세션 줄은 **버려지지 않습니다**(`study_sessions` 는 `finished` 로 남음). 다만 `close_homework_session` 규칙상 **0분 + 0문제**면 승인할 것이 없어 `nothing` 으로 끝나고 제출 줄도 사진도 남지 않습니다. 문제 수를 1개라도 적으면 **0분이어도 제출 줄(사진 포함)이 만들어집니다**. 화면에도 `1분이 안 돼서 공부 시간은 0분이에요 · (1분도 안 됐고 문제 수도 0이면 기록에 남지 않아요)` 라고 미리 알려 주고, 결과 화면에는 `기록에는 남기지 않았어요` 가 뜹니다.
+
+고친 방식
+- **사진을 고르는 즉시 1장씩** 줄여서(큰 파일은 `createImageBitmap(file, { resizeWidth: 1200, resizeQuality: 'medium' })` 로 **디코딩 단계에서 축소**, 작은 파일·세로로 긴 사진은 따로 처리) 바로 Storage 에 올리고, 그 경로와 입력 중인 문제 수를 **DB 초안**(`homework_submissions.draft_active`)에 저장합니다. 업로드·압축은 **한 장씩 차례로**(동시에 두 장을 열지 않음) 하고, 캔버스(`width=0`)·비트맵(`close()`)·미리 보기 주소(`revokeObjectURL`)는 쓰자마자 풉니다. 미리 보기도 **줄인 사진**으로 그립니다.
+- 종료 창을 열면 초안에 `draft_open=true` 를 적어 두고, **탭이 튕겨 다시 접속하면** 그 초안을 읽어 `숙제 공부 제출` 창을 **사진·문제 수 그대로 다시 열어 줍니다**(서명 URL 로 미리 보기). 이어서 찍거나 바로 제출하면 됩니다.
+- 초안 줄이 있어도 **세션이 제대로 마무리**되도록 `close_homework_session` 을 고쳤습니다(예전에는 제출 줄이 있으면 세션을 마무리하지 않고 `이미 제출` 로 돌아가 시간이 사라질 수 있었습니다). 같은 세션을 두 번 제출해도 한 줄이고, 60분 자동 종료는 초안의 사진·문제 수를 살립니다.
+- 초안 줄은 **관리자 숙제관리·승인 배지·학생 제출 목록에 보이지 않고**, 사진을 ✕로 빼면 그 파일도 Storage 에서 지웁니다. 세션이 지워지면(자정 넘김 등) 그 세션의 초안도 트리거로 정리합니다.
+
+검증
+- 단위 **474건**(+19 — 사진 초안 항목·경로·문제 수 변환·다시 열기 판단), 스모크 **152건·31개 화면**(사진 올리는 중/실패 표시, 두 장 미리 보기) 통과, `npm run build` 통과. 새 마이그레이션은 PostgreSQL 파서 검사와 **운영 DB(`qdzlenhmhszdsnygslhp`) 실행**을 통과했습니다.
+- 실서비스 E2E `node tools/e2e-homework-draft.mjs` **37건** 통과: 초안 저장(사진 1장·문제 12개) → 목록·배지에 안 보임 → 사진 추가 → 창 닫기 표시 → 제출하면 초안이 제출로(25분·12문제·사진 2장, 중복 없음, 세션 마무리) → 두 번 제출해도 한 줄 → 60분 자동 종료가 초안의 사진·문제 수를 살림 → 초안 지우기(진짜 제출 줄은 안 지움) → 1분 미만·0문제는 `nothing` 이고 초안 정리 → 세션 삭제 시 초안 정리 → 초안 사진은 5장까지. 검증 데이터는 모두 지워 남은 학생·제출·사진 0건입니다.
+- 배포한 `https://sunogong.vercel.app`(새 번들 `index-C4y17ERH.js`)에서 원장님이 겪은 순서 그대로 확인했습니다: 숙제 타이머 → `종료` → `마칠래요` → **사진 1장(4000×3000·1.5MB)을 고르자마자 Storage 업로드 + 초안 저장**(186KB로 줄어듦) → **페이지를 새로고침해 다시 들어오자 `숙제 공부 제출` 창이 사진 `1/5` 그대로 다시 열림** → 사진 2장째 추가(초안에 두 장) → `30` 입력 → `제출` → 승인 대기 `25분 · 30문제 · 사진 2장`, 초안 표시 해제 · 기록에는 아직 미반영. 관리자 `숙제관리` 배지 1·목록 `검증재접속 · 11/23 · 25분 · 30문제 · 사진 2`, 상세에서 두 사진이 서명 URL 로 보입니다. 같은 화면에서 사진을 ✕로 빼면 초안·Storage 가 즉시 비고, `취소` 로 닫으면 `draft_open` 만 내려가 다음 접속에 저절로 열리지 않으며, 다시 열면 찍어 둔 사진이 그대로 있습니다. 검증용 학생·세션·제출·사진은 모두 지워 남은 데이터 0건입니다.
+- 스크린샷: `downloads/sunogong-homework-resume-restored.png`(새로고침 뒤 사진 1/5 가 살아 있는 제출 창), `downloads/sunogong-homework-resume-admin-detail.png`(관리자 숙제관리 상세 — 사진 2장·25분·30문제).
+
 ---
 
 ## 10. 저장 용량 관리 (질문 사진·영상 · 숙제 사진)
@@ -453,7 +485,7 @@ Supabase 무료 플랜은 Storage **1GB** 까지 씁니다. 질문 사진은 올
 답변 영상은 1개 **50MB** 까지로 제한합니다(앱에서 미리 검사해 안내).
 
 **숙제 사진(2026-11-23)** — 숙제 공부 사진은 **긴 변 1200px · JPEG 품질 0.72** 로 줄여 올려 장당 **100~150KB**, 한 번에 **최대 5장**입니다.
-버킷(`homework-photos`)도 1개 **5MB**·사진 형식만 받습니다. 숙제 사진은 확인(승인) 근거라 **자동으로 지우지 않고** 남겨 둡니다 —
+버킷(`homework-photos`)도 1개 **5MB**·사진 형식만 받습니다. 사진은 **고르는 즉시 1장씩** 올라가고 초안 줄(`homework_submissions.draft_active`)에 경로가 적히므로, 제출하지 않고 그만둔 초안은 `clear_homework_draft`/세션 삭제 트리거로 DB 줄과 파일을 함께 지웁니다(사진을 ✕로 빼도 그 파일을 바로 지움). 숙제 사진은 최종 확인(승인) 근거라 **자동으로 지우지 않고** 남겨 둡니다 —
 용량이 차면 오래된 승인 건의 사진만 지우는 정리 기능을 이어서 붙일 수 있습니다(DB 줄은 그대로 두고 파일만 지운다).
 
 질문함을 열 때 **답변 완료 후 7일이 지난 질문과 사진·영상 파일을 자동으로 지운다** (`QuestionsPanel`, 기본 켜짐 · 끄기 스위치 있음).
