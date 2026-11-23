@@ -103,6 +103,12 @@ import {
   dragonTotal,
   EMPTY_DRAGONBALLS,
   EMPTY_DRAGONS,
+  endProblemsText,
+  endStudyAlreadyText,
+  endStudyDoneText,
+  endStudyKindNotice,
+  endStudySummary,
+  parseEndProblems,
   normalizeDragonballMap,
   normalizeBlackDragon,
   normalizeDragonMap,
@@ -1456,5 +1462,21 @@ eq('사진 초안: 창을 닫았으면 다시 열지 않는다', shouldReopenDra
 eq('사진 초안: 빈 초안은 다시 열지 않는다', shouldReopenDraft({ draft_active: true, draft_open: true, photo_paths: [], draft_problems: null }), false)
 eq('사진 초안: 진짜 제출 줄은 초안이 아님', shouldReopenDraft({ draft_active: false, draft_open: true, photo_paths: ['s/1.jpg'], draft_problems: 3 }), false)
 eq('사진 초안: 초안이 없으면 false', [shouldReopenDraft(null), shouldReopenDraft(undefined)], [false, false])
+
+/* 관리자 「수업 종료」 — 문제 수·안내 문구 */
+eq('수업 종료: 빈 문제 수는 0', [parseEndProblems(''), parseEndProblems(null), parseEndProblems(undefined)], [0, 0, 0])
+eq('수업 종료: 숫자는 그대로', [parseEndProblems('0'), parseEndProblems('7'), parseEndProblems(25)], [0, 7, 25])
+eq('수업 종료: 앞의 0·공백·글자 섞임 정리', [parseEndProblems('030'), parseEndProblems(' 25 '), parseEndProblems('12a')], [30, 25, 12])
+eq('수업 종료: 9999 를 넘지 않음', [parseEndProblems('99999'), parseEndProblems(12000)], [9999, 9999])
+eq('수업 종료: 숫자가 없으면 0', [parseEndProblems('abc'), parseEndProblems('-'), parseEndProblems(Number.NaN)], [0, 0, 0])
+eq('수업 종료: 입력칸은 숫자만·4자리', [endProblemsText(''), endProblemsText('030'), endProblemsText('12a'), endProblemsText('99999')], ['', '30', '12', '9999'])
+eq('수업 종료: 안내 — 학원은 바로 기록', endStudyKindNotice('academy').includes('바로 들어가요'), true)
+eq('수업 종료: 안내 — 숙제는 승인', [endStudyKindNotice('homework').includes('승인'), endStudyKindNotice('homework').includes('사진')], [true, true])
+eq('수업 종료: 확인 요약 — 공부 중', endStudySummary({ name: '이지빈', kind: 'academy', status: 'running', seconds: 1531 }, '7'), '이지빈 · 🏫 학원 공부 · 공부 중 25:31 · 25분 7문제')
+eq('수업 종료: 확인 요약 — 쉬는 중·빈 문제 수는 0', endStudySummary({ name: '이지빈', kind: 'homework', status: 'paused', seconds: 59 }, ''), '이지빈 · 🏠 숙제 공부 · 잠깐 쉬는 중 00:59 · 0분 0문제')
+eq('수업 종료: 끝난 안내 — 학원', endStudyDoneText({ name: '이지빈', kind: 'academy' }, 25, 7, false), '이지빈 · 🏫 학원 공부 25분 7문제로 수업을 마무리했어요.')
+eq('수업 종료: 끝난 안내 — 숙제 승인 대기', endStudyDoneText({ name: '이지빈', kind: 'homework' }, 20, 0, true).includes('승인 대기로 넘겼어요'), true)
+eq('수업 종료: 끝난 안내 — 숙제 기록 없음', endStudyDoneText({ name: '이지빈', kind: 'homework' }, 0, 0, false).includes('남길 것이 없어요'), true)
+eq('수업 종료: 이미 끝난 세션 안내', endStudyAlreadyText('이지빈'), '이지빈 학생의 공부는 이미 끝나 있었어요. 기록은 그대로 두었어요.')
 
 console.log(failed === 0 ? 'ALL LIB TESTS PASSED' : `${failed} FAILED`)

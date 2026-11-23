@@ -10,7 +10,7 @@
 
 import { HEARTBEAT_TIMEOUT_MS, parseMs } from './time'
 import { computeElapsedSeconds } from './session'
-import { normalizeKind } from './kinds'
+import { kindText, normalizeKind } from './kinds'
 import type { StudySession } from './types'
 
 /** 닉네임 최대 글자 수 (DB 제약과 같다) */
@@ -808,6 +808,69 @@ export function grantResultText(
 export const GRANT_MODE_LABEL: Record<'all' | 'single', string> = {
   all: '전체 일괄',
   single: '개별',
+}
+
+/* ------------------------------------------------------------------ */
+/* 관리자 「수업 종료」 (2026-11-23)                                     */
+/* ------------------------------------------------------------------ */
+
+/** 문제 수 입력칸에 담을 수 있는 최대값 (DB 함수와 같다) */
+export const END_STUDY_PROBLEMS_MAX = 9999
+
+/**
+ * 문제 수 입력칸 값 → 서버로 보낼 문제 수.
+ * 비워 두면 0문제로 마무리한다(요청한 기본값).
+ */
+export function parseEndProblems(raw: unknown): number {
+  if (raw === null || raw === undefined) return 0
+  const digits = String(raw).replace(/[^\d]/g, '')
+  if (digits === '') return 0
+  const value = Number(digits)
+  if (!Number.isFinite(value)) return 0
+  return Math.min(END_STUDY_PROBLEMS_MAX, Math.max(0, Math.floor(value)))
+}
+
+/** 문제 수 입력칸에 보여 줄 글자 (숫자만·4자리까지, 앞의 0은 지운다) */
+export function endProblemsText(raw: unknown): string {
+  const digits = String(raw ?? '').replace(/[^\d]/g, '').slice(0, 4)
+  if (digits === '') return ''
+  return String(Math.min(END_STUDY_PROBLEMS_MAX, Number(digits)))
+}
+
+/** 확인 창에서 무엇이 저장되는지 — 공부 종류에 따라 다르다 */
+export function endStudyKindNotice(kind: unknown): string {
+  return normalizeKind(kind) === 'homework'
+    ? '숙제 공부는 선생님 확인(승인)을 거친 뒤 오늘 기록에 들어가요. 사진은 학생이 올려 둔 것이 있으면 그대로 남아요.'
+    : '지금까지 공부한 시간과 문제 수가 오늘 기록에 바로 들어가요.'
+}
+
+/** 확인 창의 한 줄 요약 — '이지빈 · 🏫 학원 공부 · 공부 중 25:31 · 25분' */
+export function endStudySummary(
+  row: { name: string; kind: unknown; status: string; seconds: number },
+  problems: unknown,
+): string {
+  const minutes = Math.floor(Math.max(0, row.seconds) / 60)
+  const state = row.status === 'paused' ? '잠깐 쉬는 중' : '공부 중'
+  return `${row.name} · ${kindText(row.kind)} · ${state} ${formatLiveClock(row.seconds)} · ${minutes}분 ${parseEndProblems(problems)}문제`
+}
+
+/** 마무리한 뒤 보여 줄 안내 */
+export function endStudyDoneText(
+  row: { name: string; kind: unknown },
+  minutes: number,
+  problems: number,
+  pending: boolean,
+): string {
+  const base = `${row.name} · ${kindText(row.kind)} ${Math.max(0, Math.floor(minutes))}분 ${Math.max(0, Math.floor(problems))}문제로 수업을 마무리했어요.`
+  if (normalizeKind(row.kind) !== 'homework') return base
+  return pending
+    ? `${base} 승인 대기로 넘겼어요 — 숙제관리에서 확인해 주세요.`
+    : `${base} 1분이 안 돼 기록에 남길 것이 없어요.`
+}
+
+/** 이미 끝나 있던 세션을 다시 눌렀을 때 */
+export function endStudyAlreadyText(name: string): string {
+  return `${name} 학생의 공부는 이미 끝나 있었어요. 기록은 그대로 두었어요.`
 }
 
 /* ------------------------------------------------------------------ */

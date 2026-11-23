@@ -9,6 +9,9 @@ export const HEARTBEAT_TIMEOUT_MS = 30 * 1000
 /** 하트비트 전송 주기 */
 export const HEARTBEAT_INTERVAL_MS = 10 * 1000
 
+/** 선생님이 「수업 종료」로 마무리했는지 확인하는 주기 (타이머 화면) */
+export const REMOTE_END_CHECK_MS = 10 * 1000
+
 const partsFormatter = new Intl.DateTimeFormat('en-US', {
   timeZone: KST_TZ,
   year: 'numeric',

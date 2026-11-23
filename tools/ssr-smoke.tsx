@@ -9,6 +9,9 @@ import { AdminLogin } from '../src/admin/AdminLogin'
 import { AdminApp } from '../src/admin/AdminApp'
 import { Dashboard } from '../src/admin/Dashboard'
 import { KintounPanel } from '../src/admin/KintounPanel'
+import { LiveSessionRow } from '../src/admin/LiveSessionRow'
+import { EndStudyModal } from '../src/admin/EndStudyModal'
+import type { AdminLiveSession } from '../src/lib/kintoun'
 import { QuestionsPanel } from '../src/admin/QuestionsPanel'
 import { PushNotifyPanel } from '../src/admin/PushNotifyPanel'
 import { RankingPanel } from '../src/admin/RankingPanel'
@@ -106,6 +109,24 @@ const pausedSession: StudySession = {
   status: 'paused',
   paused_at: '2026-11-19T05:00:00Z',
   last_heartbeat_at: '2026-11-19T05:00:00Z',
+}
+
+/* 관리자 실시간 탭의 활성 세션 한 줄 — 「수업 종료」 버튼 확인용 */
+const liveRow: AdminLiveSession = {
+  sessionId: 'live-1',
+  studentId: student.id,
+  name: '김민수',
+  grade: '중2',
+  nickname: '열공몬',
+  displayName: '열공몬',
+  dragonballs: { '1': 1, '2': 0, '3': 1, '4': 0, '5': 0, '6': 0, '7': 0 },
+  dragons: { red: 1, orange: 0, yellow: 0, green: 0, blue: 0, navy: 0, purple: 0 },
+  rainbowDragonCount: 0,
+  status: 'running',
+  kind: 'academy',
+  startedAt: '2026-11-23T05:00:00Z',
+  seconds: 1531,
+  dragonballCount: 2,
 }
 
 /* 자동 종료된 지난 공부 (문제 수 미입력) */
@@ -360,6 +381,29 @@ const cases: [string, () => JSX.Element][] = [
   ['PushNotifyPanel(새 질문 알림)', () => <PushNotifyPanel />],
   ['ResultScreen', () => <ResultScreen student={student} result={result} reason="manual" onHome={() => {}} onAgain={() => {}} />],
   ['KintounPanel(관리자 근두운)', () => <KintounPanel students={[student]} studentsLoading={false} studentsError={null} reloadStudents={() => {}} />],
+  [
+    'LiveSessionRow(수업 종료 버튼)',
+    () => (
+      <ul>
+        <LiveSessionRow row={liveRow} amount={3} onGrant={() => {}} onEnd={() => {}} />
+      </ul>
+    ),
+  ],
+  [
+    'EndStudyModal(수업 종료 확인)',
+    () => (
+      <EndStudyModal
+        open
+        row={liveRow}
+        problems="7"
+        onProblemsChange={() => {}}
+        busy={false}
+        error={null}
+        onClose={() => {}}
+        onConfirm={() => {}}
+      />
+    ),
+  ],
   ['AdminLogin', () => <AdminLogin onSuccess={() => {}} onBack={() => {}} />],
   ['AdminApp', () => <AdminApp onBack={() => {}} />],
   ['Dashboard', () => <Dashboard students={[student]} studentsLoading={false} studentsError={null} reloadStudents={() => {}} />],
@@ -517,6 +561,28 @@ for (const [name, ok] of nicknameChecks) {
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)
 }
 for (const [name, ok] of kintounChecks) {
+  if (!ok) failed += 1
+  console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)
+}
+
+/* 관리자 「수업 종료」 — 활성 세션 카드 버튼·확인 창 */
+const liveRowHtml = rendered['LiveSessionRow(수업 종료 버튼)'] ?? ''
+const endModalHtml = rendered['EndStudyModal(수업 종료 확인)'] ?? ''
+const endStudyChecks: [string, boolean][] = [
+  ['수업 종료: 활성 세션 카드에 버튼', liveRowHtml.includes('>수업 종료<')],
+  ['수업 종료: 학생 이름이 붙은 접근성 이름', liveRowHtml.includes('aria-label="김민수 수업 종료"')],
+  ['수업 종료: 카드에 상태·시간', liveRowHtml.includes('공부 중') && liveRowHtml.includes('25:31')],
+  ['수업 종료: 이름·닉네임·학원 배지', liveRowHtml.includes('김민수') && liveRowHtml.includes('열공몬') && liveRowHtml.includes('🏫')],
+  ['수업 종료: 드래곤볼 쏘기 버튼은 그대로', liveRowHtml.includes('에게 드래곤볼 3개 쏘기')],
+  ['수업 종료 확인: 제목·학생 이름', endModalHtml.includes('수업을 마칠까요?') && endModalHtml.includes('김민수')],
+  ['수업 종료 확인: 지금까지의 시간(25분)', endModalHtml.includes('지금까지') && endModalHtml.includes('25분')],
+  ['수업 종료 확인: 문제 수 입력칸', endModalHtml.includes('오늘 푼 문제 수 (선택)') && endModalHtml.includes('value="7"')],
+  ['수업 종료 확인: 비우면 0문제 안내', endModalHtml.includes('0문제')],
+  ['수업 종료 확인: 학원은 바로 기록 안내', endModalHtml.includes('바로 들어가요')],
+  ['수업 종료 확인: 취소·종료 버튼', endModalHtml.includes('>취소<') && endModalHtml.includes('>수업 종료<')],
+  ['수업 종료 확인: 학생 화면이 바뀐다는 안내', endModalHtml.includes('결과 화면으로 바뀌어요')],
+]
+for (const [name, ok] of endStudyChecks) {
   if (!ok) failed += 1
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)
 }

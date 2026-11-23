@@ -66,9 +66,13 @@ export function ResultScreen({ student, result, reason, onHome, onAgain, busy = 
 
         {pending ? (
           <div className="mt-3 w-full max-w-xs rounded-3xl bg-[#6D3BD6]/40 px-4 py-3 text-left">
-            <p className="text-[12.5px] font-extrabold text-white">🙌 제출했어요 — 선생님 확인을 기다려요</p>
+            <p className="text-[12.5px] font-extrabold text-white">
+              {reason === 'admin' ? '🙌 선생님이 마무리했어요 — 확인을 기다려요' : '🙌 제출했어요 — 선생님 확인을 기다려요'}
+            </p>
             <p className="mt-1 text-[11.5px] font-semibold leading-snug text-white/75">
-              공부한 페이지 사진과 문제 수를 냈어요. 선생님이 시간·문항수를 확인해 승인하면 오늘 기록에 들어가요.
+              {reason === 'admin'
+                ? '선생님이 숙제 공부를 마무리했어요. 낸 시간·문제 수는 선생님이 확인해 승인하면 오늘 기록에 들어가요.'
+                : '공부한 페이지 사진과 문제 수를 냈어요. 선생님이 시간·문항수를 확인해 승인하면 오늘 기록에 들어가요.'}
             </p>
           </div>
         ) : null}
@@ -84,6 +88,12 @@ export function ResultScreen({ student, result, reason, onHome, onAgain, busy = 
 
         {reason === 'limit' ? (
           <p className="mt-3 text-[12px] text-white/60">최대 공부시간(5시간)을 채워 자동으로 마무리했어요.</p>
+        ) : null}
+
+        {reason === 'admin' && !pending ? (
+          <p className="mt-3 text-center text-[12px] leading-snug text-white/60">
+            선생님이 수업을 마무리해서 타이머를 멈췄어요.
+          </p>
         ) : null}
       </div>
 

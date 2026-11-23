@@ -4,10 +4,10 @@ import * as homeworkApi from '../lib/homework'
 import { normalizeKind, pausesOnLeave, type SessionKind } from '../lib/kinds'
 import { computeElapsedSeconds, isHeartbeatStale, pausedSecondsOf } from '../lib/session'
 import { PAUSE_AUTO_END_SECONDS } from '../lib/pauseWatch'
-import { HEARTBEAT_INTERVAL_MS, MAX_SESSION_SECONDS, kstMidnightMs, parseMs, todayKst } from '../lib/time'
+import { HEARTBEAT_INTERVAL_MS, MAX_SESSION_SECONDS, REMOTE_END_CHECK_MS, kstMidnightMs, parseMs, todayKst } from '../lib/time'
 import type { AutoEndResult, FinishResult, StudySession } from '../lib/types'
 
-export type FinishReason = 'manual' | 'limit'
+export type FinishReason = 'manual' | 'limit' | 'admin'
 /** 기록 없이 버린 이유 — 자정이 지나서 / 이미 지난 날의 세션이라서 */
 export type DiscardReason = 'midnight' | 'stale'
 
@@ -406,6 +406,63 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
     if (pausedFor < PAUSE_AUTO_END_SECONDS) return
     void autoEnd()
   }, [pausedFor, session?.id, session?.status, autoEnd])
+
+  /* 선생님이 관리자 실시간 탭에서 「수업 종료」했는지 확인한다.
+     학생 기기가 타이머 화면에 머물러 있어도 10초 안에 알아채고 결과 화면으로 넘어간다. */
+  useEffect(() => {
+    if (!session || session.status === 'finished') return undefined
+    const sessionId = session.id
+    let cancelled = false
+    let checking = false
+
+    const check = async () => {
+      if (cancelled || checking) return
+      if (finishingRef.current || autoEndingRef.current) return
+      checking = true
+      const res = await api.studySessionState(sessionId)
+      checking = false
+      if (cancelled || finishingRef.current) return
+      if (!res.ok || !res.data) return
+
+      /* 세션이 사라졌다(자정 넘김 등) — 기록 없이 대기 화면으로 */
+      if (res.data.status === 'missing') {
+        applySession(null)
+        setElapsed(0)
+        setPausedFor(0)
+        return
+      }
+      if (res.data.status !== 'finished') return
+
+      const result = res.data.result
+      if (!result || !result.session) return
+
+      applySession(result.session)
+      setElapsed(computeElapsed(result.session))
+      setPausedFor(0)
+      setNotice(null)
+      try {
+        onFinishedRef.current?.(
+          { ...result, kind: normalizeKind(result.kind ?? kindRef.current) },
+          result.ended_by_admin ? 'admin' : 'manual',
+        )
+      } catch (callbackError) {
+        console.error('[sunogong] 종료 확인 처리 중 오류:', callbackError)
+      }
+    }
+
+    const id = window.setInterval(() => void check(), REMOTE_END_CHECK_MS)
+    const onVisible = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') void check()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
+  }, [session?.id, session?.status, applySession, computeElapsed])
 
   /* 하트비트 (10초) — 마지막 신호 시각만 갱신한다.
      화면이 꺼져 타이머가 느려지더라도 서버가 임의로 일시정지하지 않게 하기 위해서다. */

@@ -4,18 +4,16 @@ import { Dragonball } from '../components/KintounCloud'
 import * as api from '../lib/kintoun'
 import {
   DRAGONBALL_MAX_AMOUNT,
-  DRAGONS,
-  dragonballKinds,
-  dragonColorKinds,
   dragonTotal,
-  formatLiveClock,
+  endStudyAlreadyText,
+  endStudyDoneText,
   GRANT_MODE_LABEL,
   grantResultText,
   grantTargets,
   LIVE_REFRESH_MS,
   normalizeGrantAmount,
   normalizeTicketCount,
-  RAINBOW_DRAGON,
+  parseEndProblems,
   SECRET_TICKET,
   starListText,
   TICKET_BY_KEY,
@@ -26,6 +24,8 @@ import {
 } from '../lib/kintounBoard'
 import type { Student } from '../lib/types'
 import { AdminSection, EmptyBlock, ErrorBlock, LoadingBlock, StatCard } from './ui'
+import { EndStudyModal } from './EndStudyModal'
+import { LiveSessionRow } from './LiveSessionRow'
 
 interface KintounPanelProps {
   students: Student[]
@@ -39,9 +39,6 @@ const TICKET_META: Record<TicketKey, (typeof TICKET_BY_KEY)[TicketKey]> = {
   ...TICKET_BY_KEY,
   secret: SECRET_TICKET,
 }
-
-/** 오른쪽 쏘기 버튼에 쓰는 일반용 아이콘 (일반용 7종을 대표) */
-const DRAGON_ICON = DRAGONS[0].icon
 
 /** 드래곤볼이 날아가는 애니메이션 (쏠 때마다 다시 시작) */
 function DragonballShot({ burstKey }: { burstKey: number }): JSX.Element | null {
@@ -90,6 +87,12 @@ export function KintounPanel({ students, studentsLoading, studentsError, reloadS
   const [using, setUsing] = useState(false)
   const [useError, setUseError] = useState<string | null>(null)
   const [useMessage, setUseMessage] = useState<string | null>(null)
+  /* 수업 종료 — 활성 세션을 선생님이 직접 마무리한다 */
+  const [endTarget, setEndTarget] = useState<api.AdminLiveSession | null>(null)
+  const [endProblems, setEndProblems] = useState('')
+  const [ending, setEnding] = useState(false)
+  const [endError, setEndError] = useState<string | null>(null)
+  const [endMessage, setEndMessage] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -214,6 +217,37 @@ export function KintounPanel({ students, studentsLoading, studentsError, reloadS
     setUseTarget({ student, ticket })
   }
 
+  /* 수업 종료 — 확인 창을 열고, 확정하면 지금까지의 시간으로 마무리한다 */
+  const openEnd = (row: api.AdminLiveSession) => {
+    setEndError(null)
+    setEndProblems('')
+    setEndTarget(row)
+  }
+
+  const confirmEnd = async () => {
+    if (!endTarget || ending) return
+    const row = endTarget
+    setEnding(true)
+    setEndError(null)
+    const res = await api.adminEndStudySession(row.sessionId, parseEndProblems(endProblems))
+    setEnding(false)
+    if (!res.ok) {
+      setEndError(res.error)
+      return
+    }
+    const data = res.data
+    setEndTarget(null)
+    setEndMessage(
+      data.already_finished
+        ? endStudyAlreadyText(row.name)
+        : data.discarded
+          ? `${row.name} · 자정을 넘긴 공부라 기록하지 않고 정리했어요.`
+          : endStudyDoneText(row, data.minutes, data.problems, Boolean(data.pending_approval)),
+    )
+    await load()
+    reloadStudents()
+  }
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
@@ -310,7 +344,7 @@ export function KintounPanel({ students, studentsLoading, studentsError, reloadS
 
       <AdminSection
         title="지금 공부 중인 학생"
-        description={`${LIVE_REFRESH_MS / 1000}초마다 새로 읽어요. 이름 옆 회색 글씨가 근두운에 보이는 닉네임이에요. 🐲 는 1~7성구를 합성해 얻은 일반용, 🌈 는 무지개용이에요.`}
+        description={`${LIVE_REFRESH_MS / 1000}초마다 새로 읽어요. 이름 옆 회색 글씨가 근두운에 보이는 닉네임이에요. 🐲 는 1~7성구를 합성해 얻은 일반용, 🌈 는 무지개용이에요. «수업 종료» 로 그 학생의 공부를 지금까지의 시간으로 마무리할 수 있어요.`}
       >
         {studentsLoading || (loading && rows.length === 0) ? (
           <LoadingBlock />
@@ -319,72 +353,22 @@ export function KintounPanel({ students, studentsLoading, studentsError, reloadS
         ) : (
           <ul className="divide-y divide-blue-line">
             {[...running, ...paused].map((row) => (
-              <li
+              <LiveSessionRow
                 key={row.sessionId}
-                className={`flex items-start gap-2 px-1 py-2.5 transition ${
-                  flashId === row.studentId ? 'bg-[#FFF3D6]' : ''
-                }`}
-              >
-                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-soft text-[14px]">
-                  {row.status === 'running' ? (row.kind === 'homework' ? '🏠' : '🏫') : '😴'}
-                </span>
-
-                {/* 1줄 이름·닉네임 · 2줄 상태·시간 · 3줄 배지 */}
-                <div className="min-w-0 flex-1">
-                  <p className="flex min-w-0 items-baseline gap-1.5">
-                    <span className="truncate text-[14px] font-extrabold leading-tight text-navy">{row.name}</span>
-                    <span className="shrink-0 text-[10.5px] font-semibold text-navy/35">{row.displayName}</span>
-                  </p>
-                  <p className="mt-0.5 truncate text-[11px] font-semibold text-navy/45">
-                    <span className={row.status === 'running' ? 'text-[#2E7D32]' : 'text-[#B07200]'}>
-                      {row.status === 'running' ? '공부 중' : '잠깐 쉬는 중'}
-                    </span>
-                    {' · '}
-                    <span className="tabular">{formatLiveClock(row.seconds)}</span>
-                  </p>
-                  <div className="mt-1 flex flex-wrap items-center gap-1">
-                    <span className="inline-flex items-center gap-1 rounded-full border border-[#B9DDB9] bg-[#F0FAF0] px-1.5 py-0.5">
-                      <Dragonball size="sm" stars={4} />
-                      <span className="text-[10px] font-extrabold text-[#2E6B34] tabular">
-                        {row.dragonballCount}개
-                        <span className="ml-0.5 text-[9.5px] font-bold text-[#2E6B34]/60">
-                          {dragonballKinds(row.dragonballs)}/7종
-                        </span>
-                      </span>
-                    </span>
-                    <span className="inline-flex items-center gap-1 rounded-full border border-[#D9CCFF] bg-[#F7F3FF] px-1.5 py-0.5">
-                      <img src={DRAGON_ICON} alt="" className="h-4 w-4 object-contain" aria-hidden="true" />
-                      <span className="text-[10px] font-extrabold text-[#5B3FB8] tabular">
-                        {dragonTotal(row.dragons)}
-                        <span className="ml-0.5 text-[9.5px] font-bold text-[#5B3FB8]/60">
-                          {dragonColorKinds(row.dragons)}/7색
-                        </span>
-                      </span>
-                      {row.rainbowDragonCount > 0 ? (
-                        <span className="inline-flex items-center gap-0.5 text-[10px] font-extrabold text-[#5B3FB8] tabular">
-                          <img src={RAINBOW_DRAGON.icon} alt="" className="h-4 w-4 object-contain" aria-hidden="true" />
-                          {row.rainbowDragonCount}
-                        </span>
-                      ) : null}
-                    </span>
-                  </div>
-                </div>
-
-                {/* 오른쪽 끝 — 글자 없이 드래곤볼 아이콘만 있는 쏘기 버튼 */}
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void grant([row.studentId], 'single', row.name)}
-                  aria-label={`${row.name}에게 드래곤볼 ${normalizeGrantAmount(amount)}개 쏘기`}
-                  title={`드래곤볼 ${normalizeGrantAmount(amount)}개 쏘기`}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#F08C00] shadow-sm transition active:scale-95 disabled:opacity-40"
-                >
-                  <Dragonball size="sm" stars={4} />
-                </button>
-              </li>
+                row={row}
+                amount={amount}
+                busy={busy || ending}
+                flash={flashId === row.studentId}
+                onGrant={() => void grant([row.studentId], 'single', row.name)}
+                onEnd={() => openEnd(row)}
+              />
             ))}
           </ul>
         )}
+
+        {endMessage ? (
+          <p className="mt-2 rounded-xl bg-[#F0FAF0] px-3 py-2 text-[11.5px] font-bold text-[#2E6B34]">{endMessage}</p>
+        ) : null}
       </AdminSection>
 
       <AdminSection
@@ -526,6 +510,20 @@ export function KintounPanel({ students, studentsLoading, studentsError, reloadS
           7종을 다 모으면 무지개용이 돼요.
         </p>
       </AdminSection>
+
+      {/* 수업 종료 확인 — 학생 이름·지금까지의 시간·문제 수 */}
+      <EndStudyModal
+        open={endTarget !== null}
+        row={endTarget}
+        problems={endProblems}
+        onProblemsChange={setEndProblems}
+        busy={ending}
+        error={endError}
+        onClose={() => {
+          if (!ending) setEndTarget(null)
+        }}
+        onConfirm={() => void confirmEnd()}
+      />
 
       {/* 교환권 사용 처리 확인 */}
       <Modal

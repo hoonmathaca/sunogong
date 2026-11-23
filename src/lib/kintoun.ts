@@ -61,6 +61,8 @@ export function describeKintounError(error: unknown): string {
     lower.includes('student_profile') ||
     lower.includes('set_student_nickname') ||
     lower.includes('grant_dragonballs') ||
+    lower.includes('admin_end_study_session') ||
+    lower.includes('study_session_state') ||
     lower.includes('craft_rainbow_ball') ||
     lower.includes('craft_color_dragon') ||
     lower.includes('craft_rainbow_dragon') ||
@@ -377,6 +379,48 @@ export function grantStudentName(grant: DragonballGrant): string {
   if (!joined) return '학생'
   return joined.name?.trim() || displayNickname(joined.nickname)
 }
+
+/* ------------------------------------------------------------------ */
+/* 관리자 「수업 종료」 (2026-11-23)                                     */
+/* ------------------------------------------------------------------ */
+
+/** 선생님이 마무리한 결과 — finish_session / close_homework_session 과 같은 모양 + 표시 */
+export interface AdminEndStudyResult {
+  session: StudySession | null
+  log?: { minutes?: number | null; problems?: number | null } | null
+  submission?: unknown
+  submission_id?: string | null
+  seconds: number
+  minutes: number
+  problems: number
+  submitted_minutes?: number | null
+  submitted_problems?: number | null
+  total_minutes: number
+  total_problems: number
+  date: string
+  kind?: SessionKind
+  /** 숙제 공부 — 승인 대기로 넘어갔다 */
+  pending_approval?: boolean
+  /** 숙제 공부 — 1분도 안 돼 기록에 남길 것이 없다 */
+  nothing?: boolean
+  /** 자정을 넘겨 기록 없이 버렸다 */
+  discarded?: boolean
+  /** 이미 끝나 있던 세션 (기록은 그대로) */
+  already_finished?: boolean
+  problems_pending?: boolean
+  auto_ended?: boolean
+  ended_by_admin?: boolean
+}
+
+/**
+ * 실시간 탭의 「수업 종료」 — 진행 중(공부 중·일시정지)인 세션을 지금까지의 시간으로 마무리한다.
+ * 이미 끝난 세션이면 기록을 건드리지 않고 already_finished 로 돌아온다.
+ */
+export const adminEndStudySession = (sessionId: string, problems: number) =>
+  rpc<AdminEndStudyResult>('admin_end_study_session', {
+    p_session_id: sessionId,
+    p_problems: Math.max(0, Math.min(9999, Math.floor(problems) || 0)),
+  })
 
 /* ------------------------------------------------------------------ */
 /* 교환권 사용 처리 (관리자)                                            */

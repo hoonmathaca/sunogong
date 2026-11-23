@@ -197,6 +197,19 @@ export const finishSession = (sessionId: string, problems: number) =>
 export const autoEndPausedSession = (sessionId: string) =>
   rpc<AutoEndResult>('auto_end_paused_session', { p_session_id: sessionId })
 
+/**
+ * 타이머에 머물러 있는 사이 선생님이 「수업 종료」로 마무리했는지 확인한다 (읽기 전용).
+ * 끝나 있으면 finish_session 과 같은 모양의 결과가 함께 온다.
+ */
+export interface SessionStateResult {
+  /** 공부 중 / 일시정지 / 끝남 / 세션이 없음(자정 넘김 등) */
+  status: 'running' | 'paused' | 'finished' | 'missing'
+  result: FinishResult | null
+}
+
+export const studySessionState = (sessionId: string) =>
+  rpc<SessionStateResult>('study_session_state', { p_session_id: sessionId })
+
 /** 자동 종료된 세션에 문제 수를 입력 → 그 날 기록에 더한다 (한 세션에 한 번만) */
 export const setSessionProblems = (sessionId: string, problems: number) =>
   rpc<PendingProblemsResult>('set_session_problems', {

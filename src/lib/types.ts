@@ -124,6 +124,10 @@ export interface FinishResult {
   /** 제출한 시간·문제 수 (승인 전 값) */
   submitted_minutes?: number | null
   submitted_problems?: number | null
+  /** 선생님이 관리자 실시간 탭의 「수업 종료」로 마무리한 세션 (2026-11-23) */
+  ended_by_admin?: boolean
+  /** 이미 끝나 있던 세션을 다시 마무리하려 했을 때 */
+  already_finished?: boolean
 }
 
 /* ------------------------------------------------------------------ */
