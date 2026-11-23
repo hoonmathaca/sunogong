@@ -53,6 +53,10 @@ Supabase Dashboard → **SQL Editor** 에서 순서대로 실행합니다.
 9. **`supabase/migrate-2026-11-23-admin-end-study.sql` — 관리자 「수업 종료」**
    - `study_sessions.ended_by_admin` 열, `admin_end_study_session(session, problems)`(진행 중인 세션을 지금까지의 시간으로 마무리), `study_session_state(session)`(학생 기기가 선생님의 종료를 알아채는 읽기 전용 확인)을 만듭니다.
    - 운영 DB(`qdzlenhmhszdsnygslhp`)에는 **2026-11-23 적용 완료**입니다. 실행 전에는 실시간 탭의 「수업 종료」 버튼이 `근두운 기능을 아직 준비 중이에요` 로 답하고, 타이머는 그대로 흘러갑니다(다른 기능 영향 없음).
+10. **`supabase/migrate-2026-11-23-stale-session-cleanup.sql` — 지난 날짜 미종료 세션 자동 정리**
+   - `cleanup_stale_study_sessions(dry_run)`, `maybe_cleanup_stale_study_sessions()`, 미종료 세션 조회 인덱스를 만들고 `start_session`·`active_session`·`live_study_board` 가 맨 앞에서 정리하도록 바꿉니다.
+   - **`pg_cron` 이 있으면 매일 00:05 KST(UTC 15:05)에 자동 실행**합니다. pg_cron 을 켤 수 없는 환경이면 예약만 건너뛰고, 앱을 쓰는 순간(학생 로그인·근두운 판) 정리되는 안전장치가 대신합니다.
+   - 운영 DB(`qdzlenhmhszdsnygslhp`)에는 **2026-11-23 적용 완료**입니다(`pg_cron` 1.6.4 설치, 예약 작업 `sunogong-stale-session-cleanup`). 실행 전에도 앱은 그대로 동작하고, 지난 세션만 남아 있을 수 있습니다.
 
 아홉 파일 모두 여러 번 실행해도 안전합니다(`if not exists` / `on conflict do nothing` / 정책은 지웠다가 다시 생성).
 실행 후 확인:
@@ -66,6 +70,8 @@ select count(*) from public.students where dragons <> '{"red":0,"orange":0,"yell
 select count(*) from public.study_sessions where problems_pending;   -- 문제 수 입력을 기다리는 세션 수
 select count(*) from public.homework_submissions where status = 'pending' and not draft_active;  -- 승인을 기다리는 숙제 제출 수(초안 제외)
 select count(*) from public.homework_submissions where draft_active;  -- 아직 제출 전인 사진 초안 수(보통 0~1)
+select count(*) from public.study_sessions where ended_at is null and started_at < public.kst_today()::timestamp at time zone 'Asia/Seoul';  -- 지난 날 미종료 세션 (0이어야 함)
+select jobid, jobname, schedule, active from cron.job where jobname = 'sunogong-stale-session-cleanup';  -- 매일 00:05 KST 예약
 select id, public, file_size_limit from storage.buckets where id = 'question-images';
 select id, public, file_size_limit from storage.buckets where id = 'homework-photos';
 ```
@@ -82,6 +88,7 @@ select id, public, file_size_limit from storage.buckets where id = 'homework-pho
 - `supabase/migrate-2026-11-23-homework-photo-approval.sql` — 숙제 공부 사진 인증·시간/문항수 분리 승인(`homework_submissions`, `submit_homework`·`submit_pending_homework`·`review_homework_submission`, Storage `homework-photos`) (2026-11-23 운영 DB 적용 완료)
 > - `supabase/migrate-2026-11-23-homework-photo-resume.sql` — 숙제 사진 초안(`draft_active`·`draft_problems`·`draft_open`, `save_homework_draft`·`clear_homework_draft`, 초안이 있어도 세션을 마무리하는 `close_homework_session`) (2026-11-23 운영 DB 적용 완료)
 > - `supabase/migrate-2026-11-23-admin-end-study.sql` — 관리자 「수업 종료」(`ended_by_admin`, `admin_end_study_session`, `study_session_state`) (2026-11-23 운영 DB 적용 완료)
+> - `supabase/migrate-2026-11-23-stale-session-cleanup.sql` — 지난 날짜 미종료 세션 자동 정리(`cleanup_stale_study_sessions`·`maybe_cleanup_stale_study_sessions`, pg_cron 매일 00:05 KST) (2026-11-23 운영 DB 적용 완료)
 
 ## 3. 실행 / 빌드
 
@@ -475,6 +482,11 @@ node tools/e2e-homework-praise.mjs
 #      숙제 30초·0문제 → 자정 넘김 → 없는 세션 → 실제 운영 세션은 그대로
 node tools/e2e-admin-end-study.mjs
 
+# 6-5) 지난 날짜 미종료 세션 자동 정리 — SQL 검증(운영 DB) + 실서비스 E2E(검증용 학생은 끝나고 삭제)
+#      Supabase SQL Editor 에 supabase/verify-2026-11-23-stale-session-cleanup.sql 을 붙여넣고 실행
+#      미리보기·정산(25분)·폐기·숙제 승인 대기(30분)·오늘 세션 그대로·두 번째 0건·안전장치 null
+node tools/e2e-stale-session-cleanup.mjs
+
 # 7) 배포된 화면 360px 확인 + 스크린샷 (학생 숙제 제출 창·홈 승인 표시·관리자 숙제관리 상세)
 node tools/check-homework-ui.mjs https://sunogong.vercel.app /workspace/downloads
 
@@ -574,3 +586,48 @@ Supabase 무료 플랜은 Storage **1GB** 까지 씁니다. 질문 사진은 올
 - 보관 기간을 바꾸려면 `src/lib/questionBoard.ts` 의 `QUESTION_RETENTION_DAYS` 값을 고친다(기본 7일).
 
 DB에 쌓이는 질문 줄은 글자 몇백 바이트라 용량에 거의 영향이 없고, 큰 것은 사진·영상 파일이다.
+
+---
+
+## 11. 지난 날짜 미종료 세션 자동 정리 (2026-11-23)
+
+원장님 요청(`알아서정리하게설정해줘 24시지나면`)으로, **한국 시간 자정이 지나면 지난 날짜에 시작한 미종료 공부 세션을 서버가 알아서 정리**한다. 피클 크레딧을 쓰지 않고 Supabase 안에서만 처리한다.
+
+**정리 규칙** (기존 자정·일시정지 규칙 그대로, `finish_session` 을 거친다)
+
+| 세션 | 처리 |
+|---|---|
+| 일시정지된 공부 (`paused_at` 있음) | 멈춘 시각까지를 **그 날 기록으로 정산** — 학원은 `study_logs.academy_*`, 숙제는 **승인 대기 제출** |
+| 일시정지 없이 자정을 넘긴 공부 | 기록 없이 **세션만 폐기** (12시 전에 끝내지 않은 공부는 남기지 않는 기존 규칙) |
+| 1분 미만 · 0문제 숙제 | 승인 대기 없이 세션만 마무리(`nothing`) |
+| 오늘(00:00 이후) 시작한 세션 | **절대 건드리지 않는다** |
+| 문제 수 | 세션·초안에 적혀 있으면 그대로, 모르면 0 (관리자 「수업 종료」와 같은 기준) |
+
+**도는 방법 두 가지**
+
+1. **예약 실행** — `pg_cron` 작업 `sunogong-stale-session-cleanup`, `5 15 * * *` (UTC 15:05 = **매일 00:05 KST**, pg_cron 시간대는 GMT). `select public.cleanup_stale_study_sessions()` 를 부른다. 실행 기록은 `cron.job_run_details`.
+2. **안전장치** — `maybe_cleanup_stale_study_sessions()` 가 지난 세션이 **있을 때만** 정리한다. `start_session`(학생 공부 시작) · `active_session`(학생 재접속) · `live_study_board`(근두운 판) 맨 앞에서 부르므로, 예약이 한 번 실패해도 앱을 쓰는 순간 정리된다. 확인은 미종료 세션 부분 인덱스(`study_sessions_unfinished_started_idx`) 한 번이라 가볍다.
+
+**앱에서 직접 부를 수는 없다** — `cleanup_stale_study_sessions`·`maybe_cleanup_stale_study_sessions` 는 anon/authenticated 권한을 회수해 서버(예약 작업·앱 진입 함수)만 쓴다.
+
+**직접 확인·수동 실행** (Supabase SQL Editor)
+
+```sql
+-- 지난 날 미종료 세션 (0이어야 정상)
+select id, student_id, date, kind, status, started_at, paused_at
+  from public.study_sessions
+ where ended_at is null
+   and started_at < public.kst_today()::timestamp at time zone 'Asia/Seoul';
+
+-- 미리보기(아무것도 바꾸지 않음)
+select public.cleanup_stale_study_sessions(true);
+
+-- 지금 바로 정리
+select public.cleanup_stale_study_sessions();
+```
+
+**적용·검증 (2026-11-23, 운영 DB `qdzlenhmhszdsnygslhp`)**
+- 운영 DB에 **`pg_cron` 1.6.4 설치 + 예약 작업 등록 완료**(`jobid 1`, `active = true`). 예약이 실제로 도는지 확인하려고 1분짜리 임시 작업(`sunogong-cleanup-selftest`)을 걸어 두고 기다린 결과 `cron.job_run_details` 에 **`succeeded` · `1 row`** 로 남았고, 확인 뒤 임시 작업은 지웠다.
+- `supabase/verify-2026-11-23-stale-session-cleanup.sql` (운영 DB에서 실행) — **11건 모두 통과**: 미리보기가 3건을 찾고 아무것도 바꾸지 않음 · 일시정지 학원 25분이 그 날 기록으로 정산 · 일시정지 없이 자정 넘긴 공부는 세션 줄 삭제(기록 0) · 지난 숙제 30분은 승인 대기(30분·0문제) · 오늘 세션은 running 그대로 · 두 번째 정리 0건 · 지난 세션이 없으면 안전장치는 null · 검증 데이터 0건.
+- `node tools/e2e-stale-session-cleanup.mjs` (앱과 같은 anon 키로 실서비스) — **12건 모두 통과**: `start_session` 이 지난 세션을 정리하고 오늘 새 세션을 연다 · `live_study_board` 가 자정 넘긴 공부를 폐기한다 · `active_session` 이 지난 숙제를 승인 대기로 넘긴다 · 오늘 세션은 그대로 · anon 은 정리 함수를 직접 부를 수 없다(`permission denied`).
+- 처음 발견한 지난 세션 2건(둘 다 숙제·일시정지)은 `admin_end_study_session(id, 0)` 로 마무리했다 — **임소윤 7분 → 승인 대기 제출(0문제)**, **안수빈 0분·0문제 → 기록 없이 세션만 마무리**. 처리 뒤 지난 세션 0건, 오늘 진행 중이던 7건은 그대로였다.
