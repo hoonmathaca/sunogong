@@ -15,6 +15,19 @@ import {
 } from '../src/lib/pauseWatch'
 import { normalizeKind, pausesOnLeave } from '../src/lib/kinds'
 import {
+  draftProblemsOf,
+  draftProblemsText,
+  isUploadingPhotos,
+  newPhotoItem,
+  nextPhotoIndex,
+  photoCountOf,
+  photoPathsOf,
+  photoRoomOf,
+  photosToUpload,
+  restorePhotoItems,
+  shouldReopenDraft,
+} from '../src/lib/homeworkPhotos'
+import {
   PHOTO_ALBUM_LABEL,
   PHOTO_CAMERA_LABEL,
   isPhotoFile,
@@ -1373,5 +1386,30 @@ for (let i = 0; i <= 1000; i += 1) {
   if (!Number.isInteger(picked) || picked < 0 || picked >= QUOTES.length) quoteOutOfRange += 1
 }
 eq('한줄: 1,001번 고른 번호가 모두 범위 안', quoteOutOfRange, 0)
+
+
+/* 숙제 사진 초안 — 사진·문제 수가 튕겨도 살아남는 계산 */
+const itemA = newPhotoItem({ name: 'a.jpg', blob: new Blob(['a']), preview: 'blob:a', state: 'uploading' })
+const itemB = newPhotoItem({ name: 'b.jpg', path: 's/1-b.jpg', preview: 'https://x/b', state: 'ready' })
+const itemC = newPhotoItem({ name: 'c.jpg', blob: new Blob(['c']), preview: 'blob:c', state: 'error' })
+eq('사진 초안: 항목 key 는 서로 다름', new Set([itemA.key, itemB.key, itemC.key]).size, 3)
+eq('사진 초안: 올라간 경로만 제출용', photoPathsOf([itemA, itemB, itemC]), ['s/1-b.jpg'])
+eq('사진 초안: 못 올린 사진 찾기', photosToUpload([itemA, itemB, itemC]).map((item) => item.name), ['a.jpg', 'c.jpg'])
+eq('사진 초안: 담긴 장수', photoCountOf([itemA, itemB, itemC]), 3)
+eq('사진 초안: 더 담을 수 있는 장수', photoRoomOf([itemA, itemB]), 3)
+eq('사진 초안: 다섯 장이면 0', photoRoomOf([itemA, itemB, itemC, newPhotoItem({}), newPhotoItem({})]), 0)
+eq('사진 초안: 올리는 중인가', [isUploadingPhotos([itemA, itemB]), isUploadingPhotos([itemB])], [true, false])
+eq('사진 초안: 다음 번호는 담긴 수', nextPhotoIndex([itemA, itemB]), 2)
+eq('사진 초안: 경로 목록에서 되살리기', restorePhotoItems(['s/1.jpg', 's/1.jpg', '', null, 's/2.jpg']).map((item) => item.path), ['s/1.jpg', 's/2.jpg'])
+eq('사진 초안: 되살린 사진은 올라간 상태', restorePhotoItems(['s/1.jpg'], { 's/1.jpg': 'https://x/1' }).map((item) => [item.state, item.preview]), [['ready', 'https://x/1']])
+eq('사진 초안: 서명 주소가 없어도 목록에 남김', restorePhotoItems(['s/9.jpg']).map((item) => item.preview), [null])
+eq('사진 초안: 문제 수 → DB 값', [draftProblemsOf(''), draftProblemsOf('0'), draftProblemsOf('030'), draftProblemsOf('12a'), draftProblemsOf('99999')], [null, 0, 30, 12, 9999])
+eq('사진 초안: DB 값 → 입력칸', [draftProblemsText(null), draftProblemsText(0), draftProblemsText(30)], ['', '', '30'])
+eq('사진 초안: 창이 열려 있고 사진이 있으면 다시 연다', shouldReopenDraft({ draft_active: true, draft_open: true, photo_paths: ['s/1.jpg'], draft_problems: null }), true)
+eq('사진 초안: 창이 열려 있고 문제 수만 있어도 다시 연다', shouldReopenDraft({ draft_active: true, draft_open: true, photo_paths: [], draft_problems: 12 }), true)
+eq('사진 초안: 창을 닫았으면 다시 열지 않는다', shouldReopenDraft({ draft_active: true, draft_open: false, photo_paths: ['s/1.jpg'], draft_problems: 12 }), false)
+eq('사진 초안: 빈 초안은 다시 열지 않는다', shouldReopenDraft({ draft_active: true, draft_open: true, photo_paths: [], draft_problems: null }), false)
+eq('사진 초안: 진짜 제출 줄은 초안이 아님', shouldReopenDraft({ draft_active: false, draft_open: true, photo_paths: ['s/1.jpg'], draft_problems: 3 }), false)
+eq('사진 초안: 초안이 없으면 false', [shouldReopenDraft(null), shouldReopenDraft(undefined)], [false, false])
 
 console.log(failed === 0 ? 'ALL LIB TESTS PASSED' : `${failed} FAILED`)

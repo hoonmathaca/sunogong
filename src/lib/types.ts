@@ -88,6 +88,12 @@ export interface StudyQuestion {
   student_read_at: string | null
   created_at: string
   updated_at: string
+  /** 아직 제출 전인 초안 줄 (사진·문제 수만 저장 — 목록에는 안 보인다) */
+  draft_active?: boolean
+  /** 초안에 입력해 둔 문제 수 */
+  draft_problems?: number | null
+  /** 제출 창이 열려 있었는지 (탭이 튕겨 다시 접속하면 그대로 다시 연다) */
+  draft_open?: boolean
   /** 관리자 목록에서 학생 이름·학년을 함께 읽는다 */
   students?: { name: string | null; grade: string | null } | { name: string | null; grade: string | null }[] | null
 }
@@ -155,6 +161,12 @@ export interface HomeworkSubmission {
   reviewed_by: string | null
   created_at: string
   updated_at: string
+  /** 아직 제출 전인 초안 줄 (사진·문제 수만 저장 — 목록에는 안 보인다) */
+  draft_active?: boolean
+  /** 초안에 입력해 둔 문제 수 */
+  draft_problems?: number | null
+  /** 제출 창이 열려 있었는지 (탭이 튕겨 다시 접속하면 그대로 다시 연다) */
+  draft_open?: boolean
   /** 관리자 목록에서 학생 이름·학년을 함께 읽는다 */
   students?: { name: string | null; grade: string | null } | { name: string | null; grade: string | null }[] | null
 }

@@ -198,6 +198,7 @@ const cases: [string, () => JSX.Element][] = [
     'PendingProblemsModal(지난 공부 문제 수)',
     () => (
       <PendingProblemsModal
+        studentId={student.id}
         item={{ type: 'academy', id: pendingSession.id, session: { ...pendingSession, kind: 'academy' } }}
         onSubmit={() => {}}
         onSkip={() => {}}
@@ -208,13 +209,44 @@ const cases: [string, () => JSX.Element][] = [
     'PendingProblemsModal(지난 숙제 제출)',
     () => (
       <PendingProblemsModal
+        studentId={student.id}
         item={{ type: 'homework', id: pendingHomework.id, submission: pendingHomework }}
         onSubmit={() => {}}
         onSkip={() => {}}
       />
     ),
   ],
-  ['HomeworkPhotoPicker(사진 없음)', () => <HomeworkPhotoPicker files={[]} onChange={() => {}} warn />],
+  [
+    'HomeworkPhotoPicker(사진 없음)',
+    () => <HomeworkPhotoPicker photos={[]} onAdd={() => {}} onRemove={() => {}} warn />,
+  ],
+  [
+    'HomeworkPhotoPicker(사진 두 장)',
+    () => (
+      <HomeworkPhotoPicker
+        photos={[
+          { key: 'a', name: 'a.jpg', blob: null, path: 's/1', preview: 'data:,', state: 'ready' },
+          { key: 'b', name: 'b.jpg', blob: null, path: 's/2', preview: 'data:,', state: 'ready' },
+        ]}
+        onAdd={() => {}}
+        onRemove={() => {}}
+      />
+    ),
+  ],
+  [
+    'HomeworkPhotoPicker(올리는 중·올라감)',
+    () => (
+      <HomeworkPhotoPicker
+        photos={[
+          { key: 'a', name: 'a.jpg', blob: null, path: null, preview: 'data:,', state: 'uploading' },
+          { key: 'b', name: 'b.jpg', blob: null, path: 's/1', preview: 'data:,', state: 'ready' },
+          { key: 'c', name: 'c.jpg', blob: null, path: null, preview: 'data:,', state: 'error', error: '사진을 올리지 못했어요.' },
+        ]}
+        onAdd={() => {}}
+        onRemove={() => {}}
+      />
+    ),
+  ],
   [
     'PhotoPager(사진 2장)',
     () => <PhotoPager urls={['a', 'b']} index={0} onIndexChange={() => {}} onClose={() => {}} />,
@@ -490,6 +522,8 @@ for (const [name, ok] of pauseChecks) {
 /* 숙제 공부 사진 인증 · 시간/문항수 분리 승인 · 관리자 숙제관리 */
 const pendingHomeworkHtml = rendered['PendingProblemsModal(지난 숙제 제출)'] ?? ''
 const homeworkPickerHtml = rendered['HomeworkPhotoPicker(사진 없음)'] ?? ''
+const homeworkPickerStatesHtml = rendered['HomeworkPhotoPicker(올리는 중·올라감)'] ?? ''
+const homeworkPickerTwoHtml = rendered['HomeworkPhotoPicker(사진 두 장)'] ?? ''
 const photoPagerHtml = rendered['PhotoPager(사진 2장)'] ?? ''
 const homeworkPanelHtml = rendered['HomeworkPanel(관리자 숙제관리)'] ?? ''
 const homeworkResultHtml = rendered['ResultScreen(숙제 승인 대기)'] ?? ''
@@ -515,6 +549,12 @@ const homeworkChecks: [string, boolean][] = [
   ['숙제: 결과 화면에 승인 대기 안내', homeworkResultHtml.includes('선생님 확인을 기다려요') && homeworkResultHtml.includes('오늘 기록에 들어가요')],
   ['숙제: 결과 화면에 오늘 기록(승인된 것)', homeworkResultHtml.includes('오늘 기록(승인된 것)')],
   ['숙제: 관리자 탭 배지 자리', adminHtml.includes('숙제관리')],
+  ['숙제: 사진 올리는 중 표시', homeworkPickerStatesHtml.includes('올리는 중…')],
+  ['숙제: 사진 실패 표시', homeworkPickerStatesHtml.includes('다시 올려 주세요') && homeworkPickerStatesHtml.includes('올리지 못한 사진이 있어요')],
+  ['숙제: 사진 세 장이면 3/5', homeworkPickerStatesHtml.includes('3/5')],
+  ['숙제: 고르면 줄여서 바로 올라간다는 안내', homeworkPickerTwoHtml.includes('줄여서 바로 올라가요')],
+  ['숙제: 사진 두 장이면 2/5', homeworkPickerTwoHtml.includes('2/5')],
+  ['숙제: 사진 미리 보기 두 장', (homeworkPickerTwoHtml.match(/<img /g) ?? []).length === 2],
 ]
 for (const [name, ok] of homeworkChecks) {
   if (!ok) failed += 1

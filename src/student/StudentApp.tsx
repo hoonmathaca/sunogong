@@ -268,10 +268,11 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
       {phase === 'home' && student && pendingProblems.current ? (
         <PendingProblemsModal
           key={pendingProblems.current.id}
+          studentId={student.id}
           item={pendingProblems.current}
           busy={pendingProblems.busy}
           error={pendingProblems.error}
-          onSubmit={(problems, photos) => void pendingProblems.submit(problems, photos)}
+          onSubmit={(problems, photoPaths) => void pendingProblems.submit(problems, photoPaths)}
           onSkip={pendingProblems.skip}
         />
       ) : null}

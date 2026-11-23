@@ -15,8 +15,8 @@ export interface PendingProblems {
   busy: boolean
   error: string | null
   reload: () => Promise<void>
-  /** 학원: 문제 수만 / 숙제: 사진과 문제 수를 내고 승인 대기로 넘긴다 */
-  submit: (problems: number, photos?: File[]) => Promise<boolean>
+  /** 학원: 문제 수만 / 숙제: (이미 올린) 사진 경로와 문제 수를 내고 승인 대기로 넘긴다 */
+  submit: (problems: number, photoPaths?: string[]) => Promise<boolean>
   /** 이번 접속에서는 넘어가기 (기록은 그대로 남아 다음 접속 때 다시 물어봄) */
   skip: () => void
   /** 건너뛴 것을 다시 물어보기 (홈의 카드) */
@@ -64,7 +64,7 @@ export function usePendingProblems(studentId: string | null | undefined): Pendin
   const current = list.find((item) => !hidden.has(item.id)) ?? null
 
   const submit = useCallback(
-    async (problems: number, photos: File[] = []): Promise<boolean> => {
+    async (problems: number, photoPaths: string[] = []): Promise<boolean> => {
       const target = current
       if (!target || !studentId) return false
       setBusy(true)
@@ -81,26 +81,11 @@ export function usePendingProblems(studentId: string | null | undefined): Pendin
         return true
       }
 
-      /* 숙제 — 사진을 먼저 올린 뒤 문제 수와 함께 채운다 */
+      /* 숙제 — 사진은 고를 때 이미 올라가 있다. 경로와 문제 수를 함께 채운다 */
       const submission = target.submission
-      let paths: string[] = []
-      if (photos.length > 0) {
-        const uploaded = await homeworkApi.uploadHomeworkPhotos(
-          studentId,
-          submission.session_id ?? submission.id,
-          photos.slice(0, 5),
-        )
-        if (!uploaded.ok) {
-          setBusy(false)
-          setError(uploaded.error)
-          return false
-        }
-        paths = uploaded.data
-      }
-      const res = await homeworkApi.submitPendingHomework(submission.id, problems, paths)
+      const res = await homeworkApi.submitPendingHomework(submission.id, problems, photoPaths.slice(0, 5))
       setBusy(false)
       if (!res.ok) {
-        if (paths.length > 0) void homeworkApi.removeHomeworkPhotos(paths)
         setError(res.error)
         return false
       }

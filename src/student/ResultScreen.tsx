@@ -19,6 +19,8 @@ export function ResultScreen({ student, result, reason, onHome, onAgain, busy = 
   const sessionMinutes = Math.max(0, Math.round(result.seconds / 60))
   const kind = normalizeKind(result.kind)
   const pending = Boolean(result.pending_approval)
+  /* 1분도 공부하지 않았고 문제 수도 0 — 기록에 남기지 않았다 */
+  const nothing = Boolean(result.nothing)
   const todaySplit = splitLog(result.log)
   const hasSplit = todaySplit.academyMinutes + todaySplit.homeworkMinutes > 0
 
@@ -67,6 +69,15 @@ export function ResultScreen({ student, result, reason, onHome, onAgain, busy = 
             <p className="text-[12.5px] font-extrabold text-white">🙌 제출했어요 — 선생님 확인을 기다려요</p>
             <p className="mt-1 text-[11.5px] font-semibold leading-snug text-white/75">
               공부한 페이지 사진과 문제 수를 냈어요. 선생님이 시간·문항수를 확인해 승인하면 오늘 기록에 들어가요.
+            </p>
+          </div>
+        ) : null}
+
+        {nothing ? (
+          <div className="mt-3 w-full max-w-xs rounded-3xl bg-white/10 px-4 py-3 text-left">
+            <p className="text-[12.5px] font-extrabold text-white">기록에는 남기지 않았어요</p>
+            <p className="mt-1 text-[11.5px] font-semibold leading-snug text-white/75">
+              1분이 안 됐고 푼 문제 수도 없어서 오늘 기록에 들어가지 않았어요. 다음에는 1분 넘게 공부해 보세요!
             </p>
           </div>
         ) : null}

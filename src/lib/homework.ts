@@ -64,6 +64,9 @@ export function describeHomeworkError(message: string): string {
   if (raw.includes('photo_required')) return '푼 문제가 있으면 공부한 페이지 사진을 1장 이상 올려주세요.'
   if (raw.includes('too_many_photos')) return `사진은 ${HOMEWORK_PHOTO_MAX}장까지 올릴 수 있어요.`
   if (raw.includes('not_homework_session')) return '숙제 공부 기록이 아니에요. 화면을 새로 열어 주세요.'
+  if (raw.includes('session_finished')) return '이미 마친 공부예요. 화면을 새로 열어 주세요.'
+  if (raw.includes('already_submitted')) return '이미 제출한 숙제예요.'
+  if (raw.includes('draft_target_required')) return '저장할 공부 기록을 찾을 수 없어요.'
   if (raw.includes('already_reviewed')) return '이미 확인한 제출이에요. 새로 고쳐 주세요.'
   if (raw.includes('problems_unknown')) return '문제 수가 아직 없어서 문항수는 승인할 수 없어요.'
   if (raw.includes('submission_not_found')) return '숙제 제출을 찾을 수 없어요.'
@@ -90,8 +93,38 @@ export function prepareHomeworkPhoto(file: File) {
 }
 
 /**
- * 숙제 사진을 Storage 에 올리고 경로 목록을 돌려준다.
+ * 숙제 사진 한 장을 Storage 에 올린다 (고르는 즉시 한 장씩 — 여러 장을 동시에 열지 않는다).
+ * 줄인 사진(blob)을 그대로 올리므로 원본 해상도를 다시 열 일이 없다.
+ */
+export async function uploadHomeworkPhoto(input: {
+  studentId: string
+  scopeId: string
+  index: number
+  blob: Blob
+  name?: string
+}): Promise<ApiResult<string>> {
+  if (!isSupabaseConfigured) return fail(NOT_CONFIGURED_MESSAGE)
+  const { studentId, scopeId, blob, name = '' } = input
+  const type = blob.type || 'image/jpeg'
+  if (type && !type.startsWith('image/')) return fail('숙제 사진은 사진 파일만 올릴 수 있어요.')
+  const path = homeworkPhotoPath(studentId, scopeId || 'draft', input.index, mediaExtension({ type, name }))
+  try {
+    const { error } = await supabase.storage.from(HOMEWORK_BUCKET).upload(path, blob, {
+      contentType: type,
+      cacheControl: '3600',
+      upsert: false,
+    })
+    if (error) return fail(describeHomeworkError(error.message))
+    return { ok: true, data: path }
+  } catch (error) {
+    return fail(describeHomeworkError(error instanceof Error ? error.message : String(error)))
+  }
+}
+
+/**
+ * 숙제 사진 여러 장을 한 장씩 차례로 올리고 경로 목록을 돌려준다.
  * 한 장이라도 실패하면 그때까지 올린 사진을 지우고 오류를 돌려준다(찌꺼기가 남지 않게).
+ * (화면에서는 보통 uploadHomeworkPhoto 로 한 장씩 올린다 — 이 함수는 예전 흐름·검증용)
  */
 export async function uploadHomeworkPhotos(
   studentId: string,
@@ -147,6 +180,56 @@ export async function removeHomeworkPhotos(paths: string[]): Promise<void> {
 }
 
 /* ------------------------------------------------------------------ */
+/* 학생 — 초안 (사진·문제 수를 미리 저장)                                */
+/* ------------------------------------------------------------------ */
+
+export interface HomeworkDraftResult {
+  submission: HomeworkSubmission | null
+  photo_paths: string[]
+  problems: number | null
+  open: boolean
+}
+
+/**
+ * 숙제 사진·문제 수 초안 저장.
+ * · sessionId   : 타이머 화면에서 마칠 때 (아직 안 끝난 숙제 세션)
+ * · submissionId: 다음 접속 때 「지난 숙제 공부 제출」 창 (자동 종료된 제출)
+ * 사진을 한 장 올릴 때마다, 문제 수를 누를 때마다, 창을 열고 닫을 때 부른다.
+ */
+export const saveHomeworkDraft = (input: {
+  sessionId?: string | null
+  submissionId?: string | null
+  problems: number | null
+  photoPaths: string[]
+  open?: boolean
+}) =>
+  rpc<HomeworkDraftResult>('save_homework_draft', {
+    p_session_id: input.sessionId ?? null,
+    p_submission_id: input.submissionId ?? null,
+    p_problems: input.problems,
+    p_photo_paths: input.photoPaths,
+    p_open: input.open ?? true,
+  })
+
+/** 초안 줄 지우기 (그만두기·남길 것이 없을 때) */
+export const clearHomeworkDraft = (input: { sessionId?: string | null; submissionId?: string | null }) =>
+  rpc<{ deleted: number }>('clear_homework_draft', {
+    p_session_id: input.sessionId ?? null,
+    p_submission_id: input.submissionId ?? null,
+  })
+
+/** 진행 중인 숙제 세션의 초안 한 줄 (없으면 null) */
+export const findHomeworkDraft = (sessionId: string) =>
+  run<HomeworkSubmission | null>(() =>
+    supabase
+      .from('homework_submissions')
+      .select('*')
+      .eq('session_id', sessionId)
+      .eq('draft_active', true)
+      .maybeSingle(),
+  )
+
+/* ------------------------------------------------------------------ */
 /* 학생 — 제출                                                         */
 /* ------------------------------------------------------------------ */
 
@@ -170,36 +253,39 @@ export const submitPendingHomework = (submissionId: string, problems: number, ph
 /* 읽기                                                                */
 /* ------------------------------------------------------------------ */
 
-/** 내 숙제 제출 (최근 것부터) */
+/** 내 숙제 제출 (최근 것부터) — 아직 제출 전인 초안 줄은 빼고 */
 export const listMyHomeworkSubmissions = (studentId: string, limit = 60) =>
   run<HomeworkSubmission[]>(() =>
     supabase
       .from('homework_submissions')
       .select('*')
       .eq('student_id', studentId)
+      .eq('draft_active', false)
       .order('date', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(limit),
   )
 
-/** 관리자 숙제관리 — 학생 이름·학년을 함께, 승인 대기부터 */
+/** 관리자 숙제관리 — 학생 이름·학년을 함께, 승인 대기부터 (초안 줄은 빼고) */
 export const listHomeworkSubmissions = (limit = 300) =>
   run<HomeworkSubmission[]>(() =>
     supabase
       .from('homework_submissions')
       .select('*, students(name, grade)')
+      .eq('draft_active', false)
       .order('status', { ascending: true })
       .order('submitted_at', { ascending: false })
       .limit(limit),
   )
 
-/** 승인 대기 건수 (관리자 탭 배지) */
+/** 승인 대기 건수 (관리자 탭 배지) — 아직 제출 전인 초안은 빼고 */
 export const countPendingHomework = () =>
   run<number>(() =>
     supabase
       .from('homework_submissions')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'pending')
+      .eq('draft_active', false)
       .then((res) => ({ data: res.count ?? 0, error: res.error })),
   )
 
