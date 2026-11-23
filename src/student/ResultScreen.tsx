@@ -1,8 +1,11 @@
+import { useEffect, useState } from 'react'
 import { BrandFooter, Mascot } from '../components/Brand'
 import { KIND_EMOJI, KIND_LABEL, normalizeKind } from '../lib/kinds'
 import { splitLog } from '../lib/stats'
+import { hasTodayAcademy } from '../lib/problemsEdit'
 import { formatMinutes } from '../lib/time'
-import type { FinishResult, Student } from '../lib/types'
+import type { FinishResult, Student, StudyLog } from '../lib/types'
+import { EditAcademyProblemsModal } from './EditAcademyProblemsModal'
 import type { FinishReason } from './useStudyTimer'
 
 interface ResultScreenProps {
@@ -16,13 +19,27 @@ interface ResultScreenProps {
 
 /** 공부 종료 결과 */
 export function ResultScreen({ student, result, reason, onHome, onAgain, busy = false }: ResultScreenProps): JSX.Element {
+  const [log, setLog] = useState<StudyLog | null>(result.log ?? null)
+  const [editOpen, setEditOpen] = useState(false)
+  const [savedProblems, setSavedProblems] = useState<number | null>(null)
+
+  useEffect(() => {
+    setLog(result.log ?? null)
+    setSavedProblems(null)
+    setEditOpen(false)
+  }, [result])
+
   const sessionMinutes = Math.max(0, Math.round(result.seconds / 60))
   const kind = normalizeKind(result.kind)
   const pending = Boolean(result.pending_approval)
   /* 1분도 공부하지 않았고 문제 수도 0 — 기록에 남기지 않았다 */
   const nothing = Boolean(result.nothing)
-  const todaySplit = splitLog(result.log)
+  const todaySplit = splitLog(log)
   const hasSplit = todaySplit.academyMinutes + todaySplit.homeworkMinutes > 0
+  /* 오늘 학원 공부 기록이 있으면 결과 화면에서도 문제 수를 바로 고칠 수 있다 */
+  const canEditProblems =
+    kind === 'academy' && !pending && !nothing && !result.discarded && hasTodayAcademy(todaySplit)
+  const totalProblems = log?.problems ?? result.total_problems
 
   return (
     <div className="screen bg-gradient-to-b from-navy to-blue-brand text-white">
@@ -60,9 +77,27 @@ export function ResultScreen({ student, result, reason, onHome, onAgain, busy = 
           </div>
           <div className="mt-2 flex items-center justify-between text-sm">
             <span className="text-white/60">오늘 문제 합계</span>
-            <span className="font-bold tabular">{result.total_problems}개</span>
+            <span className="font-bold tabular">{totalProblems}개</span>
           </div>
         </div>
+
+        {/* 학원 공부 — 오늘 문제 수를 잘못 넣었으면 여기서 바로 고친다 (숙제는 승인 대상) */}
+        {canEditProblems ? (
+          <div className="mt-3 w-full max-w-xs">
+            <button
+              type="button"
+              onClick={() => setEditOpen(true)}
+              className="flex w-full items-center justify-center gap-1.5 rounded-2xl bg-white/15 px-4 py-2.5 text-[13px] font-bold text-white transition active:scale-[0.99]"
+            >
+              ✏️ 문제 수 수정
+            </button>
+            {savedProblems !== null ? (
+              <p className="mt-1.5 text-center text-[11px] font-semibold text-white/60">
+                오늘 학원 문제 수를 {savedProblems}개로 바꿨어요
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         {pending ? (
           <div className="mt-3 w-full max-w-xs rounded-3xl bg-[#6D3BD6]/40 px-4 py-3 text-left">
@@ -116,6 +151,18 @@ export function ResultScreen({ student, result, reason, onHome, onAgain, busy = 
       <div className="bg-white">
         <BrandFooter />
       </div>
+
+      <EditAcademyProblemsModal
+        open={editOpen}
+        studentId={student.id}
+        current={todaySplit.academyProblems}
+        onClose={() => setEditOpen(false)}
+        onSaved={(next) => {
+          setEditOpen(false)
+          setLog(next ?? log)
+          setSavedProblems(next?.academy_problems ?? todaySplit.academyProblems)
+        }}
+      />
     </div>
   )
 }

@@ -9,6 +9,7 @@
  * 화면 없이 확인할 수 있게 계산은 여기에 모아 둔다.
  */
 import { HOMEWORK_PHOTO_MAX } from './homeworkBoard'
+import { MAX_PROBLEMS } from './pauseWatch'
 
 /** 한 장의 상태 — 올리는 중 / 올라감 / 실패 */
 export type HomeworkPhotoState = 'uploading' | 'ready' | 'error'
@@ -110,13 +111,13 @@ export function nextPhotoIndex(items: HomeworkPhotoItem[] | null | undefined): n
   return photoCountOf(items)
 }
 
-/** 문제 수 입력칸(문자열) → DB 초안에 넣을 숫자 (비었으면 null) */
+/** 문제 수 입력칸(문자열) → DB 초안에 넣을 숫자 (비었으면 null, 최대 999) */
 export function draftProblemsOf(text: string | null | undefined): number | null {
   const digits = (text ?? '').replace(/[^0-9]/g, '')
   if (!digits) return null
   const value = Number(digits)
   if (!Number.isFinite(value)) return null
-  return Math.max(0, Math.min(9999, Math.floor(value)))
+  return Math.max(0, Math.min(MAX_PROBLEMS, Math.floor(value)))
 }
 
 /** DB 초안의 문제 수 → 입력칸(문자열) */
@@ -124,7 +125,7 @@ export function draftProblemsText(value: number | null | undefined): string {
   if (value === null || value === undefined) return ''
   const number = Number(value)
   if (!Number.isFinite(number) || number <= 0) return ''
-  return String(Math.max(0, Math.min(9999, Math.floor(number))))
+  return String(Math.max(0, Math.min(MAX_PROBLEMS, Math.floor(number))))
 }
 
 /**

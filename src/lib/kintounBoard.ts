@@ -814,8 +814,8 @@ export const GRANT_MODE_LABEL: Record<'all' | 'single', string> = {
 /* 관리자 「수업 종료」 (2026-11-23)                                     */
 /* ------------------------------------------------------------------ */
 
-/** 문제 수 입력칸에 담을 수 있는 최대값 (DB 함수와 같다) */
-export const END_STUDY_PROBLEMS_MAX = 9999
+/** 문제 수 입력칸에 담을 수 있는 최대값 (DB 함수와 같다 — 2026-11-23: 999) */
+export const END_STUDY_PROBLEMS_MAX = 999
 
 /**
  * 문제 수 입력칸 값 → 서버로 보낼 문제 수.
@@ -830,9 +830,9 @@ export function parseEndProblems(raw: unknown): number {
   return Math.min(END_STUDY_PROBLEMS_MAX, Math.max(0, Math.floor(value)))
 }
 
-/** 문제 수 입력칸에 보여 줄 글자 (숫자만·4자리까지, 앞의 0은 지운다) */
+/** 문제 수 입력칸에 보여 줄 글자 (숫자만·3자리까지, 앞의 0은 지운다) */
 export function endProblemsText(raw: unknown): string {
-  const digits = String(raw ?? '').replace(/[^\d]/g, '').slice(0, 4)
+  const digits = String(raw ?? '').replace(/[^\d]/g, '').slice(0, 3)
   if (digits === '') return ''
   return String(Math.min(END_STUDY_PROBLEMS_MAX, Number(digits)))
 }

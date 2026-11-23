@@ -21,7 +21,7 @@ import {
   homeworkSubmitProblem,
   needsNoPhotoConfirm,
 } from '../lib/homeworkBoard'
-import { PAUSE_CHECK_SECONDS, pauseStage, secondsUntilAutoEnd } from '../lib/pauseWatch'
+import { PAUSE_CHECK_SECONDS, appendProblemDigit, pauseStage, PROBLEMS_LIMIT_MESSAGE, problemsOverLimit, secondsUntilAutoEnd } from '../lib/pauseWatch'
 import { alertPauseCheck, primeAlertSound } from '../lib/studentAlert'
 import { formatHMS, formatMinutes, MAX_SESSION_SECONDS } from '../lib/time'
 import type { AutoEndResult, FinishResult, Student, StudySession } from '../lib/types'
@@ -50,6 +50,8 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
   const [askOpen, setAskOpen] = useState(false)
   const [askBusy, setAskBusy] = useState(false)
   const [problems, setProblems] = useState('')
+  /* 999를 넘기는 자리를 눌렀을 때 잠깐 보여 주는 안내 */
+  const [limitNotice, setLimitNotice] = useState<string | null>(null)
   /* 사진 0장으로 제출을 눌렀을 때 한 번 더 묻는 창 */
   const [photoConfirmOpen, setPhotoConfirmOpen] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -134,6 +136,7 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
     if (!session?.id) return
     setPendingReason('manual')
     setProblems(photoDraft.problems)
+    setLimitNotice(null)
     setPhotoConfirmOpen(false)
     setPhotoError(null)
     setProblemOpen(true)
@@ -259,6 +262,7 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
     setPauseCheckOpen(false)
     setPendingReason('manual')
     setProblems(photoDraft.problems)
+    setLimitNotice(null)
     setPhotoConfirmOpen(false)
     setPhotoError(null)
     setProblemOpen(true)
@@ -278,6 +282,12 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
   const saveAndFinish = async (photoConfirmed = false) => {
     const count = problems === '' ? 0 : Number(problems)
     const safeCount = Number.isFinite(count) ? count : 0
+
+    /* 0~999 밖의 값은 서버로 보내지 않는다 (키패드에서 이미 막지만 마지막 확인) */
+    if (problemsOverLimit(problems)) {
+      setLimitNotice(PROBLEMS_LIMIT_MESSAGE)
+      return
+    }
 
     /* 숙제 공부: 아직 못 올린 사진을 마저 올린 뒤 승인 대기로 제출한다 */
     if (isHomework) {
@@ -326,11 +336,17 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
   }
 
   const pushDigit = (digit: string) => {
-    const next = problems.length >= 4 ? problems : `${problems}${digit}`
-    setProblems(next)
-    if (isHomework) photoDraft.setProblems(next)
+    const next = appendProblemDigit(problems, digit)
+    if (next.blocked) {
+      setLimitNotice(PROBLEMS_LIMIT_MESSAGE)
+      return
+    }
+    setLimitNotice(null)
+    setProblems(next.text)
+    if (isHomework) photoDraft.setProblems(next.text)
   }
   const popDigit = () => {
+    setLimitNotice(null)
     const next = problems.slice(0, -1)
     setProblems(next)
     if (isHomework) photoDraft.setProblems(next)
@@ -727,6 +743,12 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
           </span>
           <span className="ml-2 text-sm font-semibold text-navy/50">문제</span>
         </div>
+
+        {limitNotice ? (
+          <p className="mt-2 break-words rounded-2xl bg-[#FFF6DA] px-3 py-2 text-center text-[11.5px] font-semibold leading-snug text-[#7A5B00]">
+            {limitNotice}
+          </p>
+        ) : null}
 
         {isHomework ? (
           <p className="mt-2 text-center text-[12px] font-semibold leading-snug text-[#5B2FC0]/70">

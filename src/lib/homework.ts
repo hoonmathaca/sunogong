@@ -16,6 +16,7 @@ import {
   normalizeReason,
 } from './homeworkBoard'
 import { prepareQuestionImage } from './imageCompress'
+import { MAX_PROBLEMS } from './pauseWatch'
 import { mediaExtension } from './questionBoard'
 import { isSupabaseConfigured, supabase } from './supabase'
 import type { FinishResult, HomeworkSubmission } from './types'
@@ -238,7 +239,7 @@ export const findHomeworkDraft = (sessionId: string) =>
 export const submitHomework = (sessionId: string, problems: number, photoPaths: string[]) =>
   rpc<FinishResult>('submit_homework', {
     p_session_id: sessionId,
-    p_problems: Math.max(0, Math.min(9999, Math.floor(problems) || 0)),
+    p_problems: Math.max(0, Math.min(MAX_PROBLEMS, Math.floor(problems) || 0)),
     p_photo_paths: photoPaths,
   })
 
@@ -246,7 +247,7 @@ export const submitHomework = (sessionId: string, problems: number, photoPaths: 
 export const submitPendingHomework = (submissionId: string, problems: number, photoPaths: string[]) =>
   rpc<HomeworkSubmission>('submit_pending_homework', {
     p_submission_id: submissionId,
-    p_problems: Math.max(0, Math.min(9999, Math.floor(problems) || 0)),
+    p_problems: Math.max(0, Math.min(MAX_PROBLEMS, Math.floor(problems) || 0)),
     p_photo_paths: photoPaths,
   })
 

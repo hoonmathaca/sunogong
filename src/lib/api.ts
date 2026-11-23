@@ -1,6 +1,7 @@
 import { isSupabaseConfigured, SUPABASE_ANON_KEY, SUPABASE_URL, supabase } from './supabase'
 import type { SessionKind } from './kinds'
 import { editTotals, normalizeEditValues } from './logEdit'
+import { MAX_PROBLEMS, PROBLEMS_LIMIT_MESSAGE } from './pauseWatch'
 import { todayKst } from './time'
 import type { FinishResult, Student, StudyLog, StudySession, AutoEndResult, PendingProblemsResult } from './types'
 
@@ -45,6 +46,9 @@ export function friendlyError(error: unknown): string {
   if (raw.includes('session_not_found')) return '진행 중인 공부 기록을 찾을 수 없어요.'
   if (raw.includes('session_not_finished')) return '아직 끝나지 않은 공부예요.'
   if (raw.includes('problems_not_pending')) return '이미 문제 수를 입력한 공부예요.'
+  if (raw.includes('problems_out_of_range')) return PROBLEMS_LIMIT_MESSAGE
+  if (raw.includes('log_not_found')) return '오늘 공부 기록이 없어서 문제 수를 고칠 수 없어요.'
+  if (raw.includes('no_academy_today')) return '오늘 학원 공부 기록이 없어서 문제 수를 고칠 수 없어요.'
   if (raw.includes('invalid_code')) return '4자리 숫자 코드를 입력해주세요.'
   return raw
 }
@@ -187,7 +191,7 @@ export const resumeSession = (sessionId: string) =>
   rpc<StudySession>('resume_session', { p_session_id: sessionId })
 
 export const finishSession = (sessionId: string, problems: number) =>
-  rpc<FinishResult>('finish_session', { p_session_id: sessionId, p_problems: Math.max(0, Math.floor(problems) || 0) })
+  rpc<FinishResult>('finish_session', { p_session_id: sessionId, p_problems: Math.max(0, Math.min(MAX_PROBLEMS, Math.floor(problems) || 0)) })
 
 /**
  * 쉬는 시간이 60분을 넘은 세션을 자동 종료한다.
@@ -214,12 +218,39 @@ export const studySessionState = (sessionId: string) =>
 export const setSessionProblems = (sessionId: string, problems: number) =>
   rpc<PendingProblemsResult>('set_session_problems', {
     p_session_id: sessionId,
-    p_problems: Math.max(0, Math.min(9999, Math.floor(problems) || 0)),
+    p_problems: Math.max(0, Math.min(MAX_PROBLEMS, Math.floor(problems) || 0)),
   })
 
 /** 문제 수 입력을 기다리는(자동 종료된) 세션 목록 — 오래된 것부터 */
 export const listPendingProblemSessions = (studentId: string) =>
   rpc<StudySession[]>('pending_problem_sessions', { p_student_id: studentId })
+
+/* ------------------------------------------------------------------ */
+/* 학생이 오늘 학원 공부 문제 수 직접 수정 (2026-11-23)                   */
+/* ------------------------------------------------------------------ */
+
+/** student_update_today_academy_problems 결과 */
+export interface TodayAcademyProblemsResult {
+  log: StudyLog | null
+  academy_problems: number
+  homework_problems: number
+  problems: number
+  date: string
+  minutes: number
+  academy_minutes: number
+  homework_minutes: number
+}
+
+/**
+ * 오늘(KST) 학원 공부 문제 수만 0~999 로 바꾼다.
+ * 숙제 공부 문제 수는 선생님 승인 대상이라 건드리지 않고,
+ * 합계(problems)는 학원+숙제로 다시 계산된다.
+ */
+export const updateTodayAcademyProblems = (studentId: string, problems: number) =>
+  rpc<TodayAcademyProblemsResult>('student_update_today_academy_problems', {
+    p_student_id: studentId,
+    p_problems: Math.max(0, Math.floor(problems) || 0),
+  })
 
 /* ------------------------------------------------------------------ */
 /* 학생                                                                 */

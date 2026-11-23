@@ -9,7 +9,7 @@ import {
   needsNoPhotoConfirm,
   submissionLine,
 } from '../lib/homeworkBoard'
-import { problemsFromInput, pendingProblemSummary } from '../lib/pauseWatch'
+import { problemsFromInput, pendingProblemSummary, appendProblemDigit, PROBLEMS_LIMIT_MESSAGE, problemsOverLimit } from '../lib/pauseWatch'
 import { HomeworkPhotoPicker } from './HomeworkPhotoPicker'
 import { useHomeworkPhotos } from './useHomeworkPhotos'
 import type { PendingItem } from './usePendingProblems'
@@ -42,6 +42,8 @@ export function PendingProblemsModal({
   const isHomework = item.type === 'homework'
   const submission = item.type === 'homework' ? item.submission : null
   const [problems, setProblems] = useState('')
+  /* 999를 넘기는 자리를 눌렀을 때 잠깐 보여 주는 안내 */
+  const [limitNotice, setLimitNotice] = useState<string | null>(null)
   /* 사진 0장으로 제출을 눌렀을 때 한 번 더 묻는 창 */
   const [photoConfirmOpen, setPhotoConfirmOpen] = useState(false)
 
@@ -65,11 +67,17 @@ export function PendingProblemsModal({
   }, [isHomework, photoDraft.problems])
 
   const pushDigit = (digit: string) => {
-    const next = problems.length >= 4 ? problems : `${problems}${digit}`
-    setProblems(next)
-    if (isHomework) photoDraft.setProblems(next)
+    const next = appendProblemDigit(problems, digit)
+    if (next.blocked) {
+      setLimitNotice(PROBLEMS_LIMIT_MESSAGE)
+      return
+    }
+    setLimitNotice(null)
+    setProblems(next.text)
+    if (isHomework) photoDraft.setProblems(next.text)
   }
   const popDigit = () => {
+    setLimitNotice(null)
     const next = problems.slice(0, -1)
     setProblems(next)
     if (isHomework) photoDraft.setProblems(next)
@@ -78,6 +86,10 @@ export function PendingProblemsModal({
   /** photoConfirmed — 사진 0장 확인 창에서 「그래도 제출」을 누른 경우 true */
   const save = async (photoConfirmed = false) => {
     const count = problemsFromInput(problems)
+    if (problemsOverLimit(problems)) {
+      setLimitNotice(PROBLEMS_LIMIT_MESSAGE)
+      return
+    }
     if (isHomework) {
       const invalid = homeworkSubmitProblem(count, photoDraft.items.length)
       if (invalid) return
@@ -150,6 +162,12 @@ export function PendingProblemsModal({
         </span>
         <span className="ml-2 text-sm font-semibold text-navy/50">문제</span>
       </div>
+
+      {limitNotice ? (
+        <p className="mt-2 break-words rounded-2xl bg-[#FFF6DA] px-3 py-2 text-center text-[11.5px] font-semibold leading-snug text-[#7A5B00]">
+          {limitNotice}
+        </p>
+      ) : null}
 
       <p className="mt-2 text-center text-[12px] font-semibold text-navy/45">
         {isHomework

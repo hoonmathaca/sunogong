@@ -26,6 +26,7 @@ import { ResultScreen } from '../src/student/ResultScreen'
 import { LiveKintounStrip } from '../src/student/LiveKintounStrip'
 import { CandyPickModal } from '../src/student/CandyPickModal'
 import { PendingProblemsModal } from '../src/student/PendingProblemsModal'
+import { EditAcademyProblemsModal } from '../src/student/EditAcademyProblemsModal'
 import { TimerScreen } from '../src/student/TimerScreen'
 import { ErrorBoundary } from '../src/components/ErrorBoundary'
 import { PhotoPager } from '../src/components/PhotoPager'
@@ -177,6 +178,25 @@ const homeworkResult: FinishResult = {
   submission_id: 'hw-1',
   submitted_minutes: 60,
   submitted_problems: 12,
+}
+
+const todayAcademyResult: FinishResult = {
+  ...result,
+  kind: 'academy',
+  log: {
+    id: 'l1',
+    student_id: student.id,
+    date: '2026-11-19',
+    minutes: 80,
+    problems: 17,
+    academy_minutes: 60,
+    academy_problems: 12,
+    homework_minutes: 20,
+    homework_problems: 5,
+    updated_at: '2026-11-19T05:00:00Z',
+  },
+  total_minutes: 80,
+  total_problems: 17,
 }
 
 const cases: [string, () => JSX.Element][] = [
@@ -380,6 +400,22 @@ const cases: [string, () => JSX.Element][] = [
   ['QuestionsPanel(관리자 질문함)', () => <QuestionsPanel />],
   ['PushNotifyPanel(새 질문 알림)', () => <PushNotifyPanel />],
   ['ResultScreen', () => <ResultScreen student={student} result={result} reason="manual" onHome={() => {}} onAgain={() => {}} />],
+  [
+    'ResultScreen(학원 — 오늘 기록 있음)',
+    () => <ResultScreen student={student} result={todayAcademyResult} reason="manual" onHome={() => {}} onAgain={() => {}} />,
+  ],
+  [
+    'EditAcademyProblemsModal(오늘 학원 문제 수)',
+    () => (
+      <EditAcademyProblemsModal
+        open
+        studentId={student.id}
+        current={12}
+        onClose={() => {}}
+        onSaved={() => {}}
+      />
+    ),
+  ],
   ['KintounPanel(관리자 근두운)', () => <KintounPanel students={[student]} studentsLoading={false} studentsError={null} reloadStudents={() => {}} />],
   [
     'LiveSessionRow(수업 종료 버튼)',
@@ -676,6 +712,27 @@ const homeworkChecks: [string, boolean][] = [
   ['숙제: 모두 반려면 칭찬칸 잠금·안내', praiseLockedHtml.includes('모두 반려하면 칭찬 한마디는 저장되지 않아요') && praiseLockedHtml.includes('disabled')],
 ]
 for (const [name, ok] of homeworkChecks) {
+  if (!ok) failed += 1
+  console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)
+}
+
+/* 문제 수 0~999 상한 · 오늘 학원 문제 수 수정 (2026-11-23) */
+const academyResultHtml = rendered['ResultScreen(학원 — 오늘 기록 있음)'] ?? ''
+const plainResultHtml = rendered['ResultScreen'] ?? ''
+const editModalHtml = rendered['EditAcademyProblemsModal(오늘 학원 문제 수)'] ?? ''
+const endStudyHtml = rendered['EndStudyModal(수업 종료 확인)'] ?? ''
+const problemChecks: [string, boolean][] = [
+  ['문제 수정: 학원 결과 화면에 수정 버튼', academyResultHtml.includes('문제 수 수정')],
+  ['문제 수정: 수정 창 제목', editModalHtml.includes('오늘 학원 공부 문제 수')],
+  ['문제 수정: 지금 기록·범위 안내', editModalHtml.includes('지금 기록') && editModalHtml.includes('0~999문제까지')],
+  ['문제 수정: 숙제는 승인 뒤에 들어간다는 안내', editModalHtml.includes('숙제 공부 문제 수는 선생님 확인 뒤에')],
+  ['문제 수정: 지금 값 12로 채워짐', editModalHtml.includes('>12<')],
+  ['문제 수정: 취소·저장 버튼', editModalHtml.includes('>취소<') && editModalHtml.includes('>저장<')],
+  ['문제 수정: 기록 없는 결과 화면에는 버튼 없음', !plainResultHtml.includes('문제 수 수정')],
+  ['문제 수정: 숙제 승인 대기 화면에는 버튼 없음', !homeworkResultHtml.includes('문제 수 수정')],
+  ['문제 수정: 관리자 수업 종료 입력칸 max 999', endStudyHtml.includes('max="999"')],
+]
+for (const [name, ok] of problemChecks) {
   if (!ok) failed += 1
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)
 }

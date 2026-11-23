@@ -8,8 +8,11 @@ export const PAUSE_CHECK_SECONDS = 30 * 60
 /** 일시정지 총 60분 → 자동 종료 (문제 수는 다음 접속 때 입력) */
 export const PAUSE_AUTO_END_SECONDS = 60 * 60
 
-/** 학생이 입력할 수 있는 문제 수 최대값 */
-export const MAX_PROBLEMS = 9999
+/** 학생이 입력할 수 있는 문제 수 최대값 (2026-11-23: 9,999 → 999) */
+export const MAX_PROBLEMS = 999
+
+/** 상한을 넘기려 할 때 보여 주는 안내 (화면·DB 가 같은 말을 쓴다) */
+export const PROBLEMS_LIMIT_MESSAGE = '문제 수는 999개까지 넣을 수 있어요.'
 
 export type PauseStage = 'none' | 'check' | 'auto'
 
@@ -26,7 +29,27 @@ export function secondsUntilAutoEnd(pausedSeconds: number): number {
   return Math.max(0, PAUSE_AUTO_END_SECONDS - seconds)
 }
 
-/** 키패드로 입력한 글자 → 저장할 문제 수 (빈 칸은 0, 최대 9999) */
+/**
+ * 키패드에서 한 자리 더 눌렀을 때의 입력값.
+ * 999를 넘는 숫자가 되면 그대로 두고 blocked=true — 화면이 안내 문구를 띄운다.
+ */
+export function appendProblemDigit(current: string, digit: string): { text: string; blocked: boolean } {
+  const base = String(current ?? '').replace(/[^0-9]/g, '')
+  const nextDigit = String(digit ?? '').replace(/[^0-9]/g, '').slice(0, 1)
+  if (!nextDigit) return { text: base, blocked: false }
+  const next = `${base}${nextDigit}`
+  if (Number(next) > MAX_PROBLEMS) return { text: base, blocked: true }
+  return { text: next, blocked: false }
+}
+
+/** 입력값이 상한(999)을 넘는지 — 제출 직전 마지막 확인 */
+export function problemsOverLimit(value: string | number | null | undefined): boolean {
+  const digits = String(value ?? '').replace(/[^0-9]/g, '')
+  if (!digits) return false
+  return Number(digits) > MAX_PROBLEMS
+}
+
+/** 키패드로 입력한 글자 → 저장할 문제 수 (빈 칸은 0, 최대 999) */
 export function problemsFromInput(value: string): number {
   const digits = String(value ?? '').replace(/[^0-9]/g, '')
   if (!digits) return 0

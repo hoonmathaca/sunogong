@@ -8,8 +8,10 @@ import {
 } from '../lib/homeworkBoard'
 import * as homeworkApi from '../lib/homework'
 import { splitLog, splitPercents } from '../lib/stats'
+import { hasTodayAcademy } from '../lib/problemsEdit'
 import { addDays, formatDateKo, formatMinutes, formatMinutesCompact, todayKst, weekdayOf } from '../lib/time'
 import type { HomeworkSubmission, Student, StudyLog } from '../lib/types'
+import { EditAcademyProblemsModal } from './EditAcademyProblemsModal'
 import { HomeworkSubmissionRow } from './HomeworkSubmissionRow'
 import { LiveKintounCard } from './LiveKintounCard'
 
@@ -54,6 +56,9 @@ export function StudentHomeScreen({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [period, setPeriod] = useState<Period>(7)
+  const [editProblemsOpen, setEditProblemsOpen] = useState(false)
+  /* 문제 수를 고친 뒤 잠깐 보여 주는 안내 */
+  const [savedProblems, setSavedProblems] = useState<number | null>(null)
   const listRef = useRef<HTMLUListElement | null>(null)
 
   const today = todayKst()
@@ -114,6 +119,8 @@ export function StudentHomeScreen({
 
   const todayLog = logs.find((item) => item.date === today)
   const todaySplit = splitLog(todayLog)
+  /* 오늘 학원 공부 기록이 있으면 학생이 문제 수를 직접 고칠 수 있다 */
+  const canEditProblems = hasTodayAcademy(todaySplit)
   const recentSubmissions = submissions.slice(0, 5)
   const waitingSubmissions = countPending(submissions)
   const weekMinutes = logs
@@ -128,6 +135,13 @@ export function StudentHomeScreen({
     const list = listRef.current
     if (list) list.scrollTop = list.scrollHeight
   }, [period, loading])
+
+  /* 저장 안내는 5초 뒤 사라진다 */
+  useEffect(() => {
+    if (savedProblems === null) return undefined
+    const timer = window.setTimeout(() => setSavedProblems(null), 5000)
+    return () => window.clearTimeout(timer)
+  }, [savedProblems])
 
   return (
     <div className="screen bg-gradient-to-b from-blue-soft/70 to-white">
@@ -165,6 +179,25 @@ export function StudentHomeScreen({
             <span className="rounded-full bg-white/10 px-2.5 py-1">푼 문제 {todayLog?.problems ?? 0}개</span>
             <span className="rounded-full bg-white/10 px-2.5 py-1">이번 주 {formatMinutes(weekMinutes)}</span>
           </div>
+          {/* 오늘 학원 공부를 했으면 학생이 문제 수를 직접 고칠 수 있다 (숙제 문제 수는 승인 대상) */}
+          {canEditProblems || savedProblems !== null ? (
+            <div className="mt-2.5 flex flex-wrap items-center gap-2">
+              {canEditProblems ? (
+                <button
+                  type="button"
+                  onClick={() => setEditProblemsOpen(true)}
+                  className="rounded-full border border-white/25 px-2.5 py-1 text-[11.5px] font-bold text-white/90 transition active:scale-[0.98]"
+                >
+                  ✏️ 문제 수 수정
+                </button>
+              ) : null}
+              {savedProblems !== null ? (
+                <span className="text-[11px] font-semibold text-white/60">
+                  오늘 학원 문제 수를 {savedProblems}개로 바꿨어요
+                </span>
+              ) : null}
+            </div>
+          ) : null}
         </section>
 
         {/* 쉬는 시간이 길어 자동으로 마무리된 공부 — 문제 수를 아직 넣지 않았으면 여기서 들어간다 */}
@@ -418,6 +451,19 @@ export function StudentHomeScreen({
       </div>
 
       <BrandFooter />
+
+      {/* 오늘 학원 공부 문제 수 직접 수정 — 오늘 기록이 있을 때만 열린다 */}
+      <EditAcademyProblemsModal
+        open={editProblemsOpen}
+        studentId={student.id}
+        current={todaySplit.academyProblems}
+        onClose={() => setEditProblemsOpen(false)}
+        onSaved={(log) => {
+          setEditProblemsOpen(false)
+          setSavedProblems(log?.academy_problems ?? todaySplit.academyProblems)
+          void load()
+        }}
+      />
     </div>
   )
 }

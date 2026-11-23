@@ -2,15 +2,20 @@
 import { addDays, formatHMS, formatMinutes, formatMinutesCompact, kstDateString, monthRange, rangeDates, weekRange, weekdayOf, kstDayEndMs, kstMidnightMs } from '../src/lib/time'
 import { buildStats, hasScopedLog, indexLogs, longestStreakAllTime, longestStreakInRange, rankByKind, rankEntries, rankValue, scopeLabel, scopeShortLabel, scopedDays, scopedLogMinutes, scopedLogProblems, scopedMinutes, scopedProblems, splitLog, splitPercents, studentsWithoutKind, sumSplits } from '../src/lib/stats'
 import { editTotals, editValuesFromLog, normalizeEditValues } from '../src/lib/logEdit'
+import { hasTodayAcademy, problemsAfterAcademyEdit } from '../src/lib/problemsEdit'
 import { computeElapsedSeconds, isHeartbeatStale, pausedSecondsOf } from '../src/lib/session'
 import {
+  appendProblemDigit,
   autoEndNotice,
+  MAX_PROBLEMS,
   PAUSE_AUTO_END_SECONDS,
   PAUSE_CHECK_SECONDS,
   pauseStage,
   pendingProblemQueue,
   pendingProblemSummary,
+  PROBLEMS_LIMIT_MESSAGE,
   problemsFromInput,
+  problemsOverLimit,
   secondsUntilAutoEnd,
 } from '../src/lib/pauseWatch'
 import { normalizeKind, pausesOnLeave } from '../src/lib/kinds'
@@ -554,7 +559,17 @@ eq('단계: 값이 이상하면 아직', [pauseStage(-5), pauseStage(Number.NaN)
 eq('자동 종료까지', [secondsUntilAutoEnd(0), secondsUntilAutoEnd(1800), secondsUntilAutoEnd(3599)], [3600, 1800, 1])
 eq('자동 종료까지(지났으면 0)', [secondsUntilAutoEnd(3600), secondsUntilAutoEnd(7200)], [0, 0])
 eq('문제 수 입력값', [problemsFromInput(''), problemsFromInput('0'), problemsFromInput('017')], [0, 0, 17])
-eq('문제 수 입력값(문자·최대값)', [problemsFromInput('12a3'), problemsFromInput('12345'), problemsFromInput('-7')], [123, 9999, 7])
+eq('문제 수 입력값(문자·최대값)', [problemsFromInput('12a3'), problemsFromInput('12345'), problemsFromInput('-7')], [123, 999, 7])
+eq('문제 수 상한: 999까지 글자가 쌓인다', [appendProblemDigit('99', '9'), appendProblemDigit('', '0'), appendProblemDigit('99', '0')], [{ text: '999', blocked: false }, { text: '0', blocked: false }, { text: '990', blocked: false }])
+eq('문제 수 상한: 999를 넘는 자리는 막힌다', [appendProblemDigit('999', '1'), appendProblemDigit('999', '0'), appendProblemDigit('100', '0')], [{ text: '999', blocked: true }, { text: '999', blocked: true }, { text: '100', blocked: true }])
+eq('문제 수 상한: 값과 안내 문구', [MAX_PROBLEMS, PROBLEMS_LIMIT_MESSAGE], [999, '문제 수는 999개까지 넣을 수 있어요.'])
+eq('문제 수 상한: 글자가 아닌 자리는 그대로', appendProblemDigit('12', 'a'), { text: '12', blocked: false })
+eq('문제 수 상한 판정', [problemsOverLimit('999'), problemsOverLimit('1000'), problemsOverLimit(999), problemsOverLimit(''), problemsOverLimit(null), problemsOverLimit('12a')], [false, true, false, false, false, false])
+
+/* 학생이 오늘 학원 공부 문제 수를 직접 수정 (2026-11-23) */
+eq('학원 수정: 오늘 학원 기록이 있을 때만', [hasTodayAcademy({ academyMinutes: 30, academyProblems: 0 }), hasTodayAcademy({ academyMinutes: 0, academyProblems: 5 }), hasTodayAcademy({ academyMinutes: 0, academyProblems: 0 }), hasTodayAcademy(null)], [true, true, false, false])
+eq('학원 수정: 숙제만 있으면 학원 기록 없음', hasTodayAcademy({ academyMinutes: 0, academyProblems: 0 }), false)
+eq('학원 수정: 합계 = 새 학원 + 숙제', [problemsAfterAcademyEdit(12, 5), problemsAfterAcademyEdit(0, 7), problemsAfterAcademyEdit(999, null), problemsAfterAcademyEdit(Number.NaN, 3)], [17, 7, 999, 3])
 
 /* 자동 종료된 지난 공부 — 문제 수를 물어볼 목록 */
 const pendingBase: StudySession = {
@@ -1454,7 +1469,7 @@ eq('사진 초안: 다음 번호는 담긴 수', nextPhotoIndex([itemA, itemB]),
 eq('사진 초안: 경로 목록에서 되살리기', restorePhotoItems(['s/1.jpg', 's/1.jpg', '', null, 's/2.jpg']).map((item) => item.path), ['s/1.jpg', 's/2.jpg'])
 eq('사진 초안: 되살린 사진은 올라간 상태', restorePhotoItems(['s/1.jpg'], { 's/1.jpg': 'https://x/1' }).map((item) => [item.state, item.preview]), [['ready', 'https://x/1']])
 eq('사진 초안: 서명 주소가 없어도 목록에 남김', restorePhotoItems(['s/9.jpg']).map((item) => item.preview), [null])
-eq('사진 초안: 문제 수 → DB 값', [draftProblemsOf(''), draftProblemsOf('0'), draftProblemsOf('030'), draftProblemsOf('12a'), draftProblemsOf('99999')], [null, 0, 30, 12, 9999])
+eq('사진 초안: 문제 수 → DB 값', [draftProblemsOf(''), draftProblemsOf('0'), draftProblemsOf('030'), draftProblemsOf('12a'), draftProblemsOf('99999')], [null, 0, 30, 12, 999])
 eq('사진 초안: DB 값 → 입력칸', [draftProblemsText(null), draftProblemsText(0), draftProblemsText(30)], ['', '', '30'])
 eq('사진 초안: 창이 열려 있고 사진이 있으면 다시 연다', shouldReopenDraft({ draft_active: true, draft_open: true, photo_paths: ['s/1.jpg'], draft_problems: null }), true)
 eq('사진 초안: 창이 열려 있고 문제 수만 있어도 다시 연다', shouldReopenDraft({ draft_active: true, draft_open: true, photo_paths: [], draft_problems: 12 }), true)
@@ -1467,9 +1482,9 @@ eq('사진 초안: 초안이 없으면 false', [shouldReopenDraft(null), shouldR
 eq('수업 종료: 빈 문제 수는 0', [parseEndProblems(''), parseEndProblems(null), parseEndProblems(undefined)], [0, 0, 0])
 eq('수업 종료: 숫자는 그대로', [parseEndProblems('0'), parseEndProblems('7'), parseEndProblems(25)], [0, 7, 25])
 eq('수업 종료: 앞의 0·공백·글자 섞임 정리', [parseEndProblems('030'), parseEndProblems(' 25 '), parseEndProblems('12a')], [30, 25, 12])
-eq('수업 종료: 9999 를 넘지 않음', [parseEndProblems('99999'), parseEndProblems(12000)], [9999, 9999])
+eq('수업 종료: 999 를 넘지 않음', [parseEndProblems('99999'), parseEndProblems(12000)], [999, 999])
 eq('수업 종료: 숫자가 없으면 0', [parseEndProblems('abc'), parseEndProblems('-'), parseEndProblems(Number.NaN)], [0, 0, 0])
-eq('수업 종료: 입력칸은 숫자만·4자리', [endProblemsText(''), endProblemsText('030'), endProblemsText('12a'), endProblemsText('99999')], ['', '30', '12', '9999'])
+eq('수업 종료: 입력칸은 숫자만·3자리', [endProblemsText(''), endProblemsText('030'), endProblemsText('12a'), endProblemsText('99999')], ['', '30', '12', '999'])
 eq('수업 종료: 안내 — 학원은 바로 기록', endStudyKindNotice('academy').includes('바로 들어가요'), true)
 eq('수업 종료: 안내 — 숙제는 승인', [endStudyKindNotice('homework').includes('승인'), endStudyKindNotice('homework').includes('사진')], [true, true])
 eq('수업 종료: 확인 요약 — 공부 중', endStudySummary({ name: '이지빈', kind: 'academy', status: 'running', seconds: 1531 }), '이지빈 · 🏫 학원 공부 · 공부 중 25:31')

@@ -80,7 +80,7 @@ export function EndStudyModal({
           type="number"
           inputMode="numeric"
           min={0}
-          max={9999}
+          max={999}
           value={problems}
           placeholder="0"
           onChange={(event) => onProblemsChange(endProblemsText(event.target.value))}
