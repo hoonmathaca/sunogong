@@ -131,9 +131,10 @@ try {
   check('학생: 취소하면 확인 창이 닫힘', !(await confirm.isVisible().catch(() => false)))
   check('학생: 취소하면 제출 창으로 돌아옴', await submitModal.isVisible())
   const beforeRows = await run(
-    supabase.from('homework_submissions').select('id').eq('student_id', student.id),
+    supabase.from('homework_submissions').select('id, draft_active').eq('student_id', student.id),
   )
-  check('저장: 취소만으로는 제출되지 않음', beforeRows.length === 0, beforeRows.length)
+  const beforeSubmitted = beforeRows.filter((row) => row.draft_active === false)
+  check('저장: 취소만으로는 제출되지 않음(초안만 남음)', beforeSubmitted.length === 0, JSON.stringify(beforeRows))
 
   /* 다시 제출 → 이번에는 그래도 제출 */
   await page.getByRole('button', { name: '제출', exact: true }).click()
@@ -169,7 +170,11 @@ try {
       .eq('id', autoSession.id),
   )
   const ended = await run(supabase.rpc('auto_end_paused_session', { p_session_id: autoSession.id }))
-  check('자동 종료: 숙제 제출 줄이 문제 수 없이 대기', ended?.session?.auto_ended === true && ended?.submission?.submitted_problems === null, ended?.session?.status)
+  check(
+    '자동 종료: 숙제 제출 줄이 문제 수 없이 대기',
+    ended?.auto_ended === true && ended?.submission?.submitted_problems === null,
+    JSON.stringify({ auto: ended?.auto_ended, problems: ended?.submission?.submitted_problems }),
+  )
 
   await enterCode(page)
   const pendingModal = page.getByRole('dialog', { name: '지난 숙제 공부 제출' })
