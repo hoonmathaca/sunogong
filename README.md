@@ -470,8 +470,16 @@ node tools/e2e-homework-draft.mjs
 #      200자 초과 거절 → 공백만 null → 두 번 처리 거절 → 기록·드래곤볼 그대로
 node tools/e2e-homework-praise.mjs
 
+# 6-4) 관리자 「수업 종료」 실서비스 E2E — 검증용 학생은 끝나고 삭제
+#      공부 중 25분 → 7문제로 종료 → 기록·두 번 누름·일시정지 세션(paused_at 기준) → 숙제는 승인 대기 →
+#      숙제 30초·0문제 → 자정 넘김 → 없는 세션 → 실제 운영 세션은 그대로
+node tools/e2e-admin-end-study.mjs
+
 # 7) 배포된 화면 360px 확인 + 스크린샷 (학생 숙제 제출 창·홈 승인 표시·관리자 숙제관리 상세)
 node tools/check-homework-ui.mjs https://sunogong.vercel.app /workspace/downloads
+
+# 7-2) 배포된 관리자 실시간 탭 360px — 「수업 종료」 버튼·확인 창·학생 화면 자동 전환 + 스크린샷
+node tools/check-admin-end-study.mjs https://sunogong.vercel.app /workspace/downloads
 ```
 
 결과: 단위 테스트 전부 통과(**501건** — 날짜·집계·학원/숙제 분리 집계·기록 수정 계산·비율·랭킹·타이머(경과·쉬는 시간·자동 종료 단계)·기기 판별·질문(Q&A)·알림(VAPID 키·기기 판별·구독 저장 모양·오류 문구)·근두운(닉네임·시간·구름·실시간 순위·타이머 근두운 줄·드래곤볼) 계산, 랭킹 전체/학원/숙제 분리·드래곤볼 순위·동점 처리, **일반용 7종(색 맵·총 마리·모은 색·도감·뽑기 조건)·무지개용 합성 조건·교환권(사탕·1,000P·10,000P 개수와 문구)·드래곤볼 힘(일반용=성구 7개, 무지개용=성구 49개)**·통계 구분(전체/학원/숙제 — 학생별·하루 기록·미제출 명단), 관리자 좌우 스와이프 42건(60px·1.5배 기준, 첫/끝 탭, 입력창·모달·가로 스크롤 예외, 컨테이너 바깥 무시), 문제 수 대기 목록·지난 공부 표시·자동 종료 안내 문구, **「오늘의 한줄」 124개·모든 명언의 출처·문구 중복 없음·무작위 번호 범위(난수 0·1·범위 밖·NaN)·124개 전부 고를 수 있음·1,001번 범위 확인 15건·사진 초안 19건**), **35개 화면** + 일반용 뽑기·무지개용 합성·사탕교환권·포인트 교환권 버튼, 관리자 교환권 사용 처리 칸·이름 찾기·일반용/무지개용 안내, 통계 구분 필터·실시간 학원/숙제 인원·일시정지 중 타이머·지난번 푼 문제 수 창까지 렌더 성공(스모크 176건 — 코드 입력 화면의 오늘의 한줄 카드 7건 포함)(관리자 알림 카드·근두운 패널·세션 넘긴 근두운 줄 포함), `schema.sql`/`seed.sql`/`migrate-2026-11-21-questions.sql`/`migrate-2026-11-21-push.sql`/`migrate-2026-11-21-kintoun-dragonball.sql`/`migrate-2026-11-21-dragonball-stars.sql`/`migrate-2026-11-21-rainbow-ball.sql`/`migrate-2026-11-22-pause-autoend.sql`/`migrate-2026-11-22-color-dragons-tickets.sql`/`migrate-2026-11-22-secret-black-dragon.sql`/`migrate-2026-11-23-homework-photo-approval.sql`/`migrate-2026-11-23-homework-photo-resume.sql`/`migrate-2026-11-23-homework-teacher-comment.sql`/`migrate-2026-11-23-admin-end-study.sql` 문법 오류 없음, 근두운 SQL 검증 7건 통과, **검은용 SQL 검증 통과**(40만 번 표본 확률·강제 보너스·원래 용 유지·시크릿쿠폰 교환·사용), **쉬는 시간 자동 종료 실서비스 E2E 23건 통과**, **관리자 「수업 종료」 실서비스 E2E 49건 통과**, **일반용·무지개용·교환권·검은용 실서비스 E2E 49건 통과**(21개 지급 → 성구 2개 → 사탕교환권 → 1~7성구 → 일반용 랜덤 → 7종 → 무지개용 → 1,000P·10,000P 교환권 → 관리자 사용 처리·두 번 사용 거절·사용 기록·검은용→시크릿쿠폰·시크릿쿠폰 사용 처리·앱에서 확률 함수를 부를 수 없음·예전 함수 이름 호환까지). 검증 데이터는 되돌려 남은 검증용 학생·세션·기록 0건입니다.
@@ -529,6 +537,24 @@ node tools/check-homework-ui.mjs https://sunogong.vercel.app /workspace/download
 3. **DB** — `supabase/migrate-2026-11-23-homework-photo-optional.sql` 이 `submit_homework`·`submit_pending_homework` 에서 `photo_required` 예외를 없앱니다(5장 초과 `too_many_photos` 는 그대로). 표 제약은 원래 최소 장수를 보지 않아 손대지 않았고, 관리자 숙제관리 상세는 사진 0장일 때 이미 `올린 사진이 없어요. 사진 없이 낸 제출이에요.` 를 보여 줍니다.
 4. **검증** — 단위 테스트 **487건** 통과(추가: 사진 0장이어도 막히지 않음 · 확인 문구 그대로 · `needsNoPhotoConfirm` 4가지 · 확인 뒤 제출), 스모크 **35개 화면/162건**(사진 고르기 안내가 `사진 없이도 제출할 수 있어요` 로 바뀌고 `1장 이상 올려주세요` 가 사라졌는지), `npm run build` 통과. 실서비스 360px 확인은 `node tools/check-homework-no-photo.mjs https://sunogong.vercel.app /workspace/downloads` — 배포본에서 **17건 통과**: 사진 0장으로 `제출` → 확인 창(문구·취소·그래도 제출·360px 안에서 잘리지 않음) → `취소` 면 제출 창으로 돌아오고 아직 저장 안 됨(초안 행만) → 다시 `제출` → `그래도 제출` → `사진 0장 · 30문제 · 25분` 승인 대기 저장 → 60분 자동 종료된 `지난 숙제 공부 제출` 창에서도 같은 확인 → `12문제 · 사진 0장` 저장. DB 규칙도 따로 확인했습니다 — 사진 0장 제출 성공, 6장은 여전히 `too_many_photos`, `submit_pending_homework` 도 0장 허용. 검증용 학생·세션·제출·사진은 지워 **남은 검증 데이터 0건**입니다.
    - 스크린샷: `downloads/sunogong-homework-no-photo-confirm-360.png`(사진 0장 확인 창), `downloads/sunogong-homework-no-photo-confirm-pending-360.png`(지난 숙제 확인 창).
+
+**관리자 「수업 종료」 (2026-11-23)** — 진행 중(공부 중·일시정지)인 학생의 공부를 선생님이 실시간 탭에서 직접 마무리한다.
+
+1. **화면** — 실시간 탭의 활성 세션 카드(🏫 학원·🏠 숙제 모두) 배지 줄 오른쪽에 `수업 종료` 버튼. 누르면 확인 창이 열린다.
+   - 제목 `수업을 마칠까요?`, 요약 한 줄 `검증수업종료 · 🏫 학원 공부 · 공부 중 25:05`, 큰 글씨 `지금까지 25분`(쉬는 중이면 `잠깐 쉬는 중 — 쉬기 전까지의 시간이에요`), `오늘 푼 문제 수 (선택)` 입력칸(placeholder `0`, 비우면 0문제), 공부 종류에 따른 안내(학원 `지금까지 공부한 시간과 문제 수가 오늘 기록에 바로 들어가요` / 숙제 `선생님 확인(승인)을 거친 뒤 … 사진은 학생이 올려 둔 것이 있으면 그대로 남아요`), 1분 미만 경고, `취소`·`수업 종료` 버튼. 360px 에서 잘리지 않는다.
+   - 확정하면 목록에서 바로 사라지고 `검증수업종료 · 🏫 학원 공부 25분 7문제로 수업을 마무리했어요.` / 숙제는 `… 승인 대기로 넘겼어요 — 숙제관리에서 확인해 주세요.` / 이미 끝난 세션이면 `… 이미 끝나 있었어요. 기록은 그대로 두었어요.` 가 보인다.
+2. **DB** — `admin_end_study_session(p_session_id, p_problems default null)`
+   - 이미 끝난 세션이면 **아무것도 건드리지 않고** 지금 상태만 `already_finished: true` 로 돌려준다(두 번 눌러도 기록이 두 번 쌓이지 않음).
+   - 공부 중이면 `now()`, 일시정지 중이면 `paused_at` 까지를 공부 시간으로 본다(`finish_session` 과 같은 계산). 학원은 `finish_session` 에 그대로 넘겨 **5시간 상한·자정 넘김·하루 기록 upsert** 규칙을 공유한다. 자정을 넘긴 세션은 기록 없이 세션만 지운다.
+   - 숙제는 `close_homework_session` 으로 **승인 대기 제출**을 만든다(사진은 초안에 있던 것이 그대로). 문제 수를 비우면 0문제. 1분도 안 됐고 문제 수도 0이면 `nothing` 으로 기록·제출을 남기지 않는다.
+   - `study_sessions.ended_by_admin` 로 표시를 남기고 응답에도 `ended_by_admin` 이 붙는다. `study_session_state(p_session_id)` 는 학생 기기가 읽는 읽기 전용 확인(끝났으면 `finish_session` 과 같은 모양의 결과).
+3. **학생 화면** — `useStudyTimer` 가 **10초마다**(그리고 화면을 다시 켜거나 창에 초점이 돌아올 때) `study_session_state` 를 읽는다.
+   - `finished` 면 결과 화면으로 바뀌고 아래에 `선생님이 수업을 마무리해서 타이머를 멈췄어요` 가 보인다. 숙제는 `🙌 선생님이 마무리했어요 — 확인을 기다려요` 로 안내한다.
+   - 세션이 사라졌으면(자정 넘김) 오류 대신 대기 화면으로, 아직 진행 중이면 아무 일도 하지 않는다. 학생이 같은 순간에 종료를 눌러도 둘 중 하나만 기록된다.
+4. **검증** — 단위 **501건**(+14 — 문제 수 변환 0·9999 상한·글자 섞임·입력칸 4자리, 종류별 안내, 확인 요약, 마무리 안내, 이미 끝남 안내), 스모크 **176건·35개 화면**(`LiveSessionRow`·`EndStudyModal` 추가 — 버튼·접근성 이름·상태·시간·배지·문제 수 입력·취소/종료), `npm run build` 통과. 새 마이그레이션은 PostgreSQL 파서 검사와 **운영 DB(`qdzlenhmhszdsnygslhp`) 실행**을 통과했고 `schema.sql` 전체를 다시 실행해도 결과가 같다.
+5. 실서비스 E2E `node tools/e2e-admin-end-study.mjs` **49건** 통과 — 공부 중 25분 세션 → 7문제로 종료 → 세션 `finished`·`ended_by_admin`·기록 `academy_minutes 25 · academy_problems 7`, 두 번 누르면 `already_finished` 로 기록 그대로, 일시정지(40분 시작·10분 전 멈춤) → **30분**으로 정산하고 `ended_at = paused_at`, 숙제 20분 → 승인 대기 제출(20분·0문제·사진 0장)이고 `study_logs` 는 그대로, 숙제 두 번 눌러도 제출 줄 하나, 숙제 30초·0문제 → `nothing`, 자정 넘긴 세션 → `discarded` 로 세션만 정리, 없는 세션 → `session_not_found`/`missing`, 드래곤볼 0개·지급 기록 없음, **실제 운영 중이던 학생 세션은 `ended_by_admin` 0건으로 그대로**. 검증용 학생·세션·기록·제출은 지워 남은 데이터 0건.
+6. 배포한 `https://sunogong.vercel.app`(새 번들 `index-Dh9H91m4.js`)를 360×780 으로 열어 `node tools/check-admin-end-study.mjs` **29건** 통과 — 실시간 탭 카드의 `수업 종료` 버튼이 360px 안(x 214~275)에 있고, 확인 창(444px 높이·가로 잘림 없음)의 이름·`지금까지 25분`·문제 수 입력·안내·취소/종료가 모두 보이며, 7문제로 확정하자 목록에서 사라지고 `25분 7문제로 수업을 마무리했어요` 가 뜨고 DB 기록이 `25분·7문제` 로 들어갔다. 숙제 20분은 확인 창에 `🏠 숙제 공부`·승인 안내가 뜨고 확정 뒤 `승인 대기로 넘겼어요`·제출 `pending 20분·0문제`·기록에는 미반영. **학생 기기를 타이머에 그대로 둔 채** 서버에서 종료하자 **9초** 만에 결과 화면으로 바뀌며 `10분`·`3문제`·`선생님이 수업을 마무리해서 타이머를 멈췄어요` 가 보였고 오류 안내는 없었다. 검증용 데이터는 0건, 실제 학생의 `ended_by_admin` 도 0건.
+7. 스크린샷: `downloads/sunogong-admin-end-study-360.png`(수업 종료 확인 창), `downloads/sunogong-admin-end-study-list-360.png`(카드의 버튼), `downloads/sunogong-admin-end-study-done-360.png`(마무리 안내), `downloads/sunogong-admin-end-study-homework-360.png`(숙제 확인 창), `downloads/sunogong-admin-end-study-student-360.png`(학생 결과 화면).
 
 ---
 
