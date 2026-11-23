@@ -844,14 +844,10 @@ export function endStudyKindNotice(kind: unknown): string {
     : '지금까지 공부한 시간과 문제 수가 오늘 기록에 바로 들어가요.'
 }
 
-/** 확인 창의 한 줄 요약 — '이지빈 · 🏫 학원 공부 · 공부 중 25:31 · 25분' */
-export function endStudySummary(
-  row: { name: string; kind: unknown; status: string; seconds: number },
-  problems: unknown,
-): string {
-  const minutes = Math.floor(Math.max(0, row.seconds) / 60)
+/** 확인 창의 한 줄 요약 — '이지빈 · 🏫 학원 공부 · 공부 중 25:31' */
+export function endStudySummary(row: { name: string; kind: unknown; status: string; seconds: number }): string {
   const state = row.status === 'paused' ? '잠깐 쉬는 중' : '공부 중'
-  return `${row.name} · ${kindText(row.kind)} · ${state} ${formatLiveClock(row.seconds)} · ${minutes}분 ${parseEndProblems(problems)}문제`
+  return `${row.name} · ${kindText(row.kind)} · ${state} ${formatLiveClock(row.seconds)}`
 }
 
 /** 마무리한 뒤 보여 줄 안내 */

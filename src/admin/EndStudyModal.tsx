@@ -39,7 +39,7 @@ export function EndStudyModal({
     <Modal
       open={open}
       title="수업을 마칠까요?"
-      description={endStudySummary(row, problems)}
+      description={endStudySummary(row)}
       onClose={() => {
         if (!busy) onClose()
       }}
@@ -65,7 +65,6 @@ export function EndStudyModal({
         {row.status === 'paused' ? (
           <p className="mt-1 text-[11px] font-semibold text-[#B07200]">잠깐 쉬는 중 — 쉬기 전까지의 시간이에요</p>
         ) : null}
-        <p className="mt-1 text-[11px] font-semibold text-navy/45">{row.name} · {row.grade}</p>
       </div>
 
       <p className="mt-2 rounded-2xl bg-[#FFF6DA] px-3 py-2 text-[11.5px] font-semibold leading-snug text-[#7A5B00]">

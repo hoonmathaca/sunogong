@@ -575,7 +575,7 @@ const endStudyChecks: [string, boolean][] = [
   ['수업 종료: 이름·닉네임·학원 배지', liveRowHtml.includes('김민수') && liveRowHtml.includes('열공몬') && liveRowHtml.includes('🏫')],
   ['수업 종료: 드래곤볼 쏘기 버튼은 그대로', liveRowHtml.includes('에게 드래곤볼 3개 쏘기')],
   ['수업 종료 확인: 제목·학생 이름', endModalHtml.includes('수업을 마칠까요?') && endModalHtml.includes('김민수')],
-  ['수업 종료 확인: 지금까지의 시간(25분)', endModalHtml.includes('지금까지') && endModalHtml.includes('25분')],
+  ['수업 종료 확인: 지금까지의 시간(25분)', endModalHtml.includes('지금까지') && /25(?:<!-- -->)?분/.test(endModalHtml)],
   ['수업 종료 확인: 문제 수 입력칸', endModalHtml.includes('오늘 푼 문제 수 (선택)') && endModalHtml.includes('value="7"')],
   ['수업 종료 확인: 비우면 0문제 안내', endModalHtml.includes('0문제')],
   ['수업 종료 확인: 학원은 바로 기록 안내', endModalHtml.includes('바로 들어가요')],
