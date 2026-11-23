@@ -190,6 +190,8 @@ try {
   const pendingConfirm = page.getByRole('dialog', { name: '사진 없이 제출할까요?' })
   await pendingConfirm.waitFor({ state: 'visible', timeout: 8000 })
   check('지난 숙제: 사진 0장이면 확인 창', (await pendingConfirm.innerText()).includes(CONFIRM_TEXT))
+  /* 열리는 애니메이션(fadein)이 끝난 뒤에 찍는다 */
+  await page.waitForTimeout(600)
   await page.screenshot({ path: `${shotDir}/sunogong-homework-no-photo-confirm-pending-360.png` })
   await pendingConfirm.getByRole('button', { name: '그래도 제출', exact: true }).click()
   await page.waitForTimeout(2200)
