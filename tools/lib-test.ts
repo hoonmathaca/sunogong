@@ -183,10 +183,12 @@ import type { Student, StudyLog, StudySession } from '../src/lib/types'
 import type { StudyQuestion } from '../src/lib/types'
 import type { HomeworkSubmission } from '../src/lib/types'
 import {
+  HOMEWORK_COMMENT_MAX,
   HOMEWORK_FILTER_LABEL,
   HOMEWORK_PHOTO_MAX,
   HOMEWORK_PHOTO_MAX_SIZE,
   HOMEWORK_PHOTO_QUALITY,
+  HOMEWORK_PRAISE_CHIPS,
   HOMEWORK_REASON_MAX,
   HOMEWORK_REJECT_CHIPS,
   HOMEWORK_SUBMIT_GUIDE,
@@ -201,6 +203,7 @@ import {
   mergePendingItems,
   needsProblemCount,
   nextPendingSubmission,
+  normalizeComment,
   normalizeReason,
   pendingHomeworkQueue,
   photoCount,
@@ -208,12 +211,15 @@ import {
   reviewBlockReason,
   reviewDefaults,
   reviewResultText,
+  showsTeacherComment,
   sortSubmissionsForAdmin,
   studyWindowText,
   submissionLine,
   submissionStatusLabel,
   submissionStudent,
   submissionSummary,
+  teacherCommentText,
+  toggleChip,
   verdictLabel,
 } from '../src/lib/homeworkBoard'
 import { pickQuote, QUOTES } from '../src/lib/quotes'
@@ -1282,6 +1288,7 @@ const hw = (patch: Partial<HomeworkSubmission> = {}): HomeworkSubmission => ({
   approved_minutes: 0,
   approved_problems: 0,
   reject_reason: null,
+  teacher_comment: null,
   submitted_at: '2026-11-23T05:41:00.000Z',
   reviewed_at: null,
   reviewed_by: null,
@@ -1330,6 +1337,28 @@ eq('숙제: 대기 중인 다른 건이 없으면 끝', nextPendingSubmission([h
 eq('숙제: 시간 표시', [formatSubmissionTime('2026-11-23T05:41:00.000Z'), studyWindowText('2026-11-23T05:00:00.000Z', '2026-11-23T05:40:00.000Z')], ['11월 23일 (월) 14:41', '시작 14:00 · 끝 14:40'])
 eq('숙제: 처리 항목 문구', [verdictLabel('approved'), verdictLabel('rejected'), verdictLabel('pending')], ['승인', '반려', '대기'])
 eq('숙제: 학생 이름 찾기', [submissionStudent({ students: { name: '이지빈', grade: '초1' } }), submissionStudent({ students: [{ name: '김민수', grade: '중1' }] }), submissionStudent({ students: null })], [{ name: '이지빈', grade: '초1' }, { name: '김민수', grade: '중1' }, { name: '학생', grade: '미지정' }])
+
+/* 숙제 승인 「선생님 칭찬 한마디」 */
+eq('칭찬: 칩은 4~6개', HOMEWORK_PRAISE_CHIPS.length >= 4 && HOMEWORK_PRAISE_CHIPS.length <= 6, true)
+eq('칭찬: 칩 문구', HOMEWORK_PRAISE_CHIPS, ['풀이가 꼼꼼해요', '글씨가 깔끔해요', '어려운 문제 잘 고민했어요', '꾸준히 잘하고 있어요', '스스로 잘 풀었어요'])
+eq('칭찬: 칩을 누르면 입력칸에 들어감', toggleChip('', '글씨가 깔끔해요'), '글씨가 깔끔해요')
+eq('칭찬: 칩을 다시 누르면 빠짐', toggleChip('글씨가 깔끔해요', '글씨가 깔끔해요'), '')
+eq('칭찬: 두 칩을 차례로', toggleChip(toggleChip('', '풀이가 꼼꼼해요'), '스스로 잘 풀었어요'), '풀이가 꼼꼼해요 스스로 잘 풀었어요')
+eq('칭찬: 직접 쓴 글에 칩을 붙임', toggleChip('오늘도 수고했어요!', '꾸준히 잘하고 있어요'), '오늘도 수고했어요! 꾸준히 잘하고 있어요')
+eq('칭찬: 칩을 빼도 직접 쓴 글은 그대로', toggleChip('오늘도 수고했어요! 꾸준히 잘하고 있어요', '꾸준히 잘하고 있어요'), '오늘도 수고했어요!')
+eq('칭찬: 200자를 넘기면 칩을 넣지 않음', toggleChip('가'.repeat(HOMEWORK_COMMENT_MAX - 2), '글씨가 깔끔해요'), '가'.repeat(HOMEWORK_COMMENT_MAX - 2))
+eq('칭찬 한마디: 공백을 한 줄로·200자까지', [normalizeComment('  풀이가\n  꼼꼼해요 '), normalizeComment('가'.repeat(HOMEWORK_COMMENT_MAX + 5)).length, normalizeComment(null)], ['풀이가 꼼꼼해요', HOMEWORK_COMMENT_MAX, ''])
+eq('칭찬 한마디: 읽기', [teacherCommentText({ teacher_comment: ' 스스로 잘 풀었어요 ' }), teacherCommentText({ teacher_comment: null })], ['스스로 잘 풀었어요', ''])
+eq(
+  '칭찬 한마디: 승인한 건에만 민트 박스',
+  [
+    showsTeacherComment(hw({ status: 'approved', teacher_comment: '풀이가 꼼꼼해요' })),
+    showsTeacherComment(hw({ status: 'approved', teacher_comment: '   ' })),
+    showsTeacherComment(hw({ status: 'rejected', teacher_comment: '풀이가 꼼꼼해요' })),
+    showsTeacherComment(hw({ status: 'pending', teacher_comment: '풀이가 꼼꼼해요' })),
+  ],
+  [true, false, false, false],
+)
 
 /* 지난 공부 마저 제출 — 학원(문제 수) · 숙제(사진+문제 수) 합치기 */
 const sessionOf = (patch: Partial<StudySession> = {}): StudySession => ({

@@ -136,6 +136,8 @@ create table if not exists public.homework_submissions (
   approved_minutes    integer not null default 0 check (approved_minutes >= 0),
   approved_problems   integer not null default 0 check (approved_problems >= 0),
   reject_reason       text,
+  -- 승인할 때 남긴 칭찬·응원 한마디 (학생 홈에 민트 박스로 보인다)
+  teacher_comment     text,
   submitted_at        timestamptz not null default now(),
   reviewed_at         timestamptz,
   reviewed_by         text,
@@ -144,7 +146,8 @@ create table if not exists public.homework_submissions (
   constraint homework_submissions_photos_max check (
     array_length(photo_paths, 1) is null or array_length(photo_paths, 1) <= 5
   ),
-  constraint homework_submissions_reason_len check (reject_reason is null or length(reject_reason) <= 300)
+  constraint homework_submissions_reason_len check (reject_reason is null or length(reject_reason) <= 300),
+  constraint homework_submissions_comment_len check (teacher_comment is null or length(teacher_comment) <= 200)
 );
 
 create index if not exists homework_submissions_pending_idx
@@ -160,6 +163,18 @@ create index if not exists homework_submissions_status_idx
 comment on table  public.homework_submissions is '숙제 공부 제출 — 원장님 승인 전에는 study_logs 에 반영하지 않는다';
 comment on column public.homework_submissions.photo_paths is '숙제 페이지 사진 경로 (homework-photos 버킷, 최대 5장)';
 comment on column public.homework_submissions.submitted_problems is 'null 이면 자동 종료 뒤 문제 수를 아직 받지 못한 제출';
+comment on column public.homework_submissions.teacher_comment is '원장님이 승인할 때 남긴 칭찬·응원 한마디 (학생 홈 숙제 제출 카드에 민트 박스로 보인다, 최대 200자)';
+
+-- 이미 만들어진 표에도 칭찬 한마디 열을 더한다 (여러 번 실행해도 안전)
+alter table public.homework_submissions
+  add column if not exists teacher_comment text;
+
+alter table public.homework_submissions
+  drop constraint if exists homework_submissions_comment_len;
+alter table public.homework_submissions
+  add constraint homework_submissions_comment_len check (
+    teacher_comment is null or length(teacher_comment) <= 200
+  );
 
 -- ---------------------------------------------------------------------
 -- 2. 서버 시각 · 날짜 도우미
@@ -1669,11 +1684,14 @@ $$;
 --    · 반려한 항목은 0으로 확정한다 (다시 제출하지 않는다)
 --    · 하나라도 승인되면 드래곤볼 1개 (한 제출에 한 번만)
 -- ---------------------------------------------------------------------
+drop function if exists public.review_homework_submission(uuid, boolean, boolean, text);
+
 create or replace function public.review_homework_submission(
   p_submission_id     uuid,
   p_time_approved     boolean,
   p_problems_approved boolean,
-  p_reject_reason     text default null
+  p_reject_reason     text default null,
+  p_teacher_comment   text default null
 )
 returns jsonb
 language plpgsql
@@ -1686,6 +1704,7 @@ declare
   v_problems integer;
   v_any      boolean;
   v_status   text;
+  v_comment  text;
   v_log      public.study_logs;
 begin
   select * into s from public.homework_submissions where id = p_submission_id for update;
@@ -1699,6 +1718,11 @@ begin
 
   if coalesce(p_problems_approved, false) and s.submitted_problems is null then
     raise exception 'problems_unknown' using errcode = '22023';
+  end if;
+
+  v_comment := nullif(btrim(coalesce(p_teacher_comment, '')), '');
+  if v_comment is not null and length(v_comment) > 200 then
+    raise exception 'comment_too_long' using errcode = '22023';
   end if;
 
   v_minutes  := case when coalesce(p_time_approved, false) then greatest(0, coalesce(s.submitted_minutes, 0)) else 0 end;
@@ -1733,6 +1757,7 @@ begin
          approved_minutes = v_minutes,
          approved_problems = v_problems,
          reject_reason    = nullif(btrim(coalesce(p_reject_reason, '')), ''),
+         teacher_comment  = case when v_any then v_comment else null end,
          reviewed_at      = now(),
          reviewed_by      = '선오공이',
          updated_at       = now()
@@ -3291,7 +3316,7 @@ grant select, insert, update, delete on public.homework_submissions to anon, aut
 grant execute on function public.close_homework_session(uuid, integer, text[]) to anon, authenticated;
 grant execute on function public.submit_homework(uuid, integer, text[]) to anon, authenticated;
 grant execute on function public.submit_pending_homework(uuid, integer, text[]) to anon, authenticated;
-grant execute on function public.review_homework_submission(uuid, boolean, boolean, text) to anon, authenticated;
+grant execute on function public.review_homework_submission(uuid, boolean, boolean, text, text) to anon, authenticated;
 grant execute on function public.pending_homework_submissions(uuid) to anon, authenticated;
 
 notify pgrst, 'reload schema';

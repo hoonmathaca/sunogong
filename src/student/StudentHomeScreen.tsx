@@ -4,18 +4,13 @@ import { Spinner } from '../components/Keypad'
 import * as api from '../lib/api'
 import { KIND_BAR_CLASS, KIND_EMOJI, KIND_LABEL, KIND_TEXT_CLASS, type SessionKind } from '../lib/kinds'
 import {
-  approvedLine,
   countPending,
-  hasRejectedPart,
-  photoCount,
-  rejectReasonText,
-  submissionLine,
-  submissionStatusLabel,
 } from '../lib/homeworkBoard'
 import * as homeworkApi from '../lib/homework'
 import { splitLog, splitPercents } from '../lib/stats'
 import { addDays, formatDateKo, formatMinutes, formatMinutesCompact, todayKst, weekdayOf } from '../lib/time'
 import type { HomeworkSubmission, Student, StudyLog } from '../lib/types'
+import { HomeworkSubmissionRow } from './HomeworkSubmissionRow'
 import { LiveKintounCard } from './LiveKintounCard'
 
 interface StudentHomeScreenProps {
@@ -351,35 +346,9 @@ export function StudentHomeScreen({
               </span>
             </div>
             <ul className="mt-2 space-y-1.5">
-              {recentSubmissions.map((submission) => {
-                const chipClass =
-                  submission.status === 'approved'
-                    ? 'bg-[#E6F5EA] text-[#1F7A3D]'
-                    : submission.status === 'rejected'
-                      ? 'bg-[#FDECEC] text-[#B32B2B]'
-                      : 'bg-[#FFF6DA] text-[#7A5B00]'
-                const approved = approvedLine(submission)
-                return (
-                  <li key={submission.id} className="rounded-2xl border border-blue-line/70 bg-white px-3 py-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-[12.5px] font-bold text-navy">{submissionLine(submission)}</p>
-                        <p className="mt-0.5 break-keep text-[11px] font-semibold text-navy/45">
-                          사진 {photoCount(submission.photo_paths)}장{approved ? ` · ${approved}` : ''}
-                        </p>
-                      </div>
-                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${chipClass}`}>
-                        {submissionStatusLabel(submission)}
-                      </span>
-                    </div>
-                    {hasRejectedPart(submission) && rejectReasonText(submission) ? (
-                      <p className="mt-1 break-keep rounded-xl bg-[#FDECEC] px-2 py-1 text-[11px] font-semibold text-[#B32B2B]">
-                        반려 사유: {rejectReasonText(submission)}
-                      </p>
-                    ) : null}
-                  </li>
-                )
-              })}
+              {recentSubmissions.map((submission) => (
+                <HomeworkSubmissionRow key={submission.id} submission={submission} />
+              ))}
             </ul>
             <p className="mt-2 text-[10.5px] leading-snug text-navy/40">
               사진과 문제 수를 내면 선생님이 확인해요 · 승인된 시간·문항수만 오늘 기록에 들어가요

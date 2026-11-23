@@ -156,6 +156,8 @@ export interface HomeworkSubmission {
   approved_minutes: number
   approved_problems: number
   reject_reason: string | null
+  /** 승인할 때 원장님이 남긴 칭찬·응원 한마디 (학생 홈에 민트 박스로 보인다) */
+  teacher_comment: string | null
   submitted_at: string
   reviewed_at: string | null
   reviewed_by: string | null

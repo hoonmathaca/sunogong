@@ -22,6 +22,16 @@ export const HOMEWORK_SUBMIT_GUIDE = '오늘 공부한 페이지를 찍어올리
 export const HOMEWORK_REJECT_CHIPS = ['풀이 흔적 부족', '답만 작성됨', '사진 식별 불가'] as const
 /** 반려 사유 메모 최대 글자 수 (DB check 와 같다) */
 export const HOMEWORK_REASON_MAX = 300
+/** 승인할 때 남기는 「선생님 칭찬 한마디」 빠른 선택 (누르면 입력칸에 들어간다) */
+export const HOMEWORK_PRAISE_CHIPS = [
+  '풀이가 꼼꼼해요',
+  '글씨가 깔끔해요',
+  '어려운 문제 잘 고민했어요',
+  '꾸준히 잘하고 있어요',
+  '스스로 잘 풀었어요',
+] as const
+/** 칭찬 한마디 최대 글자 수 (DB check 와 같다) */
+export const HOMEWORK_COMMENT_MAX = 200
 
 export type HomeworkFilter = 'pending' | 'approved' | 'rejected' | 'all'
 
@@ -42,6 +52,21 @@ export function submissionStatusLabel(submission: Pick<HomeworkSubmission, 'stat
 /** 반려 사유가 한 줄 보이도록 (없으면 빈 문자열) */
 export function rejectReasonText(submission: Pick<HomeworkSubmission, 'reject_reason'>): string {
   return (submission.reject_reason ?? '').trim()
+}
+
+/** 선생님 칭찬 한마디 (없으면 빈 문자열) */
+export function teacherCommentText(submission: Pick<HomeworkSubmission, 'teacher_comment'>): string {
+  return (submission.teacher_comment ?? '').trim()
+}
+
+/**
+ * 학생 화면에 칭찬 박스를 보일지 — 승인된 제출에 한마디가 있을 때만.
+ * (모두 반려한 제출에는 서버도 칭찬을 남기지 않고, 화면도 보이지 않는다)
+ */
+export function showsTeacherComment(
+  submission: Pick<HomeworkSubmission, 'status' | 'teacher_comment'>,
+): boolean {
+  return submission.status === 'approved' && teacherCommentText(submission).length > 0
 }
 
 /** 시간 또는 문항수가 반려됐는지 (부분 반려도 사유를 보여준다) */
@@ -235,6 +260,30 @@ export function verdictLabel(verdict: HomeworkVerdict): string {
 export function normalizeReason(value: string | null | undefined): string {
   const text = (value ?? '').replace(/\s+/g, ' ').trim()
   return text.length > HOMEWORK_REASON_MAX ? text.slice(0, HOMEWORK_REASON_MAX) : text
+}
+
+/** 칭찬 한마디 정리 (한 줄, 최대 200자) */
+export function normalizeComment(value: string | null | undefined): string {
+  const text = (value ?? '').replace(/\s+/g, ' ').trim()
+  return text.length > HOMEWORK_COMMENT_MAX ? text.slice(0, HOMEWORK_COMMENT_MAX) : text
+}
+
+/**
+ * 칩 하나를 입력칸 글에 넣거나 뺀다 (반려 사유 칩·칭찬 칩 공통).
+ * 이미 들어 있으면 그 문구만 빼고, 없으면 뒤에 붙인다. 최대 글자 수를 넘으면 넣지 않는다.
+ */
+export function toggleChip(text: string, chip: string, max = HOMEWORK_COMMENT_MAX): string {
+  const current = text ?? ''
+  if (current.includes(chip)) {
+    return normalizeText(`${current.replace(chip, ' ')}`)
+  }
+  const next = normalizeText(`${current} ${chip}`)
+  if (next.length > max) return normalizeText(current)
+  return next
+}
+
+function normalizeText(value: string): string {
+  return value.replace(/\s+/g, ' ').trim()
 }
 
 /**

@@ -27,6 +27,8 @@ import { TimerScreen } from '../src/student/TimerScreen'
 import { ErrorBoundary } from '../src/components/ErrorBoundary'
 import { PhotoPager } from '../src/components/PhotoPager'
 import { HomeworkPanel } from '../src/admin/HomeworkPanel'
+import { PraiseEditor } from '../src/admin/PraiseEditor'
+import { HomeworkSubmissionRow } from '../src/student/HomeworkSubmissionRow'
 import { DesktopBlockScreen } from '../src/components/DesktopBlockScreen'
 import type { FinishResult, HomeworkSubmission, Student, StudySession } from '../src/lib/types'
 import { QUOTES } from '../src/lib/quotes'
@@ -138,6 +140,7 @@ const pendingHomework: HomeworkSubmission = {
   approved_minutes: 0,
   approved_problems: 0,
   reject_reason: null,
+  teacher_comment: null,
   submitted_at: '2026-11-21T10:00:00Z',
   reviewed_at: null,
   reviewed_by: null,
@@ -252,6 +255,46 @@ const cases: [string, () => JSX.Element][] = [
     () => <PhotoPager urls={['a', 'b']} index={0} onIndexChange={() => {}} onClose={() => {}} />,
   ],
   ['HomeworkPanel(관리자 숙제관리)', () => <HomeworkPanel />],
+  ['PraiseEditor(선생님 칭찬 한마디)', () => <PraiseEditor value="" onChange={() => {}} />],
+  ['PraiseEditor(모두 반려)', () => <PraiseEditor value="" onChange={() => {}} approved={false} />],
+  [
+    'HomeworkSubmissionRow(선생님 한마디)',
+    () => (
+      <ul>
+        <HomeworkSubmissionRow
+          submission={{
+            ...pendingHomework,
+            id: 'hw-comment-1',
+            status: 'approved',
+            time_verdict: 'approved',
+            problems_verdict: 'approved',
+            approved_minutes: 80,
+            approved_problems: 12,
+            submitted_problems: 12,
+            teacher_comment: '풀이가 꼼꼼해요',
+          }}
+        />
+      </ul>
+    ),
+  ],
+  [
+    'HomeworkSubmissionRow(반려)',
+    () => (
+      <ul>
+        <HomeworkSubmissionRow
+          submission={{
+            ...pendingHomework,
+            id: 'hw-rejected-1',
+            status: 'rejected',
+            time_verdict: 'rejected',
+            problems_verdict: 'rejected',
+            submitted_problems: 5,
+            reject_reason: '풀이 흔적 부족',
+          }}
+        />
+      </ul>
+    ),
+  ],
   [
     'ResultScreen(숙제 승인 대기)',
     () => <ResultScreen student={student} result={homeworkResult} reason="manual" onHome={() => {}} onAgain={() => {}} />,
@@ -527,6 +570,10 @@ const homeworkPickerTwoHtml = rendered['HomeworkPhotoPicker(사진 두 장)'] ??
 const photoPagerHtml = rendered['PhotoPager(사진 2장)'] ?? ''
 const homeworkPanelHtml = rendered['HomeworkPanel(관리자 숙제관리)'] ?? ''
 const homeworkResultHtml = rendered['ResultScreen(숙제 승인 대기)'] ?? ''
+const homeworkRowHtml = rendered['HomeworkSubmissionRow(선생님 한마디)'] ?? ''
+const homeworkRejectedRowHtml = rendered['HomeworkSubmissionRow(반려)'] ?? ''
+const praiseHtml = rendered['PraiseEditor(선생님 칭찬 한마디)'] ?? ''
+const praiseLockedHtml = rendered['PraiseEditor(모두 반려)'] ?? ''
 /* 사진 input 태그 — 카메라(바로 찍기) / 앨범 */
 const cameraInputTag = homeworkPickerHtml.match(/<input[^>]*data-photo-input="camera"[^>]*>/)?.[0] ?? ''
 const albumInputTag = homeworkPickerHtml.match(/<input[^>]*data-photo-input="album"[^>]*>/)?.[0] ?? ''
@@ -555,6 +602,11 @@ const homeworkChecks: [string, boolean][] = [
   ['숙제: 고르면 줄여서 바로 올라간다는 안내', homeworkPickerTwoHtml.includes('줄여서 바로 올라가요')],
   ['숙제: 사진 두 장이면 2/5', homeworkPickerTwoHtml.includes('2/5')],
   ['숙제: 사진 미리 보기 두 장', (homeworkPickerTwoHtml.match(/<img /g) ?? []).length === 2],
+  ['숙제: 승인한 건에 민트색 선생님 한마디 박스', homeworkRowHtml.includes('선생님 한마디') && homeworkRowHtml.includes('풀이가 꼼꼼해요') && homeworkRowHtml.includes('E9FAF0')],
+  ['숙제: 반려 건에는 칭찬 박스 없음·반려 사유 있음', !homeworkRejectedRowHtml.includes('선생님 한마디') && !homeworkRejectedRowHtml.includes('E9FAF0') && homeworkRejectedRowHtml.includes('반려 사유:') && homeworkRejectedRowHtml.includes('풀이 흔적 부족')],
+  ['숙제: 관리자 칭찬 칩 다섯 개', ['풀이가 꼼꼼해요', '글씨가 깔끔해요', '어려운 문제 잘 고민했어요', '꾸준히 잘하고 있어요', '스스로 잘 풀었어요'].every((chip) => praiseHtml.includes(chip))],
+  ['숙제: 칭찬 칸 안내(선택·비우면 그대로 승인)', praiseHtml.includes('선생님 칭찬 한마디') && praiseHtml.includes('비워 두면 한마디 없이 예전처럼 승인돼요')],
+  ['숙제: 모두 반려면 칭찬칸 잠금·안내', praiseLockedHtml.includes('모두 반려하면 칭찬 한마디는 저장되지 않아요') && praiseLockedHtml.includes('disabled')],
 ]
 for (const [name, ok] of homeworkChecks) {
   if (!ok) failed += 1

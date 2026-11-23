@@ -45,6 +45,17 @@ const PNG_1PX = Buffer.from(
   'base64',
 )
 
+/** 한마디 없는 승인 건을 만들 때 쓰는 사진 한 장 */
+const uploadExtraPhoto = async () => {
+  const path = `${student.id}/check/${Date.now()}-extra.png`
+  const { error } = await supabase.storage.from('homework-photos').upload(path, PNG_1PX, {
+    contentType: 'image/png',
+    upsert: false,
+  })
+  if (error) throw new Error(`사진 올리기 실패: ${error.message}`)
+  return path
+}
+
 const code = String(Math.floor(1000 + Math.random() * 8999))
 const student = await run(
   supabase.from('students').insert({ name: '검증화면', code, grade: '검증' }).select('id,name,code').single(),
@@ -275,8 +286,22 @@ try {
   check('상세: 문항수 승인/반려', detailText.includes('문항수'))
   check('상세: 모두 승인·모두 반려', detailText.includes('모두 승인') && detailText.includes('모두 반려'))
   check('상세: 반려 사유 칩', ['풀이 흔적 부족', '답만 작성됨', '사진 식별 불가'].every((chip) => detailText.includes(chip)))
+  check('상세: 선생님 칭찬 한마디 칸(선택)', detailText.includes('선생님 칭찬 한마디') && detailText.includes('(선택 · 학생에게 보여요)'))
+  check('상세: 칭찬 칩 다섯 개', ['풀이가 꼼꼼해요', '글씨가 깔끔해요', '어려운 문제 잘 고민했어요', '꾸준히 잘하고 있어요', '스스로 잘 풀었어요'].every((chip) => detailText.includes(chip)))
+  check('상세: 비워 두면 예전처럼 승인 안내', detailText.includes('비워 두면 한마디 없이 예전처럼 승인돼요'))
   check('상세: 사진 1장', detailText.includes('숙제 사진') && (await detail.locator('img').count()) >= 1)
   await admin.screenshot({ path: `${shotDir}/sunogong-homework-admin-detail-360.png`, fullPage: false })
+
+  /* 칭찬 한마디 — 칩을 누르고 직접 한마디를 덧붙인다 */
+  const praiseChip = detail.getByRole('button', { name: '풀이가 꼼꼼해요', exact: true })
+  await praiseChip.click()
+  await admin.waitForTimeout(200)
+  const praiseBox = detail.locator('textarea').first()
+  await praiseBox.fill('풀이가 꼼꼼해요 다음에도 이렇게 해봐요!')
+  await admin.waitForTimeout(200)
+  check('상세: 칩이 눌린 상태로 보임', (await praiseChip.getAttribute('aria-pressed')) === 'true')
+  check('상세: 칭찬 입력칸에 글이 들어감', (await praiseBox.inputValue()) === '풀이가 꼼꼼해요 다음에도 이렇게 해봐요!')
+  await detail.screenshot({ path: `${shotDir}/sunogong-homework-praise-editor-360.png` })
 
   /* 사진 크게 보기 (좌우 넘기기) */
   await detail.locator('button:has(img)').first().click()
@@ -291,13 +316,18 @@ try {
   const afterReview = (await admin.locator('body').innerText()).replace(/\s+/g, ' ')
   check('관리자: 저장 결과 안내', afterReview.includes('승인했어요'))
   check('관리자: 저장 뒤 목록 갱신(대기 0)', !/확인을 기다리는 숙제가/.test(afterReview))
-  await admin.screenshot({ path: `${shotDir}/sunogong-homework-admin-approved-360.png`, fullPage: false })
 
   const reviewed = await run(
     supabase.from('homework_submissions').select('*').eq('id', submission.id).single(),
   )
   check('저장: 승인 상태', [reviewed.status, reviewed.time_verdict, reviewed.problems_verdict], ['approved', 'approved', 'approved'])
   check('저장: 승인된 값', [reviewed.approved_minutes, reviewed.approved_problems], [25, 30])
+  check('저장: 선생님 한마디가 그대로', reviewed.teacher_comment, '풀이가 꼼꼼해요 다음에도 이렇게 해봐요!')
+  await admin.getByRole('button', { name: /^승인\s*\d/ }).first().click()
+  await admin.waitForTimeout(1200)
+  const approvedPanel = (await admin.locator('main').innerText()).replace(/\s+/g, ' ')
+  check('관리자: 승인 목록에도 한마디 보임', approvedPanel.includes('풀이가 꼼꼼해요 다음에도 이렇게 해봐요!'), approvedPanel.slice(0, 200))
+  await admin.screenshot({ path: `${shotDir}/sunogong-homework-admin-approved-360.png`, fullPage: false })
   const log = await run(supabase.from('study_logs').select('*').eq('student_id', student.id).maybeSingle())
   check('저장: 기록에 숙제 25분·30문제', [log?.homework_minutes, log?.homework_problems], [25, 30])
   const after = await run(supabase.from('students').select('dragonball_count').eq('id', student.id).single())
@@ -319,9 +349,54 @@ try {
   await page.waitForTimeout(1800)
   const homeAfter = (await page.locator('body').innerText()).replace(/\s+/g, ' ')
   check('학생 홈: 승인 표시', homeAfter.includes('숙제 제출') && /승인(?!\s*대기)/.test(homeAfter), homeAfter.slice(0, 160))
+  check('학생 홈: 민트색 선생님 한마디 박스', homeAfter.includes('선생님 한마디:') && homeAfter.includes('풀이가 꼼꼼해요 다음에도 이렇게 해봐요!'))
+  check('학생 홈: 한마디 박스는 승인 건에만 1개', (homeAfter.match(/선생님 한마디:/g) ?? []).length === 1)
+  const praiseColor = await page
+    .locator('li', { hasText: '선생님 한마디:' })
+    .first()
+    .evaluate((el) => {
+      const box = Array.from(el.querySelectorAll('p')).find((node) => node.textContent?.includes('선생님 한마디:'))
+      return box ? getComputedStyle(box).backgroundColor : ''
+    })
+  check('학생 홈: 한마디 박스는 연두/민트색', praiseColor === 'rgb(233, 250, 240)', praiseColor)
   await page.getByRole('heading', { name: '숙제 제출' }).scrollIntoViewIfNeeded()
   await page.waitForTimeout(400)
   await page.screenshot({ path: `${shotDir}/sunogong-homework-student-approved-360.png`, fullPage: false })
+  await page.screenshot({ path: `${shotDir}/sunogong-homework-praise-360.png`, fullPage: false })
+
+  /* 한마디가 없는 승인 건은 박스 없이 (서버에 바로 한 건 더 만들어 확인) */
+  const session2 = await run(supabase.rpc('start_session', { p_student_id: student.id, p_kind: 'homework' }))
+  await run(
+    supabase
+      .from('study_sessions')
+      .update({ started_at: new Date(Date.now() - 10 * 60_000).toISOString(), last_heartbeat_at: new Date().toISOString() })
+      .eq('id', session2.id),
+  )
+  const extra = await run(
+    supabase.rpc('submit_homework', {
+      p_session_id: session2.id,
+      p_problems: 3,
+      p_photo_paths: [await uploadExtraPhoto()],
+    }),
+  )
+  await run(
+    supabase.rpc('review_homework_submission', {
+      p_submission_id: extra.submission_id,
+      p_time_approved: true,
+      p_problems_approved: true,
+      p_reject_reason: null,
+    }),
+  )
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(700)
+  for (const digit of code) {
+    await page.getByRole('button', { name: digit, exact: true }).click()
+  }
+  await page.getByRole('button', { name: '확인', exact: true }).click()
+  await page.waitForTimeout(1800)
+  const homeTwo = (await page.locator('body').innerText()).replace(/\s+/g, ' ')
+  check('학생 홈: 승인 두 건이 보임', (homeTwo.match(/승인/g) ?? []).length >= 2, homeTwo.slice(0, 160))
+  check('학생 홈: 한마디 없는 건은 박스 없음(여전히 1개)', (homeTwo.match(/선생님 한마디:/g) ?? []).length === 1)
 } finally {
   if (browser) await browser.close()
   await supabase.from('homework_submissions').delete().eq('student_id', student.id)

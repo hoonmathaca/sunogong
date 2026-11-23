@@ -12,6 +12,7 @@ import {
   HOMEWORK_PHOTO_MAX_SIZE,
   HOMEWORK_PHOTO_QUALITY,
   homeworkPhotoPath,
+  normalizeComment,
   normalizeReason,
 } from './homeworkBoard'
 import { prepareQuestionImage } from './imageCompress'
@@ -330,16 +331,21 @@ export interface ReviewResult {
   status: HomeworkSubmission['status']
 }
 
-/** 시간·문항수를 따로 승인/반려 — 승인한 항목만 그 날 기록에 더해진다 (드래곤볼과는 무관) */
+/**
+ * 시간·문항수를 따로 승인/반려 — 승인한 항목만 그 날 기록에 더해진다 (드래곤볼과는 무관).
+ * comment 는 학생에게 보일 「선생님 칭찬 한마디」(선택) — 비우면 저장하지 않는다.
+ */
 export const reviewHomeworkSubmission = (
   submissionId: string,
   timeApproved: boolean,
   problemsApproved: boolean,
   reason?: string | null,
+  comment?: string | null,
 ) =>
   rpc<ReviewResult>('review_homework_submission', {
     p_submission_id: submissionId,
     p_time_approved: timeApproved,
     p_problems_approved: problemsApproved,
     p_reject_reason: normalizeReason(reason) || null,
+    p_teacher_comment: normalizeComment(comment) || null,
   })

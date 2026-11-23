@@ -13,6 +13,7 @@ import {
   formatSubmissionTime,
   hasRejectedPart,
   nextPendingSubmission,
+  normalizeComment,
   normalizeReason,
   photoCount,
   reviewDefaults,
@@ -22,9 +23,12 @@ import {
   submissionStatusLabel,
   submissionStudent,
   submissionSummary,
+  teacherCommentText,
+  toggleChip,
 } from '../lib/homeworkBoard'
 import type { HomeworkFilter } from '../lib/homeworkBoard'
 import type { HomeworkSubmission } from '../lib/types'
+import { PraiseEditor } from './PraiseEditor'
 import { AdminSection, EmptyBlock, ErrorBlock, LoadingBlock } from './ui'
 
 interface HomeworkPanelProps {
@@ -39,6 +43,8 @@ interface ReviewState {
   timeApproved: boolean
   problemsApproved: boolean
   reason: string
+  /** 학생에게 보일 칭찬·응원 한마디 (선택 — 비우면 보내지 않는다) */
+  comment: string
 }
 
 /**
@@ -94,6 +100,7 @@ export function HomeworkPanel({ onPendingChange }: HomeworkPanelProps): JSX.Elem
       timeApproved: defaults.timeApproved,
       problemsApproved: defaults.problemsApproved,
       reason: submission.reject_reason ?? '',
+      comment: submission.teacher_comment ?? '',
     })
     setReviewError(null)
     setPhotoOpen(null)
@@ -123,6 +130,7 @@ export function HomeworkPanel({ onPendingChange }: HomeworkPanelProps): JSX.Elem
       timeApproved,
       problemsApproved,
       normalizeReason(review.reason),
+      normalizeComment(review.comment),
     )
     setSaving(false)
     if (!res.ok) {
@@ -253,6 +261,12 @@ export function HomeworkPanel({ onPendingChange }: HomeworkPanelProps): JSX.Elem
                           {submission.date.slice(5).replace('-', '/')} · {submissionSummary(submission)} · 사진{' '}
                           {photoCount(submission.photo_paths)}장
                         </span>
+                        {submission.status === 'approved' && teacherCommentText(submission) ? (
+                          <span className="mt-1 flex items-start gap-1 rounded-lg bg-[#E9FAF0] px-1.5 py-0.5 text-[10.5px] font-semibold text-[#177A4A]">
+                            <span aria-hidden="true">👏</span>
+                            <span className="line-clamp-1 break-keep">{teacherCommentText(submission)}</span>
+                          </span>
+                        ) : null}
                       </span>
                       <span className="shrink-0 text-[18px] leading-none text-navy/30" aria-hidden="true">
                         ›
@@ -404,6 +418,13 @@ export function HomeworkPanel({ onPendingChange }: HomeworkPanelProps): JSX.Elem
               </p>
             </div>
 
+            {/* 선생님 칭찬 한마디 — 승인할 때 함께 남긴다 (비워두면 예전처럼 바로 승인) */}
+            <PraiseEditor
+              value={review.comment}
+              onChange={(comment) => patchReview({ comment })}
+              approved={review.timeApproved || review.problemsApproved}
+            />
+
             {/* 반려 사유 */}
             <div>
               <div className="flex items-center justify-between">
@@ -418,11 +439,7 @@ export function HomeworkPanel({ onPendingChange }: HomeworkPanelProps): JSX.Elem
                     key={chip}
                     type="button"
                     onClick={() =>
-                      patchReview({
-                        reason: review.reason.includes(chip)
-                          ? review.reason.replace(chip, '').replace(/\s{2,}/g, ' ').trim()
-                          : normalizeReason(`${review.reason} ${chip}`),
-                      })
+                      patchReview({ reason: toggleChip(review.reason, chip, HOMEWORK_REASON_MAX) })
                     }
                     className={`rounded-full px-2.5 py-1 text-[11px] font-bold transition ${
                       review.reason.includes(chip)
@@ -444,9 +461,16 @@ export function HomeworkPanel({ onPendingChange }: HomeworkPanelProps): JSX.Elem
             </div>
 
             {review.submission.status !== 'pending' ? (
-              <p className="rounded-2xl bg-blue-soft px-3 py-2 text-center text-[12px] font-semibold text-navy/60">
-                이미 확인한 제출이에요 ({submissionStatusLabel(review.submission)} · {approvedLine(review.submission) || '0분 · 0문제'})
-              </p>
+              <div className="space-y-1.5">
+                <p className="rounded-2xl bg-blue-soft px-3 py-2 text-center text-[12px] font-semibold text-navy/60">
+                  이미 확인한 제출이에요 ({submissionStatusLabel(review.submission)} · {approvedLine(review.submission) || '0분 · 0문제'})
+                </p>
+                {review.submission.status === 'approved' && teacherCommentText(review.submission) ? (
+                  <p className="break-keep rounded-2xl border border-[#B9E8CE] bg-[#E9FAF0] px-3 py-2 text-[12px] font-semibold text-[#177A4A]">
+                    👏 선생님 한마디: {teacherCommentText(review.submission)}
+                  </p>
+                ) : null}
+              </div>
             ) : null}
 
             {reviewError ? <ErrorBlock message={reviewError} /> : null}
