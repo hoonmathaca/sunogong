@@ -415,11 +415,12 @@ export interface AdminEndStudyResult {
 /**
  * 실시간 탭의 「수업 종료」 — 진행 중(공부 중·일시정지)인 세션을 지금까지의 시간으로 마무리한다.
  * 이미 끝난 세션이면 기록을 건드리지 않고 already_finished 로 돌아온다.
+ * 문제 수는 세션 단위로 999까지 (하루 합산은 기록 수정에서 그대로 고칠 수 있다).
  */
 export const adminEndStudySession = (sessionId: string, problems: number) =>
   rpc<AdminEndStudyResult>('admin_end_study_session', {
     p_session_id: sessionId,
-    p_problems: Math.max(0, Math.min(9999, Math.floor(problems) || 0)),
+    p_problems: Math.max(0, Math.min(999, Math.floor(problems) || 0)),
   })
 
 /* ------------------------------------------------------------------ */

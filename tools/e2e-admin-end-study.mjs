@@ -59,6 +59,10 @@ console.log(`실제 진행 중 세션 ${realLiveIds.length}건 (건드리지 않
 const baseGrants = await run(supabase.from('dragonball_grants').select('id', { count: 'exact', head: false }).eq('student_id', student.id))
 const sessionIds = []
 
+/* 이미 선생님이 끝낸 세션(실제 운영 포함) — 새로 늘어난 것이 없어야 한다 */
+const adminEndedBefore = await run(supabase.from('study_sessions').select('id').eq('ended_by_admin', true))
+const adminEndedBeforeIds = new Set((adminEndedBefore ?? []).map((row) => row.id))
+
 const cleanup = async () => {
   await supabase.from('students').delete().eq('id', student.id)
 }
@@ -211,7 +215,8 @@ try {
   const adminEndedElsewhere = await run(
     supabase.from('study_sessions').select('id,student_id').eq('ended_by_admin', true).neq('student_id', student.id),
   )
-  check('실제 세션: 다른 학생의 선생님 종료 0건', (adminEndedElsewhere ?? []).length === 0, adminEndedElsewhere)
+  const newlyEnded = (adminEndedElsewhere ?? []).filter((row) => !adminEndedBeforeIds.has(row.id))
+  check('실제 세션: 새로 선생님 종료된 세션 없음', newlyEnded.length === 0, newlyEnded)
 } finally {
   await cleanup()
 
@@ -220,12 +225,13 @@ try {
   const leftSubs = await run(supabase.from('homework_submissions').select('id').eq('student_id', student.id))
   const leftLogs = await run(supabase.from('study_logs').select('id').eq('student_id', student.id))
   const leftAdmin = await run(supabase.from('study_sessions').select('id').eq('ended_by_admin', true))
+  const leftNewAdmin = (leftAdmin ?? []).filter((row) => !adminEndedBeforeIds.has(row.id))
 
   check('정리: 검증용 학생 0명', (leftStudents ?? []).length === 0, leftStudents)
   check('정리: 남은 세션 0건', (leftSessions ?? []).length === 0, leftSessions)
   check('정리: 남은 제출 0건', (leftSubs ?? []).length === 0, leftSubs)
   check('정리: 남은 기록 0건', (leftLogs ?? []).length === 0, leftLogs)
-  check('정리: 선생님 종료 표시 남은 세션 0건', (leftAdmin ?? []).length === 0, leftAdmin)
+  check('정리: 선생님 종료 표시가 새로 남은 세션 0건', leftNewAdmin.length === 0, leftNewAdmin)
 
   console.log(failed === 0 ? '\nALL ADMIN END STUDY E2E PASSED' : `\n${failed} FAILED`)
   process.exitCode = failed === 0 ? 0 : 1
