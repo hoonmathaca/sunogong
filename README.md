@@ -342,13 +342,15 @@ sunogong/
    │                          # adminSwipe.ts(관리자 좌우 스와이프 탭 이동 판정 — 거리·기울기·예외 영역),
    │                          # pauseWatch.ts(쉬는 시간 30분·60분 판정과 문제 수 입력 순수 함수), studentAlert.ts(진동·안내음·브라우저 알림),
    │                          # quotes.ts(학생 코드 입력 화면의 「오늘의 한줄」 124개 · 무작위로 하나 고르는 pickQuote),
-   │                          # homework.ts(숙제 제출 DB·Storage), homeworkBoard.ts(숙제 제출 순수 함수 — 사진 수·상태·승인 결과·대기 합치기)
+   │                          # homework.ts(숙제 제출 DB·Storage), homeworkBoard.ts(숙제 제출 순수 함수 — 사진 수·상태·승인 결과·대기 합치기),
+   │                          # photoPick.ts(사진 고르기 순수 함수 — 바로 찍기/앨범 버튼 이름·5장 합치기·사진 여부)
    ├─ components/             # ErrorBoundary, Brand(마스코트·로고·푸터), Keypad, Modal, ImageViewer(사진 확대), PhotoPager(사진 좌우 넘기기), InstallBanner, DesktopBlockScreen(PC 안내), KintounCloud(구름·드래곤볼),
-   │                          # QuoteCard(오늘의 한줄 카드 — 화면을 열 때 무작위 한 개, 누를 수 없음)
+   │                          # QuoteCard(오늘의 한줄 카드 — 화면을 열 때 무작위 한 개, 누를 수 없음),
+   │                          # PhotoInputButton(사진 고르기 버튼 — 누를 수 있는 투명 input 을 버튼 위에 겹쳐 안드로이드에서 몇 번을 다시 눌러도 카메라·앨범이 열린다)
    ├─ student/                # StudentApp, CodeEntry, ChooseStudent, Home, Timer, Result, useStudyTimer,
    │                          # QuestionBoardScreen(질문 화면), QuestionAskForm(질문 올리기 폼), LiveKintounCard(근두운·내 드래곤볼·일반용·교환권), CandyPickModal(사탕교환권 성구 고르기),
    │                          # PendingProblemsModal(지난번 푼 문제 수·지난 숙제 제출)·usePendingProblems(대기 목록),
-   │                          # HomeworkPhotoPicker(숙제 사진 고르기·미리 보기)
+   │                          # HomeworkPhotoPicker(숙제 사진 고르기 — 📷 바로 찍기(capture=environment·한 장) + 🖼️ 앨범에서 고르기(multiple), 합쳐서 5장·미리 보기)
    └─ admin/                  # AdminApp, AdminLogin, Dashboard, StudentsPanel, RankingPanel, QuestionsPanel(질문함), PushNotifyPanel(알림 설정), KintounPanel(실시간 탭·드래곤볼 쏘기), HomeworkPanel(숙제관리), Charts, 모달들
 ```
 
@@ -435,6 +437,13 @@ node tools/check-homework-ui.mjs https://sunogong.vercel.app /workspace/download
 실서비스 E2E(`node tools/e2e-homework-approval.mjs`, 43건)로 확인한 것: 문제가 있는데 사진이 없으면 `photo_required`, 사진 6장은 `too_many_photos`, 사진 1장과 함께 낸 40분·30문제가 **기록에 바로 들어가지 않고** 승인 대기로 남음, 시간만 승인 → `homework_minutes 40 · homework_problems 0`, 문항수만 승인 → `homework_minutes 40 · homework_problems 7`, 모두 반려 → 변화 없음, 같은 제출 두 번 처리 거절, 60분 자동 종료 → `submitted_problems NULL` 로 대기 → 다음 접속 때 12문제·사진 채우기 → 승인 시 9분·12문제만 더해짐, 5시간 초과 자동 종료 경로(300분으로 잘려 승인 대기), 학원 공부는 `academy_minutes` 로 즉시 반영되고 제출 줄이 생기지 않음, **드래곤볼은 어떤 경우에도 지급되지 않음**(`dragonball_count` 0·`dragonball_grants` 0줄), 사진 서명 URL로 열람. 검증용 학생·세션·기록·사진은 모두 지워 **남은 검증 데이터 0건**입니다.
 배포한 `https://sunogong.vercel.app`(새 번들 `index-Bv6NOIRq.js`)를 360×780 으로 열어 `node tools/check-homework-ui.mjs` 로 39건을 확인했습니다 — 학생: 숙제 타이머 → 종료 → `숙제 공부 제출` 창(확정 안내 문구·`공부한 페이지 사진 0/5`·`제출`) → 사진 1장 담기·미리 보기 → 30문제 입력 → 제출 → `제출했어요 — 선생님 확인을 기다려요`, 홈 `숙제 제출` 카드 `승인 대기`; 관리자: 상단 탭 `숙제관리` **배지 1**, 목록 `검증화면 · 11/23 · 25분 · 30문제 · 사진 1장`, 상세(학생·날짜·`시작 07:59 · 끝 08:24`·25분·30문제·사진 크게 보기 `1 / 1`·`모두 승인`/`모두 반려`·반려 사유 칩) → `확인(저장)` → `승인했어요`, 기록 `25분·30문제` 반영, 드래곤볼은 그대로 0, 홈은 `승인` 표시. 화면이 잘리지 않았고, 검증용 학생·기록·사진은 지워 남은 데이터 0건입니다.
 스크린샷: `downloads/sunogong-homework-submit-360.png`(학생 제출 창), `downloads/sunogong-homework-student-status-360.png`(승인 대기), `downloads/sunogong-homework-admin-list-360.png`(숙제관리 탭·배지), `downloads/sunogong-homework-admin-detail-360.png`(상세 확인), `downloads/sunogong-homework-admin-approved-360.png`(승인 뒤), `downloads/sunogong-homework-student-approved-360.png`(홈 승인 표시).
+
+**숙제 사진 — 📷 바로 찍기 분리 · 다시 열리지 않던 문제 (2026-11-23)** — 원장님이 실기기(안드로이드)에서 제보한 두 가지를 고쳤습니다.
+1. **바로 찍기**: 사진 고르기가 `📷 바로 찍기`(`<input type="file" accept="image/*" capture="environment">`, `multiple` 없음 — 폰 기본 카메라가 바로 열림)와 `🖼️ 앨범에서 고르기`(`<input type="file" accept="image/*" multiple>`) 두 버튼으로 나뉘었습니다. 두 버튼을 합쳐 5장까지이고, 5장을 다 담으면 두 버튼이 잠기며 `5장을 다 담았어요. 바꾸려면 사진 위 ✕를 눌러 빼주세요.` 로 안내가 바뀝니다.
+2. **뒤로가기·앱 전환 뒤 사진 선택기가 다시 안 열리던 문제**: 원인은 ① `display:none` 인 input 을 `ref.click()` 로 여는 방식(안드로이드 크롬·PWA에서는 카메라·앨범을 다녀오거나 뒤로가기로 돌아온 뒤 '사용자 동작'이 없는 클릭으로 보여 선택기가 다시 열리지 않음), ② 고르지 않고 닫으면 input 값이 그대로 남아 같은 사진을 다시 골라도 `change` 가 오지 않던 것, ③ 사진 버튼이 타이머의 `busy`(일시정지·종료 요청)에 함께 잠겨, 앱을 벗어나 있는 사이 요청이 멎으면 버튼이 계속 잠겨 있던 것이었습니다.
+   고친 방식: `src/components/PhotoInputButton.tsx` — 누를 수 있는 투명 input(`opacity-0`, `display:block`)을 버튼 위에 그대로 겹쳐 손가락이 input 에 바로 닿게 했고(진짜 사용자 동작), 누를 때마다 `value` 를 비우며(`FileList` 는 먼저 배열로 옮긴 뒤 비움), 화면으로 돌아올 때(`focus`·`pageshow`·`visibilitychange`)도 값을 비우고 뒤로가기로 되살아난 화면(bfcache)이면 input 을 새로 만듭니다. 사진 버튼은 이제 사진을 올리는 동안(`uploading`)에만 잠깁니다. 같은 방식을 `선오공에게 질문하기` 사진 버튼(`📷 사진 찍기`·`🖼️ 앨범에서`·`다시 고르기`)에도 적용했습니다.
+검증: 단위 **455건**(사진 고르기 10건 — 버튼 이름·남은 자리·5장 합치기·사진 아닌 파일 제외), 스모크 **144건**(두 버튼 이름, 카메라 `capture="environment"`·`multiple` 없음, 앨범 `multiple`, input 이 `opacity-0` 오버레이인지) 전부 통과, `npm run build` 통과. 배포한 `https://sunogong.vercel.app`(새 번들 `index-BPkdzr1H.js`)를 360×780 으로 열어 `node tools/check-homework-ui.mjs` **55건** 통과 — 두 버튼이 32~327px 안에 나란히(카메라 44px·앨범 42px 높이) 잘리지 않고, 앨범 버튼을 **세 번 다시 눌러도 3/3 열리고** 바로 찍기도 2/2 열리며, 5장을 담으면 5/5·두 버튼 잠김·안내 문구가 바뀌고 하나를 빼면 다시 열립니다. 질문 창의 두 버튼도 실제로 파일 선택기가 열립니다. 검증용 학생·기록·사진은 지워 남은 데이터 0건입니다.
+스크린샷: `downloads/sunogong-homework-picker-empty-360.png`(0/5 두 버튼), `downloads/sunogong-homework-picker-full-360.png`(5/5 잠김), `downloads/sunogong-homework-picker-360.png`(1/5 미리 보기).
 
 ---
 

@@ -91,6 +91,24 @@ try {
 
   check('학생: 숙제 타이머로 이어짐', await page.getByText('숙제 공부는 화면을 끄거나 나가면 멈춰요').first().isVisible())
 
+  /* 질문 창의 사진 찍기·앨범에서도 같은 방식(투명 input)으로 열린다 */
+  await page.getByRole('button', { name: '선오공에게 질문하기' }).first().click()
+  const askModal = page.getByRole('dialog', { name: '선오공에게 질문하기' })
+  await askModal.waitFor({ state: 'visible', timeout: 8000 })
+  const askCamera = askModal.locator('input[data-photo-input="camera"]')
+  const askAlbum = askModal.locator('input[data-photo-input="album"]')
+  const askAttrs = await askCamera.evaluate((el) => ({ capture: el.getAttribute('capture'), multiple: el.hasAttribute('multiple'), display: getComputedStyle(el).display }))
+  check('질문: 사진 찍기는 capture=environment · 숨김 아님', askAttrs.capture === 'environment' && !askAttrs.multiple && askAttrs.display !== 'none', JSON.stringify(askAttrs))
+  const [askChooser] = await Promise.all([
+    page.waitForEvent('filechooser', { timeout: 4000 }).catch(() => null),
+    askCamera.click({ position: { x: 10, y: 10 } }),
+  ])
+  check('질문: 사진 찍기 버튼으로 파일 선택기가 열림', Boolean(askChooser))
+  if (askChooser) await askChooser.setFiles([]).catch(() => {})
+  check('질문: 앨범은 여러 장(multiple)', await askAlbum.evaluate((el) => el.hasAttribute('multiple') && el.getAttribute('capture') === null))
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(500)
+
   await page.getByRole('button', { name: '종료', exact: true }).click()
   await page.getByRole('button', { name: '마칠래요' }).click()
 
@@ -102,6 +120,7 @@ try {
   check('학생: 사진 고르기 자리', modalText.includes('공부한 페이지 사진') && modalText.includes('0/5'))
   check('학생: 승인 안내', modalText.includes('선생님이 확인한 뒤 오늘 기록에 들어가요'))
   check('학생: 제출 버튼', modalText.includes('제출'))
+  await submitModal.screenshot({ path: `${shotDir}/sunogong-homework-picker-empty-360.png` })
 
   /* 📷 바로 찍기 / 🖼️ 앨범에서 고르기 — 두 버튼과 input 속성, 몇 번을 다시 눌러도 열리는지 */
   const cameraInput = submitModal.locator('input[data-photo-input="camera"]')
