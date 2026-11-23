@@ -46,9 +46,12 @@ Supabase Dashboard → **SQL Editor** 에서 순서대로 실행합니다.
 7. **`supabase/migrate-2026-11-23-homework-photo-resume.sql` — 숙제 사진 초안 (카메라 전환으로 탭이 튕겨도 이어서 제출)**
    - `homework_submissions` 에 초안 열(`draft_active`·`draft_problems`·`draft_open`), `save_homework_draft()`·`clear_homework_draft()`, 초안 줄이 있어도 세션을 제대로 마무리하도록 고친 `close_homework_session()`, 초안을 빼고 진짜 제출만 돌려주는 `pending_homework_submissions()`, 세션이 지워질 때 초안도 정리하는 트리거를 만듭니다.
    - 운영 DB(`qdzlenhmhszdsnygslhp`)에는 **2026-11-23 적용 완료**입니다. 실행 전에도 사진 제출은 되지만, 탭이 튕기면 찍어 둔 사진이 사라집니다(초안 저장이 없음).
+8. **`supabase/migrate-2026-11-23-homework-teacher-comment.sql` — 승인할 때 「선생님 칭찬 한마디」**
+   - `homework_submissions.teacher_comment`(최대 200자) 열을 더하고, `review_homework_submission(..., p_teacher_comment)` 로 승인과 함께 저장합니다(모두 반려면 비웁니다).
+   - 예전 화면이 부르던 4개 인자 호출도 그대로 됩니다(새 인자 기본값 null).
+   - 운영 DB(`qdzlenhmhszdsnygslhp`)에는 **2026-11-23 적용 완료**입니다. 실행 전에는 칭찬 칸이 저장되지 않고(함수 인자 없음) 학생 화면에 박스가 나오지 않습니다. 화면은 예전처럼 승인만 됩니다.
 
-네 파일 모두 여러 번 실행해도 안전합니다(`if not exists` / `on conflict do nothing` / 정책은 지웠다가 다시 생성).
-
+여덟 파일 모두 여러 번 실행해도 안전합니다(`if not exists` / `on conflict do nothing` / 정책은 지웠다가 다시 생성).
 실행 후 확인:
 
 ```sql
@@ -162,6 +165,7 @@ python3 tools/make_color_dragons.py
 - 사진은 올리기 전에 브라우저에서 **긴 변 1200px · JPEG 품질 0.72** 로 줄여 올린다(장당 100~150KB, `src/lib/imageCompress.ts` 에 옵션만 넘겨서 재사용). 앨범·카메라 어느 쪽으로 찍어도 된다.
 - 1문제 이상이면 사진 1장 이상 없이는 제출되지 않고, 5장을 넘겨 담을 수 없다. 0문제는 사진 없이도 된다(고민 흔적 사진은 선택).
 - 낸 뒤에는 결과 화면과 홈에 **`승인 대기`** 로 보이고, 원장님이 확인하면 **`승인`**(승인된 값) 또는 **`반려`**(사유 표시) 로 바뀐다. 홈 `숙제 제출` 카드에 최근 5건이 보인다.
+- **👏 선생님 한마디 (2026-11-23)** — 승인한 건에 원장님이 칭찬·응원 한마디를 남겼으면, 카드 안에 **연두/민트색 박스 `👏 선생님 한마디: …`** 가 함께 보인다(`src/student/HomeworkSubmissionRow.tsx`). 반려 사유(빨간 박스)와 같은 자리·같은 크기이고, 한마디가 비어 있으면 박스 없이 예전처럼 깔끔하게 보인다.
 
 **DB (`homework_submissions`)**
 - 한 세션에 한 줄(`session_id unique`). `submitted_minutes`·`submitted_problems`(자동 종료 뒤 아직 모르면 `NULL`)·`photo_paths`(최대 5장)·`status(pending/approved/rejected)`·`time_verdict`·`problems_verdict`·`approved_minutes`·`approved_problems`·`reject_reason`·`reviewed_at`.
@@ -231,6 +235,10 @@ python3 tools/make_color_dragons.py
   - 상세 창: 학생 이름, 날짜, **공부 시작·종료 시각**, 제출 공부 시간(분), 제출 문제 수, **숙제 사진 갤러리**(누르면 크게 보기 · 좌우 버튼·손가락 밀기·`1 / N` 로 넘기기).
   - **공부 시간 승인 / 반려(0)** · **문항수 승인 / 반려(0)** 를 따로 고르고, 원클릭 **`모두 승인` / `모두 반려`** 보조 버튼도 있다. 문제 수가 아직 없는 제출은 문항수를 승인할 수 없다(반려 = 0문제).
   - **반려 사유 메모**(학생에게 보임, 300자) + 빠른 선택 칩 `풀이 흔적 부족 · 답만 작성됨 · 사진 식별 불가`.
+  - **👏 선생님 칭찬 한마디 (선택, 2026-11-23)** — 반려 사유 칸 위에 칭찬 문구 칩 `풀이가 꼼꼼해요 · 글씨가 깔끔해요 · 어려운 문제 잘 고민했어요 · 꾸준히 잘하고 있어요 · 스스로 잘 풀었어요` 와 직접 입력칸(최대 200자).
+    - 칩을 누르면 입력칸에 그 문구가 들어가고 다시 누르면 빠진다 — 칩 여러 개나 직접 쓴 글과 섞어도 된다.
+    - **비워 두면 한마디 없이 예전처럼 1탭 바로 승인**된다. 모두 반려할 때는 칸이 잠긴다(서버도 반려에는 저장하지 않는다).
+    - 처리 완료(승인) 목록의 줄과 상세 창에도 `👏 한마디` 가 함께 보인다.
   - `확인(저장)` 을 누르면 승인한 항목만 그 날 `study_logs` 에 더해지고(통계·랭킹 반영), 반려한 항목은 0으로 확정된다. 저장 뒤 **다음 대기 학생으로 자동 이동**한다. 드래곤볼과는 별개다.
 - **🎟 교환권 지급 확인 · 사용 처리** (실시간 탭): 교환권을 가진 학생을 많이 가진 순서로 보여 주고(이름으로 찾기 가능), `사탕 2` · `1,000P 1` · `10,000P 0` 처럼 학생별 장 수를 눌러 **한 장 사용 처리**한다. 누르면 `학원에서 실제로 지급한 뒤 눌러 주세요` 확인 창이 뜨고, 처리하면 `최근 사용 처리` 기록이 남으며 학생 목록도 바로 다시 읽는다.
 - **질문함** (상단 탭, 답변 대기 건수 배지): 학생 질문을 **답변 대기 우선**으로 보고 `답변 대기 / 답변 완료 / 전체` 로 거른다. 사진을 눌러 크게 보고, **선오공이** 이름으로 답변 글 + 해설지 사진 또는 **훈노트 영상**(MP4·WebM·MOV, 50MB 이하)을 달거나 수정하고, 질문을 삭제(사진·영상 포함)할 수 있다.
@@ -324,8 +332,10 @@ sunogong/
 │  ├─ migrate-2026-11-22-secret-black-dragon.sql    # 히든 검은용·시크릿쿠폰
 │  ├─ migrate-2026-11-23-homework-photo-approval.sql  # 숙제 사진 인증·시간/문항수 승인·Storage homework-photos
 │  ├─ migrate-2026-11-23-homework-photo-resume.sql    # 숙제 사진 초안(탭이 튕겨도 이어서 제출)
+│  ├─ migrate-2026-11-23-homework-teacher-comment.sql # 승인 때 「선생님 칭찬 한마디」(teacher_comment)
 │  ├─ verify-2026-11-22-secret-black-dragon.sql     # 검은용 확률·보너스·교환 검증(되돌림)
 │  ├─ verify-2026-11-22-candy-pick-stars.sql        # 사탕교환권 성구 고르기 검증(되돌림)
+│  ├─ verify-2026-11-23-homework-teacher-comment.sql # 칭찬 한마디 저장·200자·반려·예전 호출 검증(되돌림)
 │  └─ verify-2026-11-21-kintoun-dragonball.sql   # 근두운·드래곤볼 SQL 검증(되돌림)
 ├─ tools/make_placeholders.py # 자리표시자 이미지 생성(선택)
 ├─ tools/lib-test.ts          # 날짜·집계·랭킹·타이머·기기 판별·질문(Q&A)·알림·성구 도감·스와이프 계산 테스트(개발용)
@@ -339,6 +349,7 @@ sunogong/
 ├─ tools/check-login-quotes.mjs # 배포된 로그인 화면 360px — 오늘의 한줄 카드 표시·눌러도 그대로·새로 열면 무작위 + 스크린샷(개발용)
 ├─ tools/e2e-homework-approval.mjs # 숙제 사진 제출·시간/문항수 승인 실서비스 E2E(검증용 학생은 끝나고 삭제)
 ├─ tools/e2e-homework-draft.mjs    # 숙제 사진 초안(사진 1장씩 저장·이어서 제출·자동 종료·정리) 실서비스 E2E
+├─ tools/e2e-homework-praise.mjs   # 승인 칭찬 한마디(저장·학생 목록·200자·반려·예전 호출) 실서비스 E2E
 ├─ tools/check-homework-ui.mjs  # 배포된 화면 360px — 학생 숙제 제출 창·홈 승인 표시·관리자 숙제관리 상세 + 스크린샷(개발용)
 └─ src/
    ├─ main.tsx, App.tsx, index.css
@@ -352,15 +363,15 @@ sunogong/
    │                          # homework.ts(숙제 제출 DB·Storage), homeworkBoard.ts(숙제 제출 순수 함수 — 사진 수·상태·승인 결과·대기 합치기),
    │                          # photoPick.ts(사진 고르기 순수 함수 — 바로 찍기/앨범 버튼 이름·5장 합치기·사진 여부),
    │                          # homeworkPhotos.ts(숙제 사진 초안 순수 함수 — 항목·경로·문제 수 변환·다시 열기 판단)
-   ├─ components/             # ErrorBoundary, Brand(마스코트·로고·푸터), Keypad, Modal, ImageViewer(사진 확대), PhotoPager(사진 좌우 넘기기), InstallBanner, DesktopBlockScreen(PC 안내), KintounCloud(구름·드래곤볼),
-   │                          # QuoteCard(오늘의 한줄 카드 — 화면을 열 때 무작위 한 개, 누를 수 없음),
+   ├─ components/             # ErrorBoundary, Brand(마스코트·로고·푸터), Keypad, Modal, ImageViewer(사진 확대), PhotoPager(사진 좌우 넘기기), InstallBanner, DesktopBlockScreen(PC 안내), KintounCloud(구름·드래곤볼),   │                          # QuoteCard(오늘의 한줄 카드 — 화면을 열 때 무작위 한 개, 누를 수 없음),
    │                          # PhotoInputButton(사진 고르기 버튼 — 누를 수 있는 투명 input 을 버튼 위에 겹쳐 안드로이드에서 몇 번을 다시 눌러도 카메라·앨범이 열린다)
    ├─ student/                # StudentApp, CodeEntry, ChooseStudent, Home, Timer, Result, useStudyTimer,
+   │                          # HomeworkSubmissionRow(숙제 제출 한 줄 — 반려 사유·👏 선생님 한마디 민트 박스),
    │                          # QuestionBoardScreen(질문 화면), QuestionAskForm(질문 올리기 폼), LiveKintounCard(근두운·내 드래곤볼·일반용·교환권), CandyPickModal(사탕교환권 성구 고르기),
    │                          # PendingProblemsModal(지난번 푼 문제 수·지난 숙제 제출)·usePendingProblems(대기 목록),
    │                          # HomeworkPhotoPicker(숙제 사진 고르기 — 📷 바로 찍기(capture=environment·한 장) + 🖼️ 앨범에서 고르기(multiple), 합쳐서 5장·미리 보기),
    │                          # useHomeworkPhotos(사진을 고르는 즉시 1장씩 줄여 업로드 + DB 초안 저장·되살리기)
-   └─ admin/                  # AdminApp, AdminLogin, Dashboard, StudentsPanel, RankingPanel, QuestionsPanel(질문함), PushNotifyPanel(알림 설정), KintounPanel(실시간 탭·드래곤볼 쏘기), HomeworkPanel(숙제관리), Charts, 모달들
+   └─ admin/                  # AdminApp, AdminLogin, Dashboard, StudentsPanel, RankingPanel, QuestionsPanel(질문함), PushNotifyPanel(알림 설정), KintounPanel(실시간 탭·드래곤볼 쏘기), HomeworkPanel(숙제관리), PraiseEditor(선생님 칭찬 한마디 칩·입력), Charts, 모달들
 ```
 
 ---
@@ -423,6 +434,9 @@ python3 -c "import pglast; pglast.parse_sql(open('supabase/schema.sql').read())"
 # 4-5) 사탕교환권 성구 고르기 실서비스 E2E (앱과 같은 anon 키, 검증용 학생은 끝나고 삭제)
 #     node tools/e2e-candy-pick-stars.mjs
 
+# 4-6) 숙제 승인 칭찬 한마디 SQL 검증 (승인 저장·200자·모두 반려·예전 호출, 검증용 학생은 삭제)
+#     Supabase SQL Editor 에 supabase/verify-2026-11-23-homework-teacher-comment.sql 을 붙여넣고 실행
+
 # 5) 쉬는 시간 30분·60분 자동 종료 실서비스 확인 (앱과 같은 anon 키로 실제 Supabase 에 붙음)
 #    시작 → 일시정지 → 61분 전에 멈춘 것으로 옮김 → 자동 종료 → 문제 수 입력 → 되돌리기
 node tools/e2e-pause-autoend.mjs
@@ -437,11 +451,16 @@ node tools/e2e-homework-approval.mjs
 #      같은 세션 두 번 제출해도 한 줄 → 초안 지우기 → 1분 미만은 남길 것 없음 → 세션 삭제 시 초안 정리
 node tools/e2e-homework-draft.mjs
 
+# 6-3) 숙제 승인 「선생님 칭찬 한마디」 실서비스 E2E — 검증용 학생은 끝나고 삭제
+#      승인+칭찬 저장 → 학생 목록에 그대로 → 칩 여러 개 → 예전 4개 인자 호출 → 모두 반려면 미저장 →
+#      200자 초과 거절 → 공백만 null → 두 번 처리 거절 → 기록·드래곤볼 그대로
+node tools/e2e-homework-praise.mjs
+
 # 7) 배포된 화면 360px 확인 + 스크린샷 (학생 숙제 제출 창·홈 승인 표시·관리자 숙제관리 상세)
 node tools/check-homework-ui.mjs https://sunogong.vercel.app /workspace/downloads
 ```
 
-결과: 단위 테스트 전부 통과(**474건** — 날짜·집계·학원/숙제 분리 집계·기록 수정 계산·비율·랭킹·타이머(경과·쉬는 시간·자동 종료 단계)·기기 판별·질문(Q&A)·알림(VAPID 키·기기 판별·구독 저장 모양·오류 문구)·근두운(닉네임·시간·구름·실시간 순위·타이머 근두운 줄·드래곤볼) 계산, 랭킹 전체/학원/숙제 분리·드래곤볼 순위·동점 처리, **일반용 7종(색 맵·총 마리·모은 색·도감·뽑기 조건)·무지개용 합성 조건·교환권(사탕·1,000P·10,000P 개수와 문구)·드래곤볼 힘(일반용=성구 7개, 무지개용=성구 49개)**·통계 구분(전체/학원/숙제 — 학생별·하루 기록·미제출 명단), 관리자 좌우 스와이프 42건(60px·1.5배 기준, 첫/끝 탭, 입력창·모달·가로 스크롤 예외, 컨테이너 바깥 무시), 문제 수 대기 목록·지난 공부 표시·자동 종료 안내 문구, **「오늘의 한줄」 124개·모든 명언의 출처·문구 중복 없음·무작위 번호 범위(난수 0·1·범위 밖·NaN)·124개 전부 고를 수 있음·1,001번 범위 확인 15건·사진 초안 19건**), **31개 화면** + 일반용 뽑기·무지개용 합성·사탕교환권·포인트 교환권 버튼, 관리자 교환권 사용 처리 칸·이름 찾기·일반용/무지개용 안내, 통계 구분 필터·실시간 학원/숙제 인원·일시정지 중 타이머·지난번 푼 문제 수 창까지 렌더 성공(스모크 152건 — 코드 입력 화면의 오늘의 한줄 카드 7건 포함)(관리자 알림 카드·근두운 패널·세션 넘긴 근두운 줄 포함), `schema.sql`/`seed.sql`/`migrate-2026-11-21-questions.sql`/`migrate-2026-11-21-push.sql`/`migrate-2026-11-21-kintoun-dragonball.sql`/`migrate-2026-11-21-dragonball-stars.sql`/`migrate-2026-11-21-rainbow-ball.sql`/`migrate-2026-11-22-pause-autoend.sql`/`migrate-2026-11-22-color-dragons-tickets.sql`/`migrate-2026-11-22-secret-black-dragon.sql`/`migrate-2026-11-23-homework-photo-approval.sql`/`migrate-2026-11-23-homework-photo-resume.sql` 문법 오류 없음, 근두운 SQL 검증 7건 통과, **검은용 SQL 검증 통과**(40만 번 표본 확률·강제 보너스·원래 용 유지·시크릿쿠폰 교환·사용), **쉬는 시간 자동 종료 실서비스 E2E 23건 통과**, **일반용·무지개용·교환권·검은용 실서비스 E2E 49건 통과**(21개 지급 → 성구 2개 → 사탕교환권 → 1~7성구 → 일반용 랜덤 → 7종 → 무지개용 → 1,000P·10,000P 교환권 → 관리자 사용 처리·두 번 사용 거절·사용 기록·검은용→시크릿쿠폰·시크릿쿠폰 사용 처리·앱에서 확률 함수를 부를 수 없음·예전 함수 이름 호환까지). 검증 데이터는 되돌려 남은 검증용 학생·세션·기록 0건입니다.
+결과: 단위 테스트 전부 통과(**485건** — 날짜·집계·학원/숙제 분리 집계·기록 수정 계산·비율·랭킹·타이머(경과·쉬는 시간·자동 종료 단계)·기기 판별·질문(Q&A)·알림(VAPID 키·기기 판별·구독 저장 모양·오류 문구)·근두운(닉네임·시간·구름·실시간 순위·타이머 근두운 줄·드래곤볼) 계산, 랭킹 전체/학원/숙제 분리·드래곤볼 순위·동점 처리, **일반용 7종(색 맵·총 마리·모은 색·도감·뽑기 조건)·무지개용 합성 조건·교환권(사탕·1,000P·10,000P 개수와 문구)·드래곤볼 힘(일반용=성구 7개, 무지개용=성구 49개)**·통계 구분(전체/학원/숙제 — 학생별·하루 기록·미제출 명단), 관리자 좌우 스와이프 42건(60px·1.5배 기준, 첫/끝 탭, 입력창·모달·가로 스크롤 예외, 컨테이너 바깥 무시), 문제 수 대기 목록·지난 공부 표시·자동 종료 안내 문구, **「오늘의 한줄」 124개·모든 명언의 출처·문구 중복 없음·무작위 번호 범위(난수 0·1·범위 밖·NaN)·124개 전부 고를 수 있음·1,001번 범위 확인 15건·사진 초안 19건**), **33개 화면** + 일반용 뽑기·무지개용 합성·사탕교환권·포인트 교환권 버튼, 관리자 교환권 사용 처리 칸·이름 찾기·일반용/무지개용 안내, 통계 구분 필터·실시간 학원/숙제 인원·일시정지 중 타이머·지난번 푼 문제 수 창까지 렌더 성공(스모크 161건 — 코드 입력 화면의 오늘의 한줄 카드 7건 포함)(관리자 알림 카드·근두운 패널·세션 넘긴 근두운 줄 포함), `schema.sql`/`seed.sql`/`migrate-2026-11-21-questions.sql`/`migrate-2026-11-21-push.sql`/`migrate-2026-11-21-kintoun-dragonball.sql`/`migrate-2026-11-21-dragonball-stars.sql`/`migrate-2026-11-21-rainbow-ball.sql`/`migrate-2026-11-22-pause-autoend.sql`/`migrate-2026-11-22-color-dragons-tickets.sql`/`migrate-2026-11-22-secret-black-dragon.sql`/`migrate-2026-11-23-homework-photo-approval.sql`/`migrate-2026-11-23-homework-photo-resume.sql`/`migrate-2026-11-23-homework-teacher-comment.sql` 문법 오류 없음, 근두운 SQL 검증 7건 통과, **검은용 SQL 검증 통과**(40만 번 표본 확률·강제 보너스·원래 용 유지·시크릿쿠폰 교환·사용), **쉬는 시간 자동 종료 실서비스 E2E 23건 통과**, **일반용·무지개용·교환권·검은용 실서비스 E2E 49건 통과**(21개 지급 → 성구 2개 → 사탕교환권 → 1~7성구 → 일반용 랜덤 → 7종 → 무지개용 → 1,000P·10,000P 교환권 → 관리자 사용 처리·두 번 사용 거절·사용 기록·검은용→시크릿쿠폰·시크릿쿠폰 사용 처리·앱에서 확률 함수를 부를 수 없음·예전 함수 이름 호환까지). 검증 데이터는 되돌려 남은 검증용 학생·세션·기록 0건입니다.
 배포 뒤 실제 화면에서도 확인했습니다 — **관리자 360px·390px**: `김민수 열공몬 / 공부 중 · 53:21 / 5개 4/7종 · 2마리 2/7색` 처럼 세 줄이 잘리지 않고 나오고 오른쪽 끝에 드래곤볼 아이콘만 있는 쏘기 버튼이 있습니다(스크린샷 `browser/sunogong-admin-live-list-360-*.png`, `...-390-*.png`). **교환권 사용 처리**: 시크릿쿠폰 1장을 눌러 확인 창 → `사용 처리` 로 0장이 되고 `ticket_uses` 에 `secret` 1줄이 남으며 칩이 사라지는 것까지 확인했습니다(9건, `browser/sunogong-admin-ticket-used-390-*.png`). **학생 홈 360·390px**: 교환권·성구 도감·일반용 7종·무지개용·검은용(가진 학생만)이 한 화면 폭에서 읽히고(`browser/sunogong-student-dragons-360-*.png` 등), 검은용이 없는 학생 화면에는 `검은용`·`시크릿쿠폰`·확률 문구가 하나도 없습니다(5건, `browser/sunogong-student-dragons-noblack-390-*.png`). 검증용 학생·세션·기록은 모두 지워 남은 검증 데이터 0건입니다.
 화면 점검에는 `선오공에게 질문하기` 홈·타이머 버튼, 학생 질문 화면, 질문 올리기 폼, 관리자 질문함(자동 정리 안내 포함), 관리자 상단 탭 이름(`실시간`), 숙제 타이머의 근두운 줄(학원 타이머에는 없음), 학생 관리의 닉네임 열·`바꾸기` 버튼, 학생 홈의 `7색 드래곤` 대신 **`일반용`·`무지개용`·교환권** 표기가 모두 들어 있습니다. `'무지개 볼'` 표현은 홈·관리자 화면에서 모두 사라졌는지도 테스트로 확인합니다.
 
@@ -478,6 +497,16 @@ node tools/check-homework-ui.mjs https://sunogong.vercel.app /workspace/download
 - 이어서 **60분 자동 종료 뒤 「지난 숙제 공부 제출」 창**도 확인했습니다: 초안 사진이 있던 숙제 세션을 61분 쉰 것으로 마무리하자 제출 줄에 사진 1장이 남았고, 학생이 코드를 넣고 들어오자 그 창이 **사진 1/5 그대로** 열려 `12` 문제로 제출 → 홈의 숙제 제출 목록이 **새로고침 없이** `1시간 1분 · 12문제` 로 바뀌었습니다(마저 내면 홈 목록을 그 자리에서 다시 읽도록 `refreshKey` 추가).
 - 스크린샷: `downloads/sunogong-homework-resume-restored.png`(새로고침 뒤 사진 1/5 가 살아 있는 제출 창), `downloads/sunogong-homework-resume-admin-detail.png`(관리자 숙제관리 상세 — 사진 2장·25분·30문제).
 - 참고: 이 환경의 Playwright 번들 브라우저는 시스템 라이브러리(`libnss3`)가 없어 실행되지 않아, 위 화면 확인은 원격 브라우저로 안드로이드 User-Agent 를 맞춰(학생 화면은 PC 접속을 막으므로) 진행했습니다. `tools/check-homework-ui.mjs` 는 라이브러리가 있는 환경에서 그대로 쓸 수 있습니다.
+
+**숙제 승인 — 선생님 칭찬 한마디 (2026-11-23)** — 숙제관리에서 승인할 때 칭찬·응원 한마디를 함께 남기고 학생 홈에 민트 박스로 보여 줍니다.
+- **관리자 숙제관리 상세**: 반려 사유 칸 위에 `선생님 칭찬 한마디 (선택 · 학생에게 보여요)` — 칩 다섯 개(`풀이가 꼼꼼해요 · 글씨가 깔끔해요 · 어려운 문제 잘 고민했어요 · 꾸준히 잘하고 있어요 · 스스로 잘 풀었어요`)를 누르면 입력칸에 들어가고 다시 누르면 빠집니다. 직접 쓴 글과 섞을 수 있고 200자까지입니다. 비워 두면 예전처럼 1탭 승인, 모두 반려면 칸이 잠깁니다. 승인 목록 줄과 처리 완료 상세에도 `👏 한마디` 가 보입니다.
+- **학생 홈 숙제 제출**: 승인된 건에 한마디가 있으면 연두/민트색 박스 `👏 선생님 한마디: …` (`bg #E9FAF0` · 테두리 `#B9E8CE` · 글자 `#177A4A`). 한마디가 없으면 박스 없이 예전 그대로입니다.
+- **DB**: `homework_submissions.teacher_comment`(check ≤ 200자), `review_homework_submission(p_submission_id, p_time_approved, p_problems_approved, p_reject_reason, p_teacher_comment default null)`. 하나라도 승인했을 때만 저장하고 모두 반려면 비웁니다. 200자를 넘기면 `comment_too_long` 으로 거절하며 아무것도 바뀌지 않습니다. 4개 인자로 부르던 예전 화면은 새 인자 기본값으로 그대로 동작합니다.
+- **검증**: 단위 **485건**(+11 — 칩 문구·넣기/빼기·직접 글과 섞기·200자 넘김 방지·공백 정리·승인 건에만 보이기), 스모크 **161건·33개 화면**(`PraiseEditor` 2종·`HomeworkSubmissionRow` 2종 추가) 통과, `npm run build` 통과. 마이그레이션은 PostgreSQL 파서 검사와 **운영 DB(`qdzlenhmhszdsnygslhp`) 실행**을 통과했고 `schema.sql` 전체를 다시 실행해도 결과가 같습니다(학생 54·기록 30·제출 5건 그대로).
+- `supabase/verify-2026-11-23-homework-teacher-comment.sql` (운영 DB에서 실행) — 승인 저장·앞뒤 공백 정리·201자 `comment_too_long`·모두 반려면 미저장·예전 4개 인자 호환·기록 반영·드래곤볼 그대로, 검증 데이터 0건.
+- 실서비스 E2E `node tools/e2e-homework-praise.mjs` **19건** 통과: 승인+칭찬 저장 → 학생이 읽는 목록에 그대로 → 칩 여러 개 문구 → 예전 4개 인자 호출 → 모두 반려 미저장 → 200자 초과 거절 → 공백만 null → 두 번 처리 거절 → 기록(65분·17문제)·드래곤볼 0 그대로 → 사진 서명 주소. 검증용 학생·제출·사진 0건.
+- 배포한 `https://sunogong.vercel.app`(새 번들 `index-2G40GALD.js`)를 360×780 으로 열어 `node tools/check-homework-ui.mjs` **69건** 통과 — 상세에 칭찬 칸·칩 5개·안내가 있고, 칩을 누르면 눌린 상태로 입력칸에 들어가며, 저장 뒤 `teacher_comment` 가 `풀이가 꼼꼼해요 다음에도 이렇게 해봐요!` 로 남고, 관리자 승인 목록·처리 완료 상세에도 보입니다. 학생 홈에서는 민트색(`rgb(233, 250, 240)`) `선생님 한마디:` 박스가 승인 건에만 **1개** 보이고, 한마디 없는 승인 건을 하나 더 만들어도 박스는 늘지 않습니다. 360px에서 잘리지 않았고 검증용 데이터는 0건입니다.
+- 스크린샷: `downloads/sunogong-homework-praise-360.png`(학생 홈 민트 박스), `downloads/sunogong-homework-praise-editor-360.png`(관리자 칭찬 칩·입력), `downloads/sunogong-homework-praise-approved-detail-360.png`(처리 완료 상세의 한마디), `downloads/sunogong-homework-admin-approved-360.png`(승인 목록의 👏 줄).
 
 ---
 

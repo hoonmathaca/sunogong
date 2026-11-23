@@ -328,6 +328,18 @@ try {
   const approvedPanel = (await admin.locator('main').innerText()).replace(/\s+/g, ' ')
   check('관리자: 승인 목록에도 한마디 보임', approvedPanel.includes('풀이가 꼼꼼해요 다음에도 이렇게 해봐요!'), approvedPanel.slice(0, 200))
   await admin.screenshot({ path: `${shotDir}/sunogong-homework-admin-approved-360.png`, fullPage: false })
+
+  /* 처리 완료 건을 다시 열어도 칭찬 한마디가 보인다 */
+  await admin.getByRole('button', { name: /검증화면/ }).first().click()
+  await admin.waitForTimeout(1200)
+  const doneDetail = admin.getByRole('dialog', { name: '숙제 제출 확인' })
+  await doneDetail.waitFor({ state: 'visible', timeout: 8000 })
+  const doneText = (await doneDetail.innerText()).replace(/\s+/g, ' ')
+  check('상세: 이미 승인한 건에도 한마디 보임', doneText.includes('선생님 한마디:') && doneText.includes('풀이가 꼼꼼해요 다음에도 이렇게 해봐요!'), doneText.slice(0, 200))
+  check('상세: 처리 완료 안내', doneText.includes('이미 확인한 제출이에요'))
+  await doneDetail.screenshot({ path: `${shotDir}/sunogong-homework-praise-approved-detail-360.png` })
+  await admin.getByRole('button', { name: '닫기' }).last().click()
+  await admin.waitForTimeout(400)
   const log = await run(supabase.from('study_logs').select('*').eq('student_id', student.id).maybeSingle())
   check('저장: 기록에 숙제 25분·30문제', [log?.homework_minutes, log?.homework_problems], [25, 30])
   const after = await run(supabase.from('students').select('dragonball_count').eq('id', student.id).single())
