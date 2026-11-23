@@ -143,6 +143,8 @@ export async function prepareQuestionImage(
     compressed: false,
   })
 
+  if (typeof document === 'undefined' || typeof URL === 'undefined') return asIs()
+
   let loaded: LoadedImage
   try {
     loaded = await loadImage(file, maxSize)
