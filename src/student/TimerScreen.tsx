@@ -15,7 +15,12 @@ import {
   type Platform,
 } from '../lib/fullscreen'
 import { KIND_EMOJI, KIND_LABEL } from '../lib/kinds'
-import { HOMEWORK_SUBMIT_GUIDE, homeworkSubmitProblem } from '../lib/homeworkBoard'
+import {
+  HOMEWORK_NO_PHOTO_CONFIRM,
+  HOMEWORK_SUBMIT_GUIDE,
+  homeworkSubmitProblem,
+  needsNoPhotoConfirm,
+} from '../lib/homeworkBoard'
 import { PAUSE_CHECK_SECONDS, pauseStage, secondsUntilAutoEnd } from '../lib/pauseWatch'
 import { alertPauseCheck, primeAlertSound } from '../lib/studentAlert'
 import { formatHMS, formatMinutes, MAX_SESSION_SECONDS } from '../lib/time'
@@ -45,7 +50,8 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
   const [askOpen, setAskOpen] = useState(false)
   const [askBusy, setAskBusy] = useState(false)
   const [problems, setProblems] = useState('')
-  const [photoWarn, setPhotoWarn] = useState(false)
+  /* 사진 0장으로 제출을 눌렀을 때 한 번 더 묻는 창 */
+  const [photoConfirmOpen, setPhotoConfirmOpen] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [photoError, setPhotoError] = useState<string | null>(null)
   const [pendingReason, setPendingReason] = useState<FinishReason>('manual')
@@ -128,7 +134,7 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
     if (!session?.id) return
     setPendingReason('manual')
     setProblems(photoDraft.problems)
-    setPhotoWarn(false)
+    setPhotoConfirmOpen(false)
     setPhotoError(null)
     setProblemOpen(true)
     photoDraft.clearReopen()
@@ -253,7 +259,7 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
     setPauseCheckOpen(false)
     setPendingReason('manual')
     setProblems(photoDraft.problems)
-    setPhotoWarn(false)
+    setPhotoConfirmOpen(false)
     setPhotoError(null)
     setProblemOpen(true)
     /* 숙제 공부: 이 창을 열어 둔 채로 탭이 튕겨도 다시 열리도록 초안에 표시해 둔다 */
@@ -268,7 +274,8 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
     void timer.resume()
   }
 
-  const saveAndFinish = async () => {
+  /** photoConfirmed — 사진 0장 확인 창에서 「그래도 제출」을 누른 경우 true */
+  const saveAndFinish = async (photoConfirmed = false) => {
     const count = problems === '' ? 0 : Number(problems)
     const safeCount = Number.isFinite(count) ? count : 0
 
@@ -276,8 +283,13 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
     if (isHomework) {
       const invalid = homeworkSubmitProblem(safeCount, photoDraft.items.length)
       if (invalid) {
-        setPhotoWarn(true)
         setPhotoError(invalid)
+        return
+      }
+      /* 사진이 0장이면 바로 내지 않고 한 번 더 묻는다 (취소하면 이 창으로 돌아온다) */
+      if (needsNoPhotoConfirm(photoDraft.items.length, photoConfirmed)) {
+        setPhotoError(null)
+        setPhotoConfirmOpen(true)
         return
       }
       const sessionId = session?.id
@@ -667,6 +679,7 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
               : '숫자 키패드로 입력하고 저장을 눌러주세요. (0도 괜찮아요)'
         }
         onClose={() => {
+          if (photoConfirmOpen) return
           if (pendingReason === 'limit') return
           if (uploadingPhotos) return
           setProblemOpen(false)
@@ -694,7 +707,6 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
             <HomeworkPhotoPicker
               photos={photoDraft.items}
               onAdd={(files) => {
-                setPhotoWarn(false)
                 setPhotoError(null)
                 void photoDraft.addFiles(files)
               }}
@@ -702,7 +714,6 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
               /* 사진은 올리는 동안에만 잠근다. 일시정지·종료 요청(busy)이 늦게 끝나거나
                  앱을 벗어났다 돌아와 요청이 멎어도 사진 고르기는 계속 열려야 한다. */
               disabled={uploading}
-              warn={photoWarn}
             />
             {photoDraft.loading ? (
               <p className="mt-1.5 text-[10.5px] font-semibold text-navy/40">찍어 둔 사진을 불러오는 중이에요…</p>
@@ -719,7 +730,7 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
 
         {isHomework ? (
           <p className="mt-2 text-center text-[12px] font-semibold leading-snug text-[#5B2FC0]/70">
-            제출하면 선생님이 확인한 뒤 오늘 기록에 들어가요. 사진은 최대 5장, 0문제는 사진 없이도 좋아요.
+            제출하면 선생님이 확인한 뒤 오늘 기록에 들어가요. 사진은 최대 5장, 사진 없이 내도 돼요.
           </p>
         ) : null}
 
@@ -751,6 +762,40 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
             busy={busy || uploadingPhotos}
           />
         </div>
+      </Modal>
+
+      {/* 사진 0장 확인 — 사진 없이 내면 반려될 수 있다고 한 번 더 묻는다 */}
+      <Modal
+        open={isHomework && photoConfirmOpen}
+        title="사진 없이 제출할까요?"
+        onClose={() => setPhotoConfirmOpen(false)}
+        footer={
+          <>
+            <button
+              type="button"
+              className="btn-outline"
+              onClick={() => setPhotoConfirmOpen(false)}
+              disabled={uploadingPhotos}
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              className="btn-navy"
+              onClick={() => {
+                setPhotoConfirmOpen(false)
+                void saveAndFinish(true)
+              }}
+              disabled={uploadingPhotos}
+            >
+              그래도 제출
+            </button>
+          </>
+        }
+      >
+        <p className="rounded-2xl bg-[#FFF6DA] px-4 py-3 text-center text-[13px] font-semibold leading-relaxed text-[#7A5B00]">
+          {HOMEWORK_NO_PHOTO_CONFIRM}
+        </p>
       </Modal>
     </div>
   )

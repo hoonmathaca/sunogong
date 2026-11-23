@@ -185,6 +185,7 @@ import type { HomeworkSubmission } from '../src/lib/types'
 import {
   HOMEWORK_COMMENT_MAX,
   HOMEWORK_FILTER_LABEL,
+  HOMEWORK_NO_PHOTO_CONFIRM,
   HOMEWORK_PHOTO_MAX,
   HOMEWORK_PHOTO_MAX_SIZE,
   HOMEWORK_PHOTO_QUALITY,
@@ -201,6 +202,7 @@ import {
   homeworkPhotoPath,
   homeworkSubmitProblem,
   mergePendingItems,
+  needsNoPhotoConfirm,
   needsProblemCount,
   nextPendingSubmission,
   normalizeComment,
@@ -1230,13 +1232,27 @@ eq('숙제: 사진 최대 5장', HOMEWORK_PHOTO_MAX, 5)
 eq('숙제: 올리기 전 줄이기(긴 변 1200px · JPEG 0.72)', [HOMEWORK_PHOTO_MAX_SIZE, HOMEWORK_PHOTO_QUALITY], [1200, 0.72])
 eq('숙제: 빠른 반려 사유 3개', HOMEWORK_REJECT_CHIPS, ['풀이 흔적 부족', '답만 작성됨', '사진 식별 불가'])
 eq(
-  '숙제: 문제가 있으면 사진 1장 이상 필요',
-  [homeworkSubmitProblem(1, 0), homeworkSubmitProblem(30, 0)],
-  ['푼 문제가 있으면 공부한 페이지 사진을 1장 이상 올려주세요.', '푼 문제가 있으면 공부한 페이지 사진을 1장 이상 올려주세요.'],
+  '숙제: 사진 없이도 제출할 수 있음(막지 않음)',
+  [homeworkSubmitProblem(1, 0), homeworkSubmitProblem(30, 0), homeworkSubmitProblem(0, 0)],
+  [null, null, null],
 )
 eq('숙제: 사진이 있으면 그대로 제출', [homeworkSubmitProblem(1, 1), homeworkSubmitProblem(0, 2)], [null, null])
-eq('숙제: 0문제는 사진 없이도 됨', homeworkSubmitProblem(0, 0), null)
 eq('숙제: 5장을 넘으면 막힘', homeworkSubmitProblem(3, 6), '사진은 5장까지 올릴 수 있어요.')
+eq(
+  '숙제: 사진 0장 확인 문구는 확정 문구 그대로',
+  HOMEWORK_NO_PHOTO_CONFIRM,
+  '사진 없이 공부를 마치면 반려될 수 있습니다. 그래도 제출하시겠습니까?',
+)
+eq(
+  '숙제: 사진 0장이면 먼저 확인 · 사진이 있거나 이미 확인했으면 바로 제출',
+  [needsNoPhotoConfirm(0), needsNoPhotoConfirm(0, true), needsNoPhotoConfirm(1), needsNoPhotoConfirm(5)],
+  [true, false, false, false],
+)
+eq(
+  '숙제: 사진 0장 확인 뒤 제출은 막히지 않음',
+  [homeworkSubmitProblem(30, 0), needsNoPhotoConfirm(0, true)],
+  [null, false],
+)
 eq('숙제: 5장까지 더 고를 수 있음', [canAddPhotos(0), canAddPhotos(4), canAddPhotos(5)], [true, true, false])
 eq(
   '숙제: 사진 경로는 학생/세션 아래',

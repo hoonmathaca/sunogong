@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Keypad } from '../components/Keypad'
 import { Modal } from '../components/Modal'
-import { HOMEWORK_SUBMIT_GUIDE, formatSubmissionTime, homeworkSubmitProblem, submissionLine } from '../lib/homeworkBoard'
+import {
+  HOMEWORK_NO_PHOTO_CONFIRM,
+  HOMEWORK_SUBMIT_GUIDE,
+  formatSubmissionTime,
+  homeworkSubmitProblem,
+  needsNoPhotoConfirm,
+  submissionLine,
+} from '../lib/homeworkBoard'
 import { problemsFromInput, pendingProblemSummary } from '../lib/pauseWatch'
 import { HomeworkPhotoPicker } from './HomeworkPhotoPicker'
 import { useHomeworkPhotos } from './useHomeworkPhotos'
@@ -35,7 +42,8 @@ export function PendingProblemsModal({
   const isHomework = item.type === 'homework'
   const submission = item.type === 'homework' ? item.submission : null
   const [problems, setProblems] = useState('')
-  const [photoWarn, setPhotoWarn] = useState(false)
+  /* 사진 0장으로 제출을 눌렀을 때 한 번 더 묻는 창 */
+  const [photoConfirmOpen, setPhotoConfirmOpen] = useState(false)
 
   const photoDraft = useHomeworkPhotos({
     studentId,
@@ -67,12 +75,15 @@ export function PendingProblemsModal({
     if (isHomework) photoDraft.setProblems(next)
   }
 
-  const save = async () => {
+  /** photoConfirmed — 사진 0장 확인 창에서 「그래도 제출」을 누른 경우 true */
+  const save = async (photoConfirmed = false) => {
     const count = problemsFromInput(problems)
     if (isHomework) {
       const invalid = homeworkSubmitProblem(count, photoDraft.items.length)
-      if (invalid) {
-        setPhotoWarn(true)
+      if (invalid) return
+      /* 사진이 0장이면 바로 내지 않고 한 번 더 묻는다 (취소하면 이 창으로 돌아온다) */
+      if (needsNoPhotoConfirm(photoDraft.items.length, photoConfirmed)) {
+        setPhotoConfirmOpen(true)
         return
       }
       const flushed = await photoDraft.flush()
@@ -84,6 +95,7 @@ export function PendingProblemsModal({
   }
 
   return (
+    <>
     <Modal
       open
       title={isHomework ? '지난 숙제 공부 제출' : '지난번 푼 문제 수'}
@@ -92,7 +104,10 @@ export function PendingProblemsModal({
           ? HOMEWORK_SUBMIT_GUIDE
           : '자동으로 마무리된 공부예요. 푼 문제 수를 알려주면 통계와 랭킹에 바로 들어가요.'
       }
-      onClose={onSkip}
+      onClose={() => {
+        if (photoConfirmOpen) return
+        onSkip()
+      }}
       footer={
         <button type="button" className="btn-outline" onClick={onSkip} disabled={busy}>
           건너뛰기
@@ -118,12 +133,10 @@ export function PendingProblemsModal({
           <HomeworkPhotoPicker
             photos={photoDraft.items}
             onAdd={(files) => {
-              setPhotoWarn(false)
               void photoDraft.addFiles(files)
             }}
             onRemove={photoDraft.remove}
             disabled={busy}
-            warn={photoWarn}
           />
           {photoDraft.loading ? (
             <p className="mt-1.5 text-[10.5px] font-semibold text-navy/40">찍어 둔 사진을 불러오는 중이에요…</p>
@@ -144,12 +157,6 @@ export function PendingProblemsModal({
           : '세 문제가 안 됐으면 0을 누르고 저장해도 돼요.'}
       </p>
 
-      {photoWarn && photoDraft.items.length === 0 ? (
-        <p className="mt-2 rounded-2xl bg-[#FFF6DA] px-3 py-2 text-center text-[12px] font-semibold text-[#7A5B00]">
-          푼 문제가 있으면 공부한 페이지 사진을 1장 이상 올려주세요.
-        </p>
-      ) : null}
-
       {photoDraft.error ? (
         <p className="mt-2 break-words rounded-2xl bg-red-50 px-3 py-2 text-center text-[12px] text-red-500">{photoDraft.error}</p>
       ) : null}
@@ -168,5 +175,35 @@ export function PendingProblemsModal({
         />
       </div>
     </Modal>
+
+    {/* 사진 0장 확인 — 사진 없이 내면 반려될 수 있다고 한 번 더 묻는다 */}
+    <Modal
+      open={isHomework && photoConfirmOpen}
+      title="사진 없이 제출할까요?"
+      onClose={() => setPhotoConfirmOpen(false)}
+      footer={
+        <>
+          <button type="button" className="btn-outline" onClick={() => setPhotoConfirmOpen(false)} disabled={busy || photoDraft.uploading}>
+            취소
+          </button>
+          <button
+            type="button"
+            className="btn-navy"
+            onClick={() => {
+              setPhotoConfirmOpen(false)
+              void save(true)
+            }}
+            disabled={busy || photoDraft.uploading}
+          >
+            그래도 제출
+          </button>
+        </>
+      }
+    >
+      <p className="rounded-2xl bg-[#FFF6DA] px-4 py-3 text-center text-[13px] font-semibold leading-relaxed text-[#7A5B00]">
+        {HOMEWORK_NO_PHOTO_CONFIRM}
+      </p>
+    </Modal>
+    </>
   )
 }

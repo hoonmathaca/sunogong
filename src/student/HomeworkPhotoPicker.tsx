@@ -12,8 +12,6 @@ interface HomeworkPhotoPickerProps {
   disabled?: boolean
   /** 창 안에서 작게 쓸 때 */
   compact?: boolean
-  /** 강조해서 보여 줄 안내 (사진이 필요한데 없을 때) */
-  warn?: boolean
 }
 
 const STATE_BADGE: Record<HomeworkPhotoItem['state'], string> = {
@@ -36,7 +34,6 @@ export function HomeworkPhotoPicker({
   onRemove,
   disabled = false,
   compact = false,
-  warn = false,
 }: HomeworkPhotoPickerProps): JSX.Element {
   const cameraRef = useRef<HTMLInputElement | null>(null)
   const albumRef = useRef<HTMLInputElement | null>(null)
@@ -159,14 +156,12 @@ export function HomeworkPhotoPicker({
         </div>
       ) : null}
 
-      <p className={`mt-1.5 text-[10.5px] leading-snug ${warn && photos.length === 0 ? 'font-bold text-[#B07A00]' : 'text-navy/40'}`}>
-        {warn && photos.length === 0
-          ? '푼 문제가 있으면 사진을 1장 이상 올려주세요.'
-          : full
-            ? `${HOMEWORK_PHOTO_MAX}장을 다 담았어요. 바꾸려면 사진 위 ✕를 눌러 빼주세요.`
-            : uploadFailed
-              ? '올리지 못한 사진이 있어요. 사진 위 ✕로 빼고 다시 찍어 주세요.'
-              : `찍거나 고르면 화면에 맞게 줄여서 바로 올라가요(긴 변 ${HOMEWORK_PHOTO_MAX_SIZE}px).`}
+      <p className="mt-1.5 text-[10.5px] leading-snug text-navy/40">
+        {full
+          ? `${HOMEWORK_PHOTO_MAX}장을 다 담았어요. 바꾸려면 사진 위 ✕를 눌러 빼주세요.`
+          : uploadFailed
+            ? '올리지 못한 사진이 있어요. 사진 위 ✕로 빼고 다시 찍어 주세요.'
+            : `찍거나 고르면 화면에 맞게 줄여서 바로 올라가요(긴 변 ${HOMEWORK_PHOTO_MAX_SIZE}px). 사진 없이도 제출할 수 있어요.`}
       </p>
       {error ? <p className="mt-1 text-[11px] font-semibold text-red-500">{error}</p> : null}
     </div>

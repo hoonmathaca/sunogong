@@ -148,7 +148,7 @@ python3 tools/make_color_dragons.py
    - **😴 쉬는 지 30분 → `아직 공부 중인가요?`** — 일시정지한 채 30분이 지나면 화면 알림창과 함께 진동·안내음·브라우저 알림을 띄운다. `계속 공부할래요` / `공부 끝내고 문제 수 입력` 중에 고르면 되고, 그냥 닫으면 타이머 아래에 `쉬는 지 N분 · N분 더 쉬면 자동으로 마무리돼요` 가 계속 보인다.
    - **⏱️ 쉬는 지 60분 → 자동 종료** — 30분 알림 뒤에도 응답이 없으면 세션을 자동으로 마무리한다. 공부 시간은 쉬기 전까지 실제로 공부한 시간으로 저장하고, 문제 수는 비워 둔 채(`problems_pending`) 홈으로 나가 바로 `지난번 푼 문제 수` 입력창을 띄운다.
 4. **종료** — `공부를 마칠까요?` → `오늘 푼 문제 수` 키패드(0 가능) → 저장
-   - **🏠 숙제 공부는 `숙제 공부 제출` 창**에서 `오늘 공부한 페이지를 찍어올리고 푼 문제수를 적어주세요` 안내와 함께 **공부한 페이지 사진(최대 5장)** 을 붙인다. 1문제 이상이면 사진 1장 이상이 필수이고, 0문제는 사진 없이도 된다. 종료를 누르면 그 순간 타이머가 멈춰 사진 고르는 시간이 공부 시간에 들어가지 않는다.
+   - **🏠 숙제 공부는 `숙제 공부 제출` 창**에서 `오늘 공부한 페이지를 찍어올리고 푼 문제수를 적어주세요` 안내와 함께 **공부한 페이지 사진(최대 5장)** 을 붙인다. 사진은 필수가 아니라 **0장으로도 제출**할 수 있고, 0장으로 제출을 누르면 `사진 없이 공부를 마치면 반려될 수 있습니다. 그래도 제출하시겠습니까?` 를 한 번 더 묻는다(2026-11-23 부터). 종료를 누르면 그 순간 타이머가 멈춰 사진 고르는 시간이 공부 시간에 들어가지 않는다.
    - 낸 시간·문제 수는 기록에 바로 들어가지 않고 **승인 대기**로 남는다(아래 「숙제 공부 사진 인증」).
 5. **결과** — `오늘 ○시간 ○분 공부했어요` + 오늘 합계 · 오늘 학원/숙제 시간 · 푼 문제 수. 숙제 공부는 `🙌 제출했어요 — 선생님 확인을 기다려요` 와 `오늘 기록(승인된 것)` 을 함께 보여 준다.
 6. **지난번 푼 문제 수 (2026-11-22)** — 자동 종료된 공부가 남아 있으면, 다음에 코드를 넣고 홈에 들어올 때 `지난번 푼 문제 수` 창이 뜬다.
@@ -163,13 +163,13 @@ python3 tools/make_color_dragons.py
 **학생**
 - 숙제 타이머 종료 → `숙제 공부 제출` 창: 확정 안내 문구 `오늘 공부한 페이지를 찍어올리고 푼 문제수를 적어주세요`, `📷 바로 찍기`(폰 카메라)·`🖼️ 앨범에서 고르기`(최대 5장), 문제 수 키패드.
 - 사진은 올리기 전에 브라우저에서 **긴 변 1200px · JPEG 품질 0.72** 로 줄여 올린다(장당 100~150KB, `src/lib/imageCompress.ts` 에 옵션만 넘겨서 재사용). 앨범·카메라 어느 쪽으로 찍어도 된다.
-- 1문제 이상이면 사진 1장 이상 없이는 제출되지 않고, 5장을 넘겨 담을 수 없다. 0문제는 사진 없이도 된다(고민 흔적 사진은 선택).
+- 사진은 필수가 아니다 — **0장으로도 제출**되고, 5장을 넘겨 담을 수 없다. 사진 0장으로 `제출`을 누르면 바로 내지 않고 `사진 없이 공부를 마치면 반려될 수 있습니다. 그래도 제출하시겠습니까?` 확인 창이 뜨며, `취소` 면 제출 창으로 돌아가고 `그래도 제출` 이면 사진 0장 그대로 승인 대기에 들어간다(2026-11-23).
 - 낸 뒤에는 결과 화면과 홈에 **`승인 대기`** 로 보이고, 원장님이 확인하면 **`승인`**(승인된 값) 또는 **`반려`**(사유 표시) 로 바뀐다. 홈 `숙제 제출` 카드에 최근 5건이 보인다.
 - **👏 선생님 한마디 (2026-11-23)** — 승인한 건에 원장님이 칭찬·응원 한마디를 남겼으면, 카드 안에 **연두/민트색 박스 `👏 선생님 한마디: …`** 가 함께 보인다(`src/student/HomeworkSubmissionRow.tsx`). 반려 사유(빨간 박스)와 같은 자리·같은 크기이고, 한마디가 비어 있으면 박스 없이 예전처럼 깔끔하게 보인다.
 
 **DB (`homework_submissions`)**
 - 한 세션에 한 줄(`session_id unique`). `submitted_minutes`·`submitted_problems`(자동 종료 뒤 아직 모르면 `NULL`)·`photo_paths`(최대 5장)·`status(pending/approved/rejected)`·`time_verdict`·`problems_verdict`·`approved_minutes`·`approved_problems`·`reject_reason`·`reviewed_at`.
-- `submit_homework(session, problems, photo_paths)` — 숙제 세션을 끝내고 승인 대기 줄을 만든다. 1문제 이상인데 사진이 없으면 `photo_required`, 5장을 넘으면 `too_many_photos`.
+- `submit_homework(session, problems, photo_paths)` — 숙제 세션을 끝내고 승인 대기 줄을 만든다. 사진은 0장이어도 되고(2026-11-23), 5장을 넘으면 `too_many_photos`.
 - `submit_pending_homework(submission, problems, photo_paths)` — 60분 자동 종료된 숙제의 문제 수·사진을 다음 접속 때 채운다.
 - `review_homework_submission(submission, time_approved, problems_approved, reject_reason)` — **승인한 항목만** `study_logs` 의 `homework_minutes`·`homework_problems` 에 더하고(그 날 학원 기록과 합쳐짐), 반려한 항목은 0으로 확정한다. 한 제출은 한 번만 처리(`already_reviewed`), 문제 수가 없으면 문항수 승인 불가(`problems_unknown`).
 - **드래곤볼은 별개** — 숙제 승인은 드래곤볼 지급/출현 로직을 건드리지 않는다(승인해도 드래곤볼을 주지 않는다).
@@ -507,6 +507,14 @@ node tools/check-homework-ui.mjs https://sunogong.vercel.app /workspace/download
 - 실서비스 E2E `node tools/e2e-homework-praise.mjs` **19건** 통과: 승인+칭찬 저장 → 학생이 읽는 목록에 그대로 → 칩 여러 개 문구 → 예전 4개 인자 호출 → 모두 반려 미저장 → 200자 초과 거절 → 공백만 null → 두 번 처리 거절 → 기록(65분·17문제)·드래곤볼 0 그대로 → 사진 서명 주소. 검증용 학생·제출·사진 0건.
 - 배포한 `https://sunogong.vercel.app`(새 번들 `index-2G40GALD.js`)를 360×780 으로 열어 `node tools/check-homework-ui.mjs` **69건** 통과 — 상세에 칭찬 칸·칩 5개·안내가 있고, 칩을 누르면 눌린 상태로 입력칸에 들어가며, 저장 뒤 `teacher_comment` 가 `풀이가 꼼꼼해요 다음에도 이렇게 해봐요!` 로 남고, 관리자 승인 목록·처리 완료 상세에도 보입니다. 학생 홈에서는 민트색(`rgb(233, 250, 240)`) `선생님 한마디:` 박스가 승인 건에만 **1개** 보이고, 한마디 없는 승인 건을 하나 더 만들어도 박스는 늘지 않습니다. 360px에서 잘리지 않았고 검증용 데이터는 0건입니다.
 - 스크린샷: `downloads/sunogong-homework-praise-360.png`(학생 홈 민트 박스), `downloads/sunogong-homework-praise-editor-360.png`(관리자 칭찬 칩·입력), `downloads/sunogong-homework-praise-approved-detail-360.png`(처리 완료 상세의 한마디), `downloads/sunogong-homework-admin-approved-360.png`(승인 목록의 👏 줄).
+
+**숙제 공부 — 사진 없이도 제출 (2026-11-23)** — 원장님 요청으로 사진 첨부를 필수에서 **선택**으로 바꿨습니다.
+
+1. **화면** — `숙제 공부 제출`(타이머 종료) 창과 `지난 숙제 공부 제출`(자동 종료 뒤 다음 접속) 창 모두, 사진이 0장이어도 `제출` 이 그대로 눌립니다. 다만 사진 0장으로 누르면 바로 내지 않고 확인 창 `사진 없이 제출할까요?` 에 **`사진 없이 공부를 마치면 반려될 수 있습니다. 그래도 제출하시겠습니까?`** 를 띄웁니다 — `취소` 면 제출 창으로 돌아가고(사진을 더 고를 수 있음), `그래도 제출` 이면 사진 0장 그대로 승인 대기로 제출됩니다. 확인 창의 `✕`·바깥 누르기·Escape 도 `취소` 와 같습니다.
+2. **판단은 순수 함수** — `src/lib/homeworkBoard.ts` 의 `needsNoPhotoConfirm(photos, confirmed)`(사진 0장이고 아직 확인 전이면 true)와 `homeworkSubmitProblem(problems, photos)`(이제 5장 초과만 막음)로 계산하고, 문구는 `HOMEWORK_NO_PHOTO_CONFIRM` 상수 하나를 두 창이 함께 씁니다. 사진이 필요한데 없다는 빨간/노란 경고(`photoWarn`)는 없앴습니다.
+3. **DB** — `supabase/migrate-2026-11-23-homework-photo-optional.sql` 이 `submit_homework`·`submit_pending_homework` 에서 `photo_required` 예외를 없앱니다(5장 초과 `too_many_photos` 는 그대로). 표 제약은 원래 최소 장수를 보지 않아 손대지 않았고, 관리자 숙제관리 상세는 사진 0장일 때 이미 `올린 사진이 없어요. 사진 없이 낸 제출이에요.` 를 보여 줍니다.
+4. **검증** — 단위 테스트 **487건** 통과(추가: 사진 0장이어도 막히지 않음 · 확인 문구 그대로 · `needsNoPhotoConfirm` 4가지 · 확인 뒤 제출), 스모크 **32개 화면/147건**(사진 고르기 안내가 `사진 없이도 제출할 수 있어요` 로 바뀌고 `1장 이상 올려주세요` 가 사라졌는지), `npm run build` 통과. 실서비스 360px 확인은 `node tools/check-homework-no-photo.mjs https://sunogong.vercel.app /workspace/downloads` — 사진 0장으로 제출 → 확인 창 문구 → `취소` 로 돌아옴 → 다시 제출 → `그래도 제출` → `사진 0장 · 30문제` 승인 대기 저장까지 보고, 검증용 학생·기록은 지웁니다.
+   - 스크린샷: `downloads/sunogong-homework-no-photo-confirm-360.png`.
 
 ---
 

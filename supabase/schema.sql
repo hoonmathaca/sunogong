@@ -1563,8 +1563,8 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------
--- 3.8.2 학생이 사진과 함께 숙제 공부를 제출 (타이머 화면 종료)
---    1문제 이상이면 사진 1장 이상이 필요하다. 0문제는 사진 없이도 된다.
+-- 3.8.2 학생이 숙제 공부를 제출 (타이머 화면 종료)
+--    사진은 0장이어도 된다(최대 5장) — 사진 없이 내면 반려될 수 있다는 확인은 화면이 받는다.
 -- ---------------------------------------------------------------------
 create or replace function public.submit_homework(
   p_session_id  uuid,
@@ -1601,16 +1601,7 @@ begin
     raise exception 'too_many_photos' using errcode = '22023';
   end if;
 
-  -- 문제를 풀었으면 풀이 흔적 사진이 있어야 한다 (이미 올려 둔 사진이 있으면 그것으로 인정)
-  if v_problems > 0 and coalesce(array_length(v_paths, 1), 0) = 0 then
-    if not exists (
-      select 1 from public.homework_submissions
-       where session_id = s.id and coalesce(array_length(photo_paths, 1), 0) > 0
-    ) then
-      raise exception 'photo_required' using errcode = '22023';
-    end if;
-  end if;
-
+  -- 사진은 필수가 아니다 (2026-11-23). 0장이면 화면이 확인을 받고 그대로 제출한다.
   return public.close_homework_session(s.id, v_problems, v_paths);
 end;
 $$;
@@ -1663,10 +1654,7 @@ begin
     raise exception 'too_many_photos' using errcode = '22023';
   end if;
 
-  if v_problems > 0 and coalesce(array_length(v_all, 1), 0) = 0 then
-    raise exception 'photo_required' using errcode = '22023';
-  end if;
-
+  -- 사진은 필수가 아니다 (2026-11-23). 0장이면 화면이 확인을 받고 그대로 제출한다.
   update public.homework_submissions
      set submitted_problems = v_problems,
          photo_paths        = v_all,

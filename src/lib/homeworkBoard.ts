@@ -18,6 +18,8 @@ export const HOMEWORK_PHOTO_MAX_SIZE = 1200
 export const HOMEWORK_PHOTO_QUALITY = 0.72
 /** 숙제 사진·제출 안내 문구 (확정 문구 — 그대로 쓴다) */
 export const HOMEWORK_SUBMIT_GUIDE = '오늘 공부한 페이지를 찍어올리고 푼 문제수를 적어주세요'
+/** 사진 0장으로 제출을 누를 때 한 번 더 묻는 문구 (확정 문구 — 그대로 쓴다) */
+export const HOMEWORK_NO_PHOTO_CONFIRM = '사진 없이 공부를 마치면 반려될 수 있습니다. 그래도 제출하시겠습니까?'
 /** 반려 사유 빠른 선택 */
 export const HOMEWORK_REJECT_CHIPS = ['풀이 흔적 부족', '답만 작성됨', '사진 식별 불가'] as const
 /** 반려 사유 메모 최대 글자 수 (DB check 와 같다) */
@@ -88,16 +90,26 @@ export function photoCount(paths: string[] | null | undefined): number {
 }
 
 /**
- * 제출 전 검사 — 문제가 있으면 사진이 1장 이상 있어야 한다.
- * (0문제는 고민 흔적 사진이 있으면 좋고 없어도 된다)
- * 문제가 있으면 안내 문구, 없으면 null.
+ * 제출 전 검사 — 사진은 필수가 아니다(2026-11-23 부터).
+ * 사진이 0장이어도 제출할 수 있고, 대신 누를 때 한 번 더 묻는다(needsNoPhotoConfirm).
+ * 5장을 넘기면 막는다. 문제 수는 이제 막는 데 쓰지 않는다.
+ * 막아야 하면 안내 문구, 아니면 null.
  */
-export function homeworkSubmitProblem(problems: number, photos: number): string | null {
-  const count = Number.isFinite(problems) ? Math.max(0, Math.floor(problems)) : 0
+export function homeworkSubmitProblem(_problems: number, photos: number): string | null {
   const photoTotal = Number.isFinite(photos) ? Math.max(0, Math.floor(photos)) : 0
   if (photoTotal > HOMEWORK_PHOTO_MAX) return `사진은 ${HOMEWORK_PHOTO_MAX}장까지 올릴 수 있어요.`
-  if (count > 0 && photoTotal === 0) return '푼 문제가 있으면 공부한 페이지 사진을 1장 이상 올려주세요.'
   return null
+}
+
+/**
+ * 제출 버튼을 눌렀을 때 사진 없이 내도 되는지 한 번 더 물어야 하는가.
+ * 사진이 0장이고 아직 확인을 받지 않았으면 true — 화면은 확인 창을 띄우고,
+ * 확인을 누르면 confirmed=true 로 다시 불러 바로 제출한다.
+ */
+export function needsNoPhotoConfirm(photos: number, confirmed = false): boolean {
+  if (confirmed) return false
+  const photoTotal = Number.isFinite(photos) ? Math.max(0, Math.floor(photos)) : 0
+  return photoTotal === 0
 }
 
 /** 사진을 더 고를 수 있는지 */

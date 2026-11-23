@@ -221,7 +221,7 @@ const cases: [string, () => JSX.Element][] = [
   ],
   [
     'HomeworkPhotoPicker(사진 없음)',
-    () => <HomeworkPhotoPicker photos={[]} onAdd={() => {}} onRemove={() => {}} warn />,
+    () => <HomeworkPhotoPicker photos={[]} onAdd={() => {}} onRemove={() => {}} />,
   ],
   [
     'HomeworkPhotoPicker(사진 두 장)',
@@ -584,7 +584,8 @@ const homeworkChecks: [string, boolean][] = [
   ['숙제: 지난 제출 요약', pendingHomeworkHtml.includes('11월 21일') && pendingHomeworkHtml.includes('1시간 20분')],
   ['숙제: 지난 제출에 사진 고르기', pendingHomeworkHtml.includes('공부한 페이지 사진') && pendingHomeworkHtml.includes('바로 찍기') && pendingHomeworkHtml.includes('앨범에서 고르기')],
   ['숙제: 지난 제출에 제출 버튼', pendingHomeworkHtml.includes('>제출<')],
-  ['숙제: 사진 고르기 최대 5장 표시', homeworkPickerHtml.includes('0/5') && homeworkPickerHtml.includes('푼 문제가 있으면 사진을 1장 이상')],
+  ['숙제: 사진 고르기 최대 5장 표시', homeworkPickerHtml.includes('0/5') && homeworkPickerHtml.includes('사진 없이도 제출할 수 있어요')],
+  ['숙제: 사진이 없어도 막지 않는다는 안내', !homeworkPickerHtml.includes('1장 이상 올려주세요')],
   ['숙제: 바로 찍기·앨범에서 고르기 두 버튼', homeworkPickerHtml.includes('📷 바로 찍기') && homeworkPickerHtml.includes('🖼️ 앨범에서 고르기')],
   ['숙제: 카메라는 capture=environment · 한 장', cameraInputTag.includes('capture="environment"') && !cameraInputTag.includes('multiple')],
   ['숙제: 앨범은 여러 장(multiple)', albumInputTag.includes('multiple') && !albumInputTag.includes('capture')],
