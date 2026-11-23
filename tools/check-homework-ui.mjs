@@ -103,13 +103,98 @@ try {
   check('학생: 승인 안내', modalText.includes('선생님이 확인한 뒤 오늘 기록에 들어가요'))
   check('학생: 제출 버튼', modalText.includes('제출'))
 
-  await page.locator('input[type="file"]').setInputFiles([{ name: 'homework.png', mimeType: 'image/png', buffer: PNG_1PX }])
+  /* 📷 바로 찍기 / 🖼️ 앨범에서 고르기 — 두 버튼과 input 속성, 몇 번을 다시 눌러도 열리는지 */
+  const cameraInput = submitModal.locator('input[data-photo-input="camera"]')
+  const albumInput = submitModal.locator('input[data-photo-input="album"]')
+  check('학생: 바로 찍기 버튼', modalText.includes('📷 바로 찍기'))
+  check('학생: 앨범에서 고르기 버튼', modalText.includes('🖼️ 앨범에서 고르기'))
+  const cameraAttrs = await cameraInput.evaluate((el) => ({
+    type: el.type,
+    accept: el.accept,
+    capture: el.getAttribute('capture'),
+    multiple: el.hasAttribute('multiple'),
+    hidden: el.hidden,
+    display: getComputedStyle(el).display,
+    opacity: getComputedStyle(el).opacity,
+  }))
+  check('학생: 카메라 input 은 capture=environment · 한 장', cameraAttrs.capture === 'environment' && !cameraAttrs.multiple, JSON.stringify(cameraAttrs))
+  check('학생: 카메라 input 은 화면에 겹쳐 있음(숨김 아님)', !cameraAttrs.hidden && cameraAttrs.display !== 'none', JSON.stringify(cameraAttrs))
+  const albumAttrs = await albumInput.evaluate((el) => ({
+    accept: el.accept,
+    capture: el.getAttribute('capture'),
+    multiple: el.hasAttribute('multiple'),
+    display: getComputedStyle(el).display,
+  }))
+  check('학생: 앨범 input 은 여러 장(multiple)', albumAttrs.multiple && albumAttrs.capture === null, JSON.stringify(albumAttrs))
+  const boxes = await Promise.all(
+    ['camera', 'album'].map(async (name) => {
+      const box = await submitModal.locator(`input[data-photo-input="${name}"]`).boundingBox()
+      return box ? { name, left: Math.round(box.x), right: Math.round(box.x + box.width), height: Math.round(box.height) } : { name }
+    }),
+  )
+  check(
+    '학생: 360px 안에서 두 버튼이 나란히·잘리지 않음',
+    boxes.every((box) => box.right !== undefined && box.left >= 0 && box.right <= 360 && box.height >= 40),
+    JSON.stringify(boxes),
+  )
+
+  /* 같은 버튼을 여러 번 눌러도 파일 선택기가 계속 열린다 (뒤로가기·앱 전환 뒤 다시 열리지 않던 문제) */
+  let reopen = 0
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const [chooser] = await Promise.all([
+      page.waitForEvent('filechooser', { timeout: 4000 }).catch(() => null),
+      albumInput.click({ position: { x: 10, y: 10 } }),
+    ])
+    if (chooser) {
+      reopen += 1
+      await chooser.setFiles([]).catch(() => {})
+    }
+  }
+  check('학생: 앨범 버튼을 세 번 다시 눌러도 매번 열림', reopen === 3, `${reopen}/3`)
+  let cameraOpen = 0
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const [chooser] = await Promise.all([
+      page.waitForEvent('filechooser', { timeout: 4000 }).catch(() => null),
+      cameraInput.click({ position: { x: 10, y: 10 } }),
+    ])
+    if (chooser) {
+      cameraOpen += 1
+      await chooser.setFiles([]).catch(() => {})
+    }
+  }
+  check('학생: 바로 찍기 버튼도 다시 눌러 열림', cameraOpen === 2, `${cameraOpen}/2`)
+
+  await albumInput.setInputFiles([{ name: 'homework.png', mimeType: 'image/png', buffer: PNG_1PX }])
   await page.waitForTimeout(600)
   const afterPhoto = (await submitModal.innerText()).replace(/\s+/g, ' ')
   check('학생: 사진 1장 담김', afterPhoto.includes('1/5'))
   check('학생: 사진 미리 보기', (await submitModal.locator('img').count()) >= 1)
 
   await page.screenshot({ path: `${shotDir}/sunogong-homework-submit-360.png`, fullPage: false })
+
+  /* 다섯 장을 다 담으면 두 버튼이 잠기고 안내가 바뀐다 (합쳐서 5장 제한) */
+  const fourMore = Array.from({ length: 4 }, (_, index) => ({
+    name: `homework-${index + 2}.png`,
+    mimeType: 'image/png',
+    buffer: PNG_1PX,
+  }))
+  await albumInput.setInputFiles(fourMore)
+  await page.waitForTimeout(500)
+  const fullText = (await submitModal.innerText()).replace(/\s+/g, ' ')
+  check('학생: 다섯 장이면 5/5', fullText.includes('5/5'))
+  check('학생: 다섯 장이면 두 버튼 잠김', (await cameraInput.isDisabled()) && (await albumInput.isDisabled()))
+  check('학생: 다섯 장이면 바꾸는 방법 안내', fullText.includes('5장을 다 담았어요'))
+  check('학생: 합쳐서 다섯 장만 담김', (await submitModal.locator('img').count()) === 5)
+  await submitModal.screenshot({ path: `${shotDir}/sunogong-homework-picker-full-360.png` })
+
+  /* 하나씩 빼서 다시 한 장만 남긴다 */
+  for (let index = 0; index < 4; index += 1) {
+    await submitModal.getByRole('button', { name: '1번 사진 빼기' }).click()
+    await page.waitForTimeout(150)
+  }
+  const oneLeft = (await submitModal.innerText()).replace(/\s+/g, ' ')
+  check('학생: 사진을 빼면 다시 고를 수 있음', oneLeft.includes('1/5') && !(await albumInput.isDisabled()))
+  await submitModal.screenshot({ path: `${shotDir}/sunogong-homework-picker-360.png` })
 
   for (const digit of ['3', '0']) {
     await page.getByRole('button', { name: digit, exact: true }).click()

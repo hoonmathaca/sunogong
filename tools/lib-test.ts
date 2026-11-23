@@ -15,6 +15,13 @@ import {
 } from '../src/lib/pauseWatch'
 import { normalizeKind, pausesOnLeave } from '../src/lib/kinds'
 import {
+  PHOTO_ALBUM_LABEL,
+  PHOTO_CAMERA_LABEL,
+  isPhotoFile,
+  mergePhotoFiles,
+  photoRoom,
+} from '../src/lib/photoPick'
+import {
   ANSWER_MEDIA_MAX_BYTES,
   answerMediaPath,
   answerStateLabel,
@@ -1225,6 +1232,26 @@ eq(
   [true, false, false],
 )
 eq('숙제: 사진 수', [photoCount(['a', 'b']), photoCount([]), photoCount(null)], [2, 0, 0])
+
+/* 사진 고르기 — 바로 찍기(카메라) · 앨범에서 고르기 */
+const photo = (type = 'image/jpeg') => ({ type })
+eq('사진: 버튼 이름은 확정 문구 그대로', [PHOTO_CAMERA_LABEL, PHOTO_ALBUM_LABEL], ['📷 바로 찍기', '🖼️ 앨범에서 고르기'])
+eq('사진: 남은 자리', [photoRoom(0), photoRoom(3), photoRoom(5), photoRoom(9)], [5, 2, 0, 0])
+eq('사진: 이상한 값도 안전', [photoRoom(-2), photoRoom(Number.NaN)], [5, 5])
+eq('사진: 사진인지(빈 type 은 사진으로 봄)', [isPhotoFile(photo()), isPhotoFile(photo('')), isPhotoFile(photo('video/mp4'))], [true, true, false])
+eq('사진: 두 장 담기', mergePhotoFiles([], [photo(), photo('image/png')]), { files: [photo(), photo('image/png')], error: null })
+eq('사진: 앞에 담은 사진 뒤에 붙음', mergePhotoFiles([photo('image/png')], [photo()]).files.length, 2)
+eq(
+  '사진: 5장을 넘으면 남은 자리만 담고 알려 줌',
+  mergePhotoFiles([photo(), photo(), photo(), photo()], [photo(), photo(), photo()]),
+  { files: [photo(), photo(), photo(), photo(), photo()], error: '사진은 5장까지라서 1장만 담았어요.' },
+)
+eq('사진: 가득 차면 담지 않고 알려 줌', mergePhotoFiles([photo(), photo(), photo(), photo(), photo()], [photo()]), {
+  files: [photo(), photo(), photo(), photo(), photo()],
+  error: '사진은 5장까지 올릴 수 있어요.',
+})
+eq('사진: 사진이 아닌 파일은 빼고 담음', mergePhotoFiles([], [photo(), photo('application/pdf')]).files, [photo()])
+eq('사진: 아무것도 안 고르면 그대로', mergePhotoFiles([photo()], []).files.length, 1)
 
 const hw = (patch: Partial<HomeworkSubmission> = {}): HomeworkSubmission => ({
   id: 'h1',

@@ -653,7 +653,9 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
                 setPhotos(next)
                 if (next.length > 0) setPhotoWarn(false)
               }}
-              disabled={busy || uploading}
+              /* 사진은 올리는 동안에만 잠근다. 일시정지·종료 요청(busy)이 늦게 끝나거나
+                 앱을 벗어났다 돌아와 요청이 멎어도 사진 고르기는 계속 열려야 한다. */
+              disabled={uploading}
               warn={photoWarn}
             />
           </div>

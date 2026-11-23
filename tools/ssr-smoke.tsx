@@ -493,13 +493,21 @@ const homeworkPickerHtml = rendered['HomeworkPhotoPicker(사진 없음)'] ?? ''
 const photoPagerHtml = rendered['PhotoPager(사진 2장)'] ?? ''
 const homeworkPanelHtml = rendered['HomeworkPanel(관리자 숙제관리)'] ?? ''
 const homeworkResultHtml = rendered['ResultScreen(숙제 승인 대기)'] ?? ''
+/* 사진 input 태그 — 카메라(바로 찍기) / 앨범 */
+const cameraInputTag = homeworkPickerHtml.match(/<input[^>]*data-photo-input="camera"[^>]*>/)?.[0] ?? ''
+const albumInputTag = homeworkPickerHtml.match(/<input[^>]*data-photo-input="album"[^>]*>/)?.[0] ?? ''
+
 const homeworkChecks: [string, boolean][] = [
   ['숙제: 지난 숙제 제출 창 제목', pendingHomeworkHtml.includes('지난 숙제 공부 제출')],
   ['숙제: 지난 숙제에도 확정 안내 문구', pendingHomeworkHtml.includes('오늘 공부한 페이지를 찍어올리고 푼 문제수를 적어주세요')],
   ['숙제: 지난 제출 요약', pendingHomeworkHtml.includes('11월 21일') && pendingHomeworkHtml.includes('1시간 20분')],
-  ['숙제: 지난 제출에 사진 고르기', pendingHomeworkHtml.includes('공부한 페이지 사진') && pendingHomeworkHtml.includes('찍기·고르기')],
+  ['숙제: 지난 제출에 사진 고르기', pendingHomeworkHtml.includes('공부한 페이지 사진') && pendingHomeworkHtml.includes('바로 찍기') && pendingHomeworkHtml.includes('앨범에서 고르기')],
   ['숙제: 지난 제출에 제출 버튼', pendingHomeworkHtml.includes('>제출<')],
   ['숙제: 사진 고르기 최대 5장 표시', homeworkPickerHtml.includes('0/5') && homeworkPickerHtml.includes('푼 문제가 있으면 사진을 1장 이상')],
+  ['숙제: 바로 찍기·앨범에서 고르기 두 버튼', homeworkPickerHtml.includes('📷 바로 찍기') && homeworkPickerHtml.includes('🖼️ 앨범에서 고르기')],
+  ['숙제: 카메라는 capture=environment · 한 장', cameraInputTag.includes('capture="environment"') && !cameraInputTag.includes('multiple')],
+  ['숙제: 앨범은 여러 장(multiple)', albumInputTag.includes('multiple') && !albumInputTag.includes('capture')],
+  ['숙제: 사진 input 은 숨기지 않고 투명 오버레이', cameraInputTag.includes('opacity-0') && !cameraInputTag.includes('hidden') && albumInputTag.includes('opacity-0')],
   ['숙제: 사진 크게 보기 좌우 넘기기', photoPagerHtml.includes('1 / 2') && photoPagerHtml.includes('이전 사진') && photoPagerHtml.includes('다음 사진')],
   ['숙제: 관리자 숙제관리 탭 내용', homeworkPanelHtml.includes('숙제 제출 확인') && homeworkPanelHtml.includes('승인 대기')],
   ['숙제: 관리자 필터 네 가지', ['승인 대기', '승인', '반려', '전체'].every((label) => homeworkPanelHtml.includes(label))],

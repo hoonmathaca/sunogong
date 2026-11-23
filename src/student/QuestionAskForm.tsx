@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Spinner } from '../components/Keypad'
+import { PhotoInputButton } from '../components/PhotoInputButton'
 import * as questionsApi from '../lib/questions'
 import { QUESTION_MEMO_MAX } from '../lib/questionBoard'
 import type { StudyQuestion } from '../lib/types'
@@ -104,34 +105,20 @@ export function QuestionAskForm({
 
   return (
     <div className="flex flex-col gap-3">
-      <input
-        ref={cameraRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="hidden"
-        onChange={(event) => pickFile(event.target.files?.[0] ?? null)}
-      />
-      <input
-        ref={albumRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(event) => pickFile(event.target.files?.[0] ?? null)}
-      />
-
       {file && previewUrl ? (
         <div className="relative overflow-hidden rounded-2xl border border-blue-line bg-blue-soft/40">
           <img src={previewUrl} alt="올릴 문제 사진" className={`w-full object-contain ${compact ? 'max-h-[180px]' : 'max-h-[240px]'}`} />
           <div className="absolute right-2 top-2 flex gap-1.5">
-            <button
-              type="button"
-              onClick={() => albumRef.current?.click()}
+            <PhotoInputButton
+              name="retake"
+              label="다시 고르기"
+              multiple
               disabled={busy}
-              className="rounded-full bg-white/95 px-3 py-1.5 text-[11px] font-bold text-navy shadow-sm disabled:opacity-50"
-            >
-              다시 고르기
-            </button>
+              inputRef={albumRef}
+              onFiles={(picked) => pickFile(picked[0] ?? null)}
+              tone="plain"
+              className="h-[30px] rounded-full bg-white/95 px-3 text-[11px] text-navy shadow-sm"
+            />
             <button
               type="button"
               onClick={reset}
@@ -147,22 +134,26 @@ export function QuestionAskForm({
           <p className="text-[13px] font-bold text-[#4A28A0]">문제 사진을 찍거나 골라 주세요</p>
           <p className="mt-1 text-[11px] font-semibold text-[#5B2FC0]/60">사진은 자동으로 줄여서 올라가요</p>
           <div className="mt-3 flex gap-2">
-            <button
-              type="button"
-              onClick={() => cameraRef.current?.click()}
+            <PhotoInputButton
+              name="camera"
+              label="📷 사진 찍기"
+              capture
+              tone="primary"
               disabled={busy}
-              className="h-11 flex-1 rounded-xl bg-[#6D3BD6] text-[14px] font-bold text-white transition active:scale-[0.98] disabled:opacity-50"
-            >
-              📷 사진 찍기
-            </button>
-            <button
-              type="button"
-              onClick={() => albumRef.current?.click()}
+              inputRef={cameraRef}
+              onFiles={(picked) => pickFile(picked[0] ?? null)}
+              className="h-11 flex-1 rounded-xl text-[14px]"
+            />
+            <PhotoInputButton
+              name="album"
+              label="🖼️ 앨범에서"
+              multiple
+              tone="plain"
               disabled={busy}
-              className="h-11 flex-1 rounded-xl border border-[#6D3BD6]/25 bg-white text-[14px] font-bold text-[#4A28A0] transition active:scale-[0.98] disabled:opacity-50"
-            >
-              🖼️ 앨범에서
-            </button>
+              inputRef={albumRef}
+              onFiles={(picked) => pickFile(picked[0] ?? null)}
+              className="h-11 flex-1 rounded-xl border border-[#6D3BD6]/25 bg-white text-[14px] text-[#4A28A0]"
+            />
           </div>
         </div>
       )}
