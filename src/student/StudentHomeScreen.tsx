@@ -426,21 +426,14 @@ export function StudentHomeScreen({
         ) : null}
       </div>
 
+      {/* 학원 공부는 출훈(등·하원)이 자동으로 시작한다 — 2026-11-26 시작 버튼 제거 */}
       <div className="px-5 pb-1">
         <div className="flex flex-col gap-2">
           <button
             type="button"
-            onClick={() => onStart('academy')}
-            disabled={busy}
-            className="btn-navy h-[54px] w-full text-lg"
-          >
-            {busy ? <Spinner className="h-5 w-5 border-white/40 border-t-white" /> : `${KIND_EMOJI.academy} ${KIND_LABEL.academy} 시작`}
-          </button>
-          <button
-            type="button"
             onClick={() => onStart('homework')}
             disabled={busy}
-            className="h-[54px] w-full rounded-2xl bg-[#6D3BD6] text-lg font-bold text-white shadow-soft transition active:opacity-90 disabled:opacity-60"
+            className="h-[56px] w-full rounded-2xl bg-[#6D3BD6] text-lg font-bold text-white shadow-soft transition active:opacity-90 disabled:opacity-60"
           >
             {busy ? <Spinner className="h-5 w-5 border-white/40 border-t-white" /> : `${KIND_EMOJI.homework} ${KIND_LABEL.homework} 시작`}
           </button>

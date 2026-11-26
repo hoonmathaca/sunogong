@@ -7,6 +7,7 @@
  *   · 저장 → 결과 화면에 「✏️ 문제 수 수정」 → 창에서 20 으로 고치면 합계까지 바뀐다
  *   · 홈에서도 「✏️ 문제 수 수정」 → 0 으로 고치면 홈 숫자가 바뀐다
  *   · 999 초과 입력은 창에서 막히고 DB 값은 그대로다
+ *   · 홈에는 '학원 공부 시작' 버튼이 없고(2026-11-26 제거) '숙제 공부 시작'으로 숙제 타이머가 열린다
  *   · 360px 화면에서 잘리지 않는다 (가로 넘침 없음)
  * 검증용 학생·세션·기록은 끝나고 지운다.
  */
@@ -200,11 +201,15 @@ try {
   check('360px: 가로 넘침 없음', overflow.scrollWidth <= overflow.clientWidth + 1, JSON.stringify(overflow))
   await page.screenshot({ path: `${shotDir}/sunogong-student-edit-problems-home-360.png` })
 
-  /* 공부 더 하기 → 새 세션은 문제 수 창을 다시 열어 999 상한이 그대로인지 본다 */
-  await page.getByRole('button', { name: /학원 공부 시작|공부 더 하기/ }).first().click()
+  /* 2026-11-26 — 홈에는 '학원 공부 시작' 버튼이 없고, 숙제 공부 시작으로 타이머가 열린다 */
+  const homeStartText = (await page.locator('body').innerText()).replace(/\s+/g, ' ')
+  check('홈: 학원 공부 시작 버튼 없음', !homeStartText.includes('학원 공부 시작'), homeStartText.slice(0, 200))
+  const homeworkStart = page.getByRole('button', { name: /숙제 공부 시작/ }).first()
+  check('홈: 숙제 공부 시작 버튼 있음', await homeworkStart.isVisible())
+  await homeworkStart.click()
   await page.waitForTimeout(1200)
-  const onTimer = (await page.locator('body').innerText()).includes('학원 공부는 화면이 꺼져도 계속 가요')
-  check('학원 공부 다시 시작', onTimer)
+  const onHomeworkTimer = (await page.locator('body').innerText()).includes('숙제 공부는 화면을 끄거나 나가면 멈춰요')
+  check('숙제 공부 시작 → 숙제 타이머', onHomeworkTimer)
 } finally {
   if (browser) await browser.close().catch(() => {})
   await supabase.from('homework_submissions').delete().eq('student_id', student.id)

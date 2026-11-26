@@ -39,6 +39,8 @@ export function ResultScreen({ student, result, reason, onHome, onAgain, busy = 
   /* 오늘 학원 공부 기록이 있으면 결과 화면에서도 문제 수를 바로 고칠 수 있다 */
   const canEditProblems =
     kind === 'academy' && !pending && !nothing && !result.discarded && hasTodayAcademy(todaySplit)
+  /* 학원 공부는 출훈(등·하원)이 시작한다 — 2026-11-26 부터 여기서 학원 공부를 다시 시작하지 않는다 */
+  const canAgain = kind !== 'academy'
   const totalProblems = log?.problems ?? result.total_problems
 
   return (
@@ -137,14 +139,16 @@ export function ResultScreen({ student, result, reason, onHome, onAgain, busy = 
           <button type="button" onClick={onHome} className="h-[52px] flex-1 rounded-2xl bg-white/15 font-bold text-white">
             홈으로
           </button>
-          <button
-            type="button"
-            onClick={onAgain}
-            disabled={busy}
-            className="h-[52px] flex-1 rounded-2xl bg-white font-bold text-navy disabled:opacity-60"
-          >
-            공부 더 하기
-          </button>
+          {canAgain ? (
+            <button
+              type="button"
+              onClick={onAgain}
+              disabled={busy}
+              className="h-[52px] flex-1 rounded-2xl bg-white font-bold text-navy disabled:opacity-60"
+            >
+              공부 더 하기
+            </button>
+          ) : null}
         </div>
       </div>
 

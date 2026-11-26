@@ -483,6 +483,8 @@ const checks: [string, boolean][] = [
   ['학원: 화면 꺼져도 계속 간다는 안내', academyHtml.includes('학원 공부는 화면이 꺼져도 계속 가요')],
   ['학원: 화면보호 모드 버튼 없음', !academyHtml.includes('화면보호 모드')],
   ['숙제: 홈 안내 문구', (rendered['StudentHomeScreen'] ?? '').includes('숙제 공부는 화면을 끄거나 나가면 멈춰요')],
+  ['홈: 학원 공부 시작 버튼 없음(2026-11-26 제거)', !(rendered['StudentHomeScreen'] ?? '').includes('학원 공부 시작')],
+  ['홈: 숙제 공부 시작 버튼은 그대로', (rendered['StudentHomeScreen'] ?? '').includes('숙제 공부 시작')],
   ['PC 안내: 스마트폰·태블릿에서만 안내', (rendered['DesktopBlockScreen(PC 안내)'] ?? '').includes('스마트폰 또는 태블릿에서만')],
   ['PC 안내: 관리자 페이지 링크', (rendered['DesktopBlockScreen(PC 안내)'] ?? '').includes('href="/admin"')],
 ]
@@ -731,6 +733,8 @@ const problemChecks: [string, boolean][] = [
   ['문제 수정: 기록 없는 결과 화면에는 버튼 없음', !plainResultHtml.includes('문제 수 수정')],
   ['문제 수정: 숙제 승인 대기 화면에는 버튼 없음', !homeworkResultHtml.includes('문제 수 수정')],
   ['문제 수정: 관리자 수업 종료 입력칸 max 999', endStudyHtml.includes('max="999"')],
+  ['학원: 결과 화면에 공부 더 하기 없음(학원은 출훈이 시작)', !academyResultHtml.includes('공부 더 하기')],
+  ['숙제: 결과 화면에 공부 더 하기는 그대로', homeworkResultHtml.includes('공부 더 하기')],
 ]
 for (const [name, ok] of problemChecks) {
   if (!ok) failed += 1
