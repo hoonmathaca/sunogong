@@ -374,8 +374,9 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
         <p className="text-center text-navy/60">진행 중인 공부가 없어요.</p>
         {error ? <p className="mt-3 text-center text-sm text-red-500">{error}</p> : null}
         <div className="mt-6 flex flex-col gap-2">
-          <button type="button" className="btn-navy" onClick={() => void timer.start()}>
-            공부 시작
+          {/* 학원 공부는 출훈이 시작한다 — 2026-11-26 부터 여기서 시작하는 것은 숙제 공부뿐 */}
+          <button type="button" className="btn-navy" onClick={() => void timer.start('homework')}>
+            🏠 숙제 공부 시작
           </button>
           <button type="button" className="btn-outline" onClick={onExit}>
             홈으로
