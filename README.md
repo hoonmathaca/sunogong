@@ -666,8 +666,15 @@ select public.cleanup_stale_study_sessions();
 **바뀐 곳**
 - `src/student/StudentHomeScreen.tsx` — 홈 아래 버튼이 `🏠 숙제 공부 시작` 하나가 됐다(높이 56px, 숙제 색 보라 `#6D3BD6` 그대로).
 - `src/student/ResultScreen.tsx` — 학원 공부 결과 화면에서 `공부 더 하기` 를 숨기고 `홈으로` 만 남긴다(출훈이 끝낸 학원 세션을 학생이 선오공에서 다시 시작하지 않도록). 숙제 공부 결과 화면의 `공부 더 하기` 는 예전과 같다.
+- `src/student/TimerScreen.tsx` — 진행 중인 세션이 없을 때 뜨는 빈 화면의 `공부 시작` 버튼이 (기본값 `academy` 로) 몰래 학원 세션을 여는 길이라 `🏠 숙제 공부 시작` 으로 바꿨다.
 - 학원 공부 타이머·문제 수(0~999) 수정·지난번 푼 문제 수·근두운·통계는 그대로다. 출훈이 시작한 학원 세션은 선오공을 열면 예전처럼 타이머로 이어 보여 준다.
 
 **그대로 둔 것** — 숙제 공부 시작, 드래곤볼·근두운·성구·교환권, 숙제 제출·`숙제관리`, 질문함, 랭킹, 학원/숙제 분리 통계, 마이그레이션, DB 함수(`start_session`·`finish_session`·`admin_end_study_session`·`study_sessions`·`study_logs` 등). 출훈이 부르는 함수도 손대지 않았다.
 
 **검증** — 단위 **509건** 통과, 스모크 **191건** 통과(새 확인 4건: 홈에 `학원 공부 시작` 없음 · `숙제 공부 시작` 있음, 학원 결과 화면에 `공부 더 하기` 없음 · 숙제 결과 화면에는 있음), `npm run build` 통과.
+
+**실서비스 확인** (배포본 `https://sunogong.vercel.app`, 새 번들 `index-BPIb71nf.js`, 360×780)
+- `node tools/check-academy-start-removed.mjs https://sunogong.vercel.app` — **12건 통과**: 홈에 `학원 공부 시작` 없음 · `🏠 숙제 공부 시작` 있음(보라, 높이 56px, 360px 안) · 누르면 숙제 타이머 · 출훈이 시작한 것처럼 만든 학원 세션은 선오공 학원 타이머로 그대로 이어짐 · 종료 뒤 결과 화면에 `공부 더 하기` 없이 `홈으로` 만 · DB에 학원 25분·5문제 기록. 검증용 학생·세션·기록은 지워 0건.
+- `node tools/check-problems-edit-ui.mjs` — **27건 통과**(기존 25건 + `홈: 학원 공부 시작 버튼 없음` · `숙제 공부 시작 → 숙제 타이머`), 가로 넘침 없음(`scrollWidth 360`).
+- 스크린샷: `downloads/sunogong-home-homework-start-only-360.png`(홈 아래 `🏠 숙제 공부 시작` 하나), `downloads/sunogong-academy-result-no-again-360.png`(학원 결과 화면 — `홈으로` 만).
+- 컴퓨터 브라우저로 열면 예전처럼 `스마트폰 또는 태블릿에서만 이용할 수 있어요` 안내가 뜨므로, 학생 화면 확인은 휴대폰 화면(360×780)으로 했다.

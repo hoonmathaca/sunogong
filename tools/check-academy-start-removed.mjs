@@ -95,11 +95,18 @@ try {
   await homeworkStart.click()
   await page.waitForTimeout(1500)
   check('숙제 공부 시작 → 숙제 타이머', (await text(page)).includes('숙제 공부는 화면을 끄거나 나가면 멈춰요'))
-  await page.getByRole('button', { name: '홈으로' }).first().click().catch(() => {})
-  await page.waitForTimeout(800)
-  await run(supabase.from('study_sessions').delete().eq('student_id', student.id))
 
   /* ── 3) 출훈이 시작한 학원 세션은 예전처럼 이어 보인다 ───────────────── */
+  /* 숙제 세션은 관리자 「수업 종료」처럼 마무리하고(문제 수 0), 저장된 학생을 지워 코드 입력부터 다시 */
+  const openHw = await run(
+    supabase.from('study_sessions').select('id,kind').eq('student_id', student.id).is('ended_at', null).maybeSingle(),
+  )
+  if (openHw?.id) {
+    await run(supabase.rpc('admin_end_study_session', { p_session_id: openHw.id, p_problems: 0 }))
+    check('준비: 숙제 세션 정리', openHw.kind === 'homework', openHw.kind)
+  }
+  await page.evaluate(() => localStorage.clear())
+
   const session = await run(supabase.rpc('start_session', { p_student_id: student.id, p_kind: 'academy' }))
   await run(
     supabase
