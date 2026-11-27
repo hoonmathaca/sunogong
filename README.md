@@ -786,10 +786,11 @@ select public.cleanup_stale_study_sessions();
 **검증**
 - `supabase/verify-2026-11-28-academy-homework-block.sql` — 운영 DB에서 **11건 전부 통과**: 등원 중 숙제 시작 거부(함수·anon 경로) · 거부 뒤 세션 1건 그대로 · 일시정지 상태에서도 거부 · `p_kind='academy'` 는 같은 세션 반환 · 하원 뒤 숙제 시작 · 숙제 두 번 시작은 같은 세션 · 숙제 진행 중 학원 시작은 그대로 · 0분 정산은 대기 없음 · 5분 정산은 대기 1건 · 0분 유령 대기 전체 0건.
 - 단위 **524건**(+12 — `isAcademySessionActive` 6건·`academy_session_active` 문구 2건 등), 스모크 **194건·36개 화면**(`StudentHomeScreen(학원 등원 중)` 추가 — 안내 문구·disabled·라벨·숙제 안내 숨김), `npm run build` 통과(새 번들 `index-BFOTv-95.js`).
-- 실서비스 확인 (`https://sunogong.vercel.app`, 360×780, `SB_SERVICE_KEY=… node tools/check-academy-homework-block.mjs <url>`) — **18건 전부 통과**
+- 실서비스 확인 (`https://sunogong.vercel.app`, 360×780, `SB_SERVICE_KEY=… node tools/check-academy-homework-block.mjs <url>`) — **21건 전부 통과**
   - 등원 전: 「숙제 공부 시작」이 눌린다 — `downloads/sunogong-home-homework-enabled-360.png`
   - 홈을 열어 둔 채 훈출 등원(`attendance_apply check_in`, 8분 전) → 안내 문구가 뜨고 버튼이 잠긴다 — `downloads/sunogong-home-academy-blocked-360.png`
   - 잠긴 버튼을 눌러도 타이머로 가지 않고, 같은 anon 키의 `start_session('homework')` 도 `academy_session_active` 로 거부(진행 중 세션은 학원 1건 그대로)
+  - 홈이 아직 잠기기 전(등원 직후 30초 안)에 누르면 빨간 안내 `학원 등원 중에는 숙제 공부를 시작할 수 없어요.` 가 뜨고 숙제 세션은 만들어지지 않는다 — `downloads/sunogong-home-academy-blocked-toast-360.png`
   - 훈출 하원(`check_out`) → 학원 세션이 8분으로 정산(`problems_pending=true`), 홈의 안내가 사라지고 버튼이 다시 눌린다 — `downloads/sunogong-home-homework-unlocked-360.png`
   - 하원 뒤 「숙제 공부 시작」 → 숙제 타이머, DB 에 숙제 세션 새로 열림·그날 기록 학원 8분 — `downloads/sunogong-homework-timer-after-checkout-360.png`
   - 검증용 학생·출결·세션·기록·포인트·감사 로그는 모두 지워 0건(원생 55명 그대로).

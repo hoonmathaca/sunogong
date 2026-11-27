@@ -219,6 +219,45 @@ try {
   const log = await run(supabase.from('study_logs').select('*').eq('student_id', student.id).maybeSingle())
   check('DB: 학원 8분이 그날 기록에 들어감', (log?.academy_minutes ?? 0) >= 8 && (log?.homework_minutes ?? 0) === 0,
     `academy=${log?.academy_minutes}, homework=${log?.homework_minutes}`)
+
+  /* ── 7) 화면이 아직 잠기기 전(홈을 연 직후)에 누르면 DB 거부 안내가 뜬다 ───── */
+  if (serviceKey) {
+  await run(supabase.rpc('admin_end_study_session', { p_session_id: homework.id, p_problems: 0 }))
+  const secondIn = new Date(Date.now() - 3 * 60_000).toISOString()
+  await page.evaluate(() => localStorage.clear())
+  await page.goto(`${base}/`, { waitUntil: 'networkidle' })
+  await page.waitForTimeout(400)
+  for (const digit of code) {
+    await page.getByRole('button', { name: digit, exact: true }).click()
+  }
+  await page.getByRole('button', { name: '확인', exact: true }).click()
+  await page.waitForTimeout(1200)
+  /* 홈이 아직 등원 전 상태(버튼 열림)인 사이에 훈출이 등원시킨 상황 */
+  const earlyIn = await run(
+    hunsu.rpc('attendance_apply', {
+      p_op: { op: 'check_in', student_id: student.id, seat_id: 'Z-2', client_id: randomUUID(), actor_kind: 'student', at: secondIn },
+    }),
+  )
+  const earlyButton = page.getByRole('button', { name: /숙제 공부 시작/ }).first()
+  const wasOpen = !(await earlyButton.isDisabled())
+  await earlyButton.click({ timeout: 3000 }).catch(() => {})
+  await page.waitForTimeout(1500)
+  const toastText = await text(page)
+  check('홈: 잠기기 전에 누르면 DB 거부 안내가 뜬다',
+    wasOpen && toastText.includes('학원 등원 중에는 숙제 공부를 시작할 수 없어요'),
+    `버튼 열림=${wasOpen}, 화면=${toastText.slice(-160)}`)
+  const noHomework = await run(
+    supabase.from('study_sessions').select('id,kind').eq('student_id', student.id).neq('status', 'finished'),
+  )
+  check('DB: 안내 뒤에도 숙제 세션은 없음(학원 1건)',
+    (noHomework ?? []).length === 1 && noHomework[0].kind === 'academy', JSON.stringify(noHomework))
+  await page.screenshot({ path: `${shotDir}/sunogong-home-academy-blocked-toast-360.png` })
+  await run(
+    hunsu.rpc('attendance_apply', {
+      p_op: { op: 'check_out', student_id: student.id, client_id: randomUUID(), actor_kind: 'staff', at: new Date().toISOString() },
+    }),
+  )
+  }
 } finally {
   if (browser) await browser.close().catch(() => {})
   /* 정리 — 훈출 키가 있으면 그쪽으로(출결·감사 로그까지 지울 수 있다), 없으면 앱 키로 */
