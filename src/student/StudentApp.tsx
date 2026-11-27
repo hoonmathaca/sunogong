@@ -3,6 +3,7 @@ import * as api from '../lib/api'
 import * as questionsApi from '../lib/questions'
 import { normalizeKind, type SessionKind } from '../lib/kinds'
 import { autoEndNotice } from '../lib/pauseWatch'
+import { isAcademySessionActive } from '../lib/session'
 import type { AutoEndResult, FinishResult, Student, StudySession } from '../lib/types'
 import { ChooseStudentScreen } from './ChooseStudentScreen'
 import { CodeEntryScreen } from './CodeEntryScreen'
@@ -71,6 +72,8 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
   const [flash, setFlash] = useState<string | null>(null)
   /* 방금 한 공부 종류 — 결과 화면의 "공부 더 하기" 가 같은 종류로 이어진다 */
   const [lastKind, setLastKind] = useState<SessionKind>('academy')
+  /* 학원 등원 중(훈출이 연 학원 세션) — 이때는 홈의 「숙제 공부 시작」을 잠근다 (2026-11-28) */
+  const [academyActive, setAcademyActive] = useState(false)
   /* 새로 온 선오공이 답변 수 (홈 배지) */
   const [unreadAnswers, setUnreadAnswers] = useState(0)
   /* 지난 공부를 마저 내면 홈의 숙제 제출 목록을 다시 읽게 하는 값 */
@@ -124,9 +127,11 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
       if (active.ok && active.data.discarded) setFlash(discardMessage('stale'))
       const found = active.ok ? active.data.session : null
       if (found && found.status !== 'finished') {
+        setAcademyActive(isAcademySessionActive(found))
         setInitialSession(found)
         setPhase('timer')
       } else {
+        setAcademyActive(false)
         setInitialSession(null)
         setPhase('home')
       }
@@ -164,8 +169,11 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
         // DB 마이그레이션 전에는 세션에 종류가 없으므로, 방금 고른 종류를 붙여 넘긴다
         setInitialSession({ ...res.data, kind: res.data.kind ?? kind })
         setLastKind(normalizeKind(res.data.kind ?? kind))
+        setAcademyActive(isAcademySessionActive(res.data))
         setPhase('timer')
       } else {
+        // 학원 등원 중 숙제 시작 거부 → 홈의 안내(버튼 잠금)도 바로 켠다
+        if (res.code === 'academy_session_active') setAcademyActive(true)
         setStartError(res.error)
       }
     } finally {
@@ -211,6 +219,30 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
     }
   }, [phase, student?.id])
 
+  /* 홈에 머무는 동안에도 학원 등원 여부를 확인한다 —
+   * 앱을 홈에 띄워 둔 사이 훈출이 등원시키면, 예전에는 그대로 「숙제 공부」가 눌려
+   * 학원 타이머가 켜졌다. 30초마다·화면이 다시 보일 때 진행 중 세션을 읽는다. */
+  useEffect(() => {
+    if (!student || phase !== 'home') return
+    let alive = true
+    const tick = async () => {
+      const res = await api.getActiveSession(student.id)
+      if (!alive || !res.ok) return
+      setAcademyActive(isAcademySessionActive(res.data.session))
+    }
+    void tick()
+    const timer = window.setInterval(() => void tick(), 30_000)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void tick()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      alive = false
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [student?.id, phase])
+
   return (
     <div className="min-h-dvh bg-white">
       {phase === 'code' ? <CodeEntryScreen onSubmit={handleCode} onAdmin={onAdmin} /> : null}
@@ -239,6 +271,7 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
           pendingHomework={pendingProblems.hasHomework}
           onPendingProblems={pendingProblems.reopen}
           refreshKey={homeRefresh}
+          academyActive={academyActive}
           busy={busy}
         />
       ) : null}

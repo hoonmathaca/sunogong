@@ -336,6 +336,7 @@ $$;
 
 -- 공부 시작 (이미 진행 중이면 그 세션을 그대로 돌려줌 → 타이머 화면 복귀)
 -- p_kind: 'academy'(학원 공부) 또는 'homework'(숙제 공부)
+-- (2026-11-28) 학원 등원 중(kind='academy' 활성)에는 숙제 공부 시작을 academy_session_active 로 거부한다
 drop function if exists public.start_session(uuid);
 
 create or replace function public.start_session(p_student_id uuid, p_kind text default 'academy')
@@ -353,6 +354,21 @@ begin
 
   if not exists (select 1 from public.students where id = p_student_id) then
     raise exception 'student_not_found' using errcode = 'P0002';
+  end if;
+
+  -- (2026-11-28) 학원 등원 중에는 숙제 공부를 시작하지 않는다.
+  --   예전에는 종류와 상관없이 진행 중인 세션을 돌려줘서, 재실 중 「숙제 공부」를 누르면
+  --   학원 타이머가 켜지고 그 시간이 학원 공부로 합산됐다.
+  if v_kind = 'homework' then
+    if exists (
+      select 1
+        from public.study_sessions
+       where student_id = p_student_id
+         and status in ('running', 'paused')
+         and coalesce(kind, 'academy') = 'academy'
+    ) then
+      raise exception 'academy_session_active' using errcode = 'P0001';
+    end if;
   end if;
 
   select * into s

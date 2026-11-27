@@ -348,6 +348,19 @@ const cases: [string, () => JSX.Element][] = [
   ],
   ['StudentHomeScreen', () => <StudentHomeScreen student={student} onStart={() => {}} onExit={() => {}} onQuestions={() => {}} unreadAnswers={2} />],
   [
+    'StudentHomeScreen(학원 등원 중)',
+    () => (
+      <StudentHomeScreen
+        student={student}
+        onStart={() => {}}
+        onExit={() => {}}
+        onQuestions={() => {}}
+        unreadAnswers={0}
+        academyActive
+      />
+    ),
+  ],
+  [
     'StudentHomeScreen(지난 공부 문제 수 있음)',
     () => (
       <StudentHomeScreen
@@ -484,6 +497,10 @@ const checks: [string, boolean][] = [
   ['숙제: 홈 안내 문구', (rendered['StudentHomeScreen'] ?? '').includes('숙제 공부는 화면을 끄거나 나가면 멈춰요')],
   ['홈: 학원 공부 시작 버튼 없음(2026-11-26 제거)', !(rendered['StudentHomeScreen'] ?? '').includes('학원 공부 시작')],
   ['홈: 숙제 공부 시작 버튼은 그대로', (rendered['StudentHomeScreen'] ?? '').includes('숙제 공부 시작')],
+  ['홈: 학원 등원 중 안내 문구', (rendered['StudentHomeScreen(학원 등원 중)'] ?? '').includes('학원 등원 중에는 숙제 공부를 시작할 수 없어요')],
+  ['홈: 학원 등원 중이면 숙제 버튼 잠금(disabled)', (rendered['StudentHomeScreen(학원 등원 중)'] ?? '').includes('disabled=""')],
+  ['홈: 학원 등원 중이면 버튼 라벨은 그대로', (rendered['StudentHomeScreen(학원 등원 중)'] ?? '').includes('숙제 공부 시작')],
+  ['홈: 학원 등원 중이면 숙제 안내 문구 숨김', !(rendered['StudentHomeScreen(학원 등원 중)'] ?? '').includes('숙제 공부는 화면을 끄거나 나가면 멈춰요')],
   ['PC 안내: 스마트폰·태블릿에서만 안내', (rendered['DesktopBlockScreen(PC 안내)'] ?? '').includes('스마트폰 또는 태블릿에서만')],
   ['PC 안내: 관리자 페이지 링크', (rendered['DesktopBlockScreen(PC 안내)'] ?? '').includes('href="/admin"')],
 ]

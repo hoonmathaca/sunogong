@@ -31,6 +31,8 @@ interface StudentHomeScreenProps {
   onPendingProblems?: () => void
   /** 지난 공부를 마저 내면 홈 목록을 다시 읽는다 (값이 바뀌면 새로 불러옴) */
   refreshKey?: number
+  /** 학원 등원 중(훈출이 연 학원 세션이 진행 중) — 숙제 공부를 시작할 수 없다 (2026-11-28) */
+  academyActive?: boolean
   busy?: boolean
 }
 
@@ -49,6 +51,7 @@ export function StudentHomeScreen({
   pendingHomework = false,
   onPendingProblems,
   refreshKey = 0,
+  academyActive = false,
   busy = false,
 }: StudentHomeScreenProps): JSX.Element {
   const [logs, setLogs] = useState<StudyLog[]>([])
@@ -429,17 +432,30 @@ export function StudentHomeScreen({
       {/* 학원 공부는 훈출(등·하원)이 자동으로 시작한다 — 2026-11-26 시작 버튼 제거 */}
       <div className="px-5 pb-1">
         <div className="flex flex-col gap-2">
+          {/* 학원 등원 중에는 숙제 공부를 시작할 수 없다 — DB(start_session)도 같은 규칙으로 거부한다 */}
+          {academyActive ? (
+            <div className="rounded-2xl bg-[#FFF4D6] px-4 py-3 text-center">
+              <p className="text-[13px] font-extrabold text-[#8A5A00]">🏫 학원 등원 중이에요</p>
+              <p className="mt-1 text-[11.5px] font-semibold leading-snug text-[#8A5A00]/80">
+                학원 등원 중에는 숙제 공부를 시작할 수 없어요. 하원한 뒤에 시작해 주세요.
+              </p>
+            </div>
+          ) : null}
           <button
             type="button"
             onClick={() => onStart('homework')}
-            disabled={busy}
-            className="h-[56px] w-full rounded-2xl bg-[#6D3BD6] text-lg font-bold text-white shadow-soft transition active:opacity-90 disabled:opacity-60"
+            disabled={busy || academyActive}
+            className={`h-[56px] w-full rounded-2xl text-lg font-bold text-white shadow-soft transition active:opacity-90 disabled:opacity-100 ${
+              academyActive ? 'bg-[#6D3BD6]/35' : 'bg-[#6D3BD6]'
+            }`}
           >
             {busy ? <Spinner className="h-5 w-5 border-white/40 border-t-white" /> : `${KIND_EMOJI.homework} ${KIND_LABEL.homework} 시작`}
           </button>
-          <p className="text-center text-[11px] font-semibold text-navy/40">
-            🏠 숙제 공부는 화면을 끄거나 나가면 멈춰요
-          </p>
+          {academyActive ? null : (
+            <p className="text-center text-[11px] font-semibold text-navy/40">
+              🏠 숙제 공부는 화면을 끄거나 나가면 멈춰요
+            </p>
+          )}
         </div>
       </div>
 

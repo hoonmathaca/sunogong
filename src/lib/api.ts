@@ -9,8 +9,32 @@ export const NOT_CONFIGURED_MESSAGE =
   'Supabase 연결 정보가 없어요. .env 의 VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY 를 채우고 다시 빌드해주세요.'
 
 export type ApiOk<T> = { ok: true; data: T }
-export type ApiFail = { ok: false; error: string }
+export type ApiFail = { ok: false; error: string; /** DB 가 돌려준 오류 코드 (알 수 있으면) */ code?: string }
 export type ApiResult<T> = ApiOk<T> | ApiFail
+
+/** 학원 등원 중에는 숙제 공부를 시작할 수 없다 (2026-11-28) */
+export const ACADEMY_HOMEWORK_BLOCK_MESSAGE = '학원 등원 중에는 숙제 공부를 시작할 수 없어요.'
+
+/** DB 함수가 돌려주는 오류 코드 — 예전 방식으로 다시 불러도 되는지 판단할 때 쓴다 */
+const ERROR_CODES = [
+  'academy_session_active',
+  'academy_too_short',
+  'academy_managed_by_kiosk',
+  'session_managed_by_kiosk',
+  'student_not_found',
+  'session_not_found',
+  'session_not_finished',
+  'problems_not_pending',
+  'problems_out_of_range',
+  'log_not_found',
+  'no_academy_today',
+  'invalid_code',
+] as const
+
+function errorCodeOf(raw: string): string | undefined {
+  const lower = raw.toLowerCase()
+  return ERROR_CODES.find((code) => lower.includes(code))
+}
 
 function rawMessage(error: unknown): string {
   if (!error) return '알 수 없는 오류가 발생했어요.'
@@ -47,6 +71,7 @@ export function friendlyError(error: unknown): string {
   if (raw.includes('session_not_finished')) return '아직 끝나지 않은 공부예요.'
   if (raw.includes('problems_not_pending')) return '이미 문제 수를 입력한 공부예요.'
   if (raw.includes('problems_out_of_range')) return PROBLEMS_LIMIT_MESSAGE
+  if (raw.includes('academy_session_active')) return ACADEMY_HOMEWORK_BLOCK_MESSAGE
   if (raw.includes('academy_too_short')) return '방금 시작한 학원 공부예요. 1분이 지난 뒤에 마무리해 주세요.'
   if (raw.includes('academy_managed_by_kiosk')) return '학원 공부는 훈출(등·하원)에서 하원하면 자동으로 마무리돼요.'
   if (raw.includes('session_managed_by_kiosk')) return '학원 공부는 훈출(등·하원)에서 하원하면 자동으로 마무리돼요.'
@@ -64,12 +89,13 @@ async function run<T>(
     const { data, error } = await thunk()
     if (error) {
       console.warn('[sunogong] supabase error:', error.message)
-      return { ok: false, error: friendlyError(error.message) }
+      return { ok: false, error: friendlyError(error.message), code: errorCodeOf(error.message) }
     }
     return { ok: true, data: (data as T) ?? (null as unknown as T) }
   } catch (error) {
     console.warn('[sunogong] request failed:', error)
-    return { ok: false, error: friendlyError(error) }
+    const raw = rawMessage(error)
+    return { ok: false, error: friendlyError(error), code: errorCodeOf(raw) }
   }
 }
 
@@ -183,6 +209,9 @@ export const startSession = async (
   await getActiveSession(studentId)
   const res = await rpc<StudySession>('start_session', { p_student_id: studentId, p_kind: kind })
   if (res.ok) return res
+  // 학원 등원 중(kind='academy' 활성)에 숙제 공부를 시작한 경우 — DB 가 일부러 거부한 것이라
+  // 예전 인자로 다시 부르지 않는다(다시 부르면 그 거부를 지나쳐 학원 세션을 돌려준다)
+  if (res.code === 'academy_session_active') return res
   // DB에 공부 종류(kind)가 아직 없으면 예전 방식으로 시작한다 (앱이 멈추지 않게)
   return rpc<StudySession>('start_session', { p_student_id: studentId })
 }

@@ -89,6 +89,10 @@ select id, public, file_size_limit from storage.buckets where id = 'homework-pho
 > - `supabase/migrate-2026-11-23-homework-photo-resume.sql` — 숙제 사진 초안(`draft_active`·`draft_problems`·`draft_open`, `save_homework_draft`·`clear_homework_draft`, 초안이 있어도 세션을 마무리하는 `close_homework_session`) (2026-11-23 운영 DB 적용 완료)
 > - `supabase/migrate-2026-11-23-admin-end-study.sql` — 관리자 「수업 종료」(`ended_by_admin`, `admin_end_study_session`, `study_session_state`) (2026-11-23 운영 DB 적용 완료)
 > - `supabase/migrate-2026-11-23-stale-session-cleanup.sql` — 지난 날짜 미종료 세션 자동 정리(`cleanup_stale_study_sessions`·`maybe_cleanup_stale_study_sessions`, pg_cron 매일 00:05 KST) (2026-11-23 운영 DB 적용 완료)
+> - `supabase/migrate-2026-11-27-academy-zero-end-guard.sql` — 학원 세션 0분 종료 가드(`study_session_guard`·`finish_session`·`pause_session`) (2026-11-27 운영 DB 적용 완료)
+> - `supabase/migrate-2026-11-27-pending-problems-save-fix.sql` — 가드가 앱 RPC까지 막던 역할 판별 수정(`study_session_guard` security invoker) (2026-11-27 운영 DB 적용 완료)
+> - `supabase/migrate-2026-11-28-academy-homework-block.sql` — 학원 등원 중 숙제 시작 차단(`start_session` → `academy_session_active`)·0분 정산 대기 가드(`settle_academy_session`) (2026-11-28 운영 DB 적용 완료)
+> - `supabase/fix-2026-11-28-1127-data.sql` — 2026-11-27 기록 이상 3건 정리(김도혁 131분 복구 · 정시훈 1분 중복 세션 · 이지빈 0분 유령 대기) (2026-11-28 운영 DB 적용 완료)
 
 ## 3. 실행 / 빌드
 

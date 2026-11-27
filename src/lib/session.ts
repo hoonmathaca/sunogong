@@ -44,6 +44,15 @@ export function elapsedMinutes(seconds: number): number {
 }
 
 /**
+ * 학원 등원 중인가 — 훈출(등·하원)이 연 학원 세션이 아직 진행 중(running/paused).
+ * 이때는 숙제 공부를 시작할 수 없다 (2026-11-28).
+ */
+export function isAcademySessionActive(session: StudySession | null | undefined): boolean {
+  if (!session || !session.id || session.status === 'finished') return false
+  return (session.kind ?? 'academy') === 'academy'
+}
+
+/**
  * 쉬는 중(일시정지)인 시간(초) — 서버 시각 보정값 기준.
  * 일시정지가 아니면 0.
  */

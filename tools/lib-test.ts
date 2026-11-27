@@ -3,7 +3,7 @@ import { addDays, formatHMS, formatMinutes, formatMinutesCompact, kstDateString,
 import { buildStats, hasScopedLog, indexLogs, longestStreakAllTime, longestStreakInRange, rankByKind, rankEntries, rankValue, scopeLabel, scopeShortLabel, scopedDays, scopedLogMinutes, scopedLogProblems, scopedMinutes, scopedProblems, splitLog, splitPercents, studentsWithoutKind, sumSplits } from '../src/lib/stats'
 import { editTotals, editValuesFromLog, normalizeEditValues } from '../src/lib/logEdit'
 import { hasTodayAcademy, problemsAfterAcademyEdit } from '../src/lib/problemsEdit'
-import { computeElapsedSeconds, isHeartbeatStale, pausedSecondsOf } from '../src/lib/session'
+import { computeElapsedSeconds, isAcademySessionActive, isHeartbeatStale, pausedSecondsOf } from '../src/lib/session'
 import {
   appendProblemDigit,
   autoEndNotice,
@@ -538,6 +538,14 @@ eq('경과(시작 전)', computeElapsedSeconds(baseSession, at('2026-11-19T00:50
 eq('하트비트 끊김(30초 초과)', isHeartbeatStale(baseSession, at('2026-11-19T01:10:31Z')), true)
 eq('하트비트 살아있음', isHeartbeatStale(baseSession, at('2026-11-19T01:10:10Z')), false)
 eq('하트비트(일시정지 중엔 해당 없음)', isHeartbeatStale({ ...baseSession, status: 'paused' }, at('2026-11-19T05:00:00Z')), false)
+
+/* 학원 등원 중 숙제 시작 차단 (2026-11-28) */
+eq('등원 중: 학원 세션 진행 중', isAcademySessionActive({ ...baseSession, kind: 'academy' }), true)
+eq('등원 중: 학원 세션 일시정지', isAcademySessionActive({ ...baseSession, kind: 'academy', status: 'paused' }), true)
+eq('등원 중: 끝난 학원 세션은 아님', isAcademySessionActive({ ...baseSession, kind: 'academy', status: 'finished' }), false)
+eq('등원 중: 숙제 세션은 아님', isAcademySessionActive({ ...baseSession, kind: 'homework' }), false)
+eq('등원 중: 종류가 없는 옛 세션은 학원으로 봄', isAcademySessionActive({ ...baseSession, kind: undefined }), true)
+eq('등원 중: 세션이 없으면 아님', [isAcademySessionActive(null), isAcademySessionActive(undefined)], [false, false])
 
 /* 쉬는 시간(일시정지) — 30분 알림 · 60분 자동 종료 */
 eq('쉬는 시간 상수', [PAUSE_CHECK_SECONDS, PAUSE_AUTO_END_SECONDS], [1800, 3600])
@@ -1506,5 +1514,7 @@ eq('문구: 훈출 세션 안내 — 훈출 표기', friendlyError('session_mana
 eq('문구: 훈출 세션 안내(academy_) — 훈출 표기', friendlyError('academy_managed_by_kiosk').includes('훈출(등·하원)'), true)
 eq('문구: 옛 표기(출훈) 없음', [friendlyError('session_managed_by_kiosk').includes('출훈'), friendlyError('academy_managed_by_kiosk').includes('출훈')], [false, false])
 eq('문구: 문제 수 이미 입력 안내', friendlyError('problems_not_pending'), '이미 문제 수를 입력한 공부예요.')
+eq('문구: 학원 등원 중 숙제 시작 안내', friendlyError('academy_session_active'), '학원 등원 중에는 숙제 공부를 시작할 수 없어요.')
+eq('문구: 학원 등원 중 안내는 옛 표기 없음', friendlyError('academy_session_active').includes('출훈'), false)
 
 console.log(failed === 0 ? 'ALL LIB TESTS PASSED' : `${failed} FAILED`)
