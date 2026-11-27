@@ -762,3 +762,44 @@ select public.cleanup_stale_study_sessions();
 - 같은 훈출 세션에서 `종료`를 누르면 `학원 공부는 훈출에서 하원하면 자동으로 마무리돼요` 가 보이고 세션은 `running` 그대로 — `downloads/sunogong-pending-problems-hint-360.png`
 - 지빈이(코드 3733) 계정: 같은 창이 뜨고 옛 표기 `출훈` 은 화면에 없음. 기록을 건드리지 않도록 `건너뛰기` 로 닫아 대기 1건 그대로 — `downloads/sunogong-pending-problems-jibin-360.png`
 - 검증용 학생·세션·기록·출결은 모두 지워 0건(원생 55명 그대로).
+
+---
+
+## 15. 학원 등원 중 「숙제 공부」 시작 차단 + 11/27 기록 3건 정리 (2026-11-28)
+
+**증상** — 훈출이 학원 세션을 열어 둔 동안(재실 중) 학생이 선오공 홈에서 「🏠 숙제 공부 시작」을 누르면 숙제 세션이 아니라 **학원 타이머**가 켜지고 그 시간이 학원 공부로 합산됐다. 2026-11-27 학원 세션 15건에 시작 이후 하트비트가 찍혀 있었다(앱이 그 세션 타이머를 띄우고 있었다는 뜻).
+
+**원인** — 운영 DB 의 `start_session(student, kind)` 가 그 학생의 **미종료 세션을 종류와 상관없이 그대로 돌려줬고**, 앱은 로그인만 해도 미종료 세션이 있으면 타이머로 직행한다. 홈은 등원 전에 열어 둔 화면 그대로 남아 있어 「숙제 공부」가 눌렸다.
+
+**고침**
+
+| 위치 | 내용 |
+|---|---|
+| `start_session` (DB RPC) | `p_kind='homework'` 인데 그 학생에게 활성(`running`/`paused`) `kind='academy'` 세션이 있으면 기존 세션을 돌려주지 않고 **`academy_session_active`** 로 거부. `p_kind='academy'`·진행 중 세션 조회는 예전 그대로. |
+| `settle_academy_session` (훈출 하원 정산) | `problems_pending = (s.problems is null and v_mins > 0)` — 0분 세션이 문제 수 대기를 남기지 않는다(`auto_end_paused_session`·`finish_session` 과 같은 규칙). |
+| 학생 홈 | `academyActive` prop — 등원 중이면 「숙제 공부 시작」 버튼을 **disabled** 로 잠그고 `🏫 학원 등원 중이에요 / 학원 등원 중에는 숙제 공부를 시작할 수 없어요. 하원한 뒤에 시작해 주세요.` 안내를 버튼 위에 띄운다. |
+| `StudentApp` | 홈에 머무는 동안 **30초마다·화면이 다시 보일 때** 진행 중 세션을 다시 읽어, 홈을 열어 둔 사이 훈출이 등원시켜도 바로 잠근다. `start_session` 이 `academy_session_active` 를 돌려주면 안내와 함께 버튼도 잠근다. |
+| `src/lib/api.ts` | `ApiFail.code` 로 DB 오류 코드를 전달한다. `academy_session_active` 는 **예전 인자(`p_kind` 없이)로 재시도하지 않는다** — 재시도하면 그 거부를 지나쳐 학원 세션을 돌려받기 때문. 문구는 `학원 등원 중에는 숙제 공부를 시작할 수 없어요.` |
+
+**훈출 쪽 영향 없음** — 등·하원은 `attendance_apply` 를 쓴다(등원: 학원 세션 생성·돌고 있는 숙제 세션은 승인 대기 제출로 정산 / 하원: `settle_academy_session`). `start_session` 의 학원 경로와 `settle_academy_session` 의 1분 이상 경로는 그대로이고, 실서비스 확인에서 훈출 등원→하원 흐름으로 8분이 정상 정산됐다.
+
+**검증**
+- `supabase/verify-2026-11-28-academy-homework-block.sql` — 운영 DB에서 **11건 전부 통과**: 등원 중 숙제 시작 거부(함수·anon 경로) · 거부 뒤 세션 1건 그대로 · 일시정지 상태에서도 거부 · `p_kind='academy'` 는 같은 세션 반환 · 하원 뒤 숙제 시작 · 숙제 두 번 시작은 같은 세션 · 숙제 진행 중 학원 시작은 그대로 · 0분 정산은 대기 없음 · 5분 정산은 대기 1건 · 0분 유령 대기 전체 0건.
+- 단위 **524건**(+12 — `isAcademySessionActive` 6건·`academy_session_active` 문구 2건 등), 스모크 **194건·36개 화면**(`StudentHomeScreen(학원 등원 중)` 추가 — 안내 문구·disabled·라벨·숙제 안내 숨김), `npm run build` 통과(새 번들 `index-BFOTv-95.js`).
+- 실서비스 확인 (`https://sunogong.vercel.app`, 360×780, `SB_SERVICE_KEY=… node tools/check-academy-homework-block.mjs <url>`) — **18건 전부 통과**
+  - 등원 전: 「숙제 공부 시작」이 눌린다 — `downloads/sunogong-home-homework-enabled-360.png`
+  - 홈을 열어 둔 채 훈출 등원(`attendance_apply check_in`, 8분 전) → 안내 문구가 뜨고 버튼이 잠긴다 — `downloads/sunogong-home-academy-blocked-360.png`
+  - 잠긴 버튼을 눌러도 타이머로 가지 않고, 같은 anon 키의 `start_session('homework')` 도 `academy_session_active` 로 거부(진행 중 세션은 학원 1건 그대로)
+  - 훈출 하원(`check_out`) → 학원 세션이 8분으로 정산(`problems_pending=true`), 홈의 안내가 사라지고 버튼이 다시 눌린다 — `downloads/sunogong-home-homework-unlocked-360.png`
+  - 하원 뒤 「숙제 공부 시작」 → 숙제 타이머, DB 에 숙제 세션 새로 열림·그날 기록 학원 8분 — `downloads/sunogong-homework-timer-after-checkout-360.png`
+  - 검증용 학생·출결·세션·기록·포인트·감사 로그는 모두 지워 0건(원생 55명 그대로).
+
+**11/27 기록 정리** (`supabase/fix-2026-11-28-1127-data.sql`, 운영 DB 적용 완료 · audit_log 190~192)
+
+| 대상 | 정리 전 | 정리 후 |
+|---|---|---|
+| 김도혁 11/27 학원 | 등원 15:36:37~하원 17:48:24 인데 세션 `eaf72fa1…` 이 0분 종료, 그날 기록 0분 | 세션 `minutes=131`·`ended_at=하원시각`·`problems_pending=true`, 기록 131분. 다음 접속 때 「지난번 푼 문제 수」로 131분 건을 묻는다 (정이든 91분 복구와 같은 방식, `restore_study_minutes`) |
+| 정시훈 11/27 | 220분 세션 `a08c9270…` + 키오스크 토큰 버그로 겹친 1분 세션 `777712fc…`, 기록 221분·대기 2건 | 1분 세션 삭제·기록 220분·대기 1건(`remove_duplicate_session`). 훈출 출결 줄(`0691df92…`, C-5 15:29~15:30)은 훈출 기록이라 그대로 두고 `study_session_id` 만 FK 로 비었다 |
+| 이지빈 11/27 | 0분 세션 `6d6932c9…`·`c3e9b6b8…` 이 `problems_pending=true`(학생 화면엔 안 뜨는 유령 대기) | `problems=0`·`problems_pending=false`(`clear_stale_problem_pending`). 전체 대기 43→41건, 0분 대기 0건 |
+
+**남은 것** — 정시훈 출결 2건 중 1분짜리(`0691df92…`)는 훈출 화면에 그대로 남아 있다(선오공 기록과 무관). 지우려면 훈출 쪽에서 판단해야 한다.
