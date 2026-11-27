@@ -243,7 +243,7 @@ export function HomeworkPanel({ onPendingChange }: HomeworkPanelProps): JSX.Elem
                       onClick={() => openReview(submission)}
                       className="flex w-full items-center gap-2 rounded-2xl border border-blue-line bg-white px-3 py-2.5 text-left transition active:scale-[0.995] hover:bg-blue-soft/40"
                     >
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#EDE4FF] text-[15px]" aria-hidden="true">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#FFF1F0] text-[15px]" aria-hidden="true">
                         🏠
                       </span>
                       <span className="min-w-0 flex-1">
@@ -328,14 +328,14 @@ export function HomeworkPanel({ onPendingChange }: HomeworkPanelProps): JSX.Elem
                   {studyWindowText(review.submission.started_at, review.submission.ended_at) || '—'}
                 </span>
                 <span className="font-semibold text-navy/45">제출 공부 시간</span>
-                <span className="text-right font-bold text-[#5B2FC0] tabular">
+                <span className="text-right font-bold text-[#D9382F] tabular">
                   {review.submission.submitted_minutes}분
                 </span>
-                <span className="font-semibold text-navy/45">제출 문제 수</span>
-                <span className="text-right font-bold text-[#5B2FC0] tabular">
+                <span className="font-semibold text-navy/45">제출 숙제 수</span>
+                <span className="text-right font-bold text-[#D9382F] tabular">
                   {review.submission.submitted_problems === null
                     ? '미입력'
-                    : `${review.submission.submitted_problems}문제`}
+                    : `숙제 ${review.submission.submitted_problems}개`}
                 </span>
               </div>
             </div>
@@ -399,15 +399,15 @@ export function HomeworkPanel({ onPendingChange }: HomeworkPanelProps): JSX.Elem
                   onChange={(next) => patchReview({ timeApproved: next })}
                 />
                 <VerdictRow
-                  label="문항수"
+                  label="숙제 수"
                   value={
                     review.submission.submitted_problems === null
-                      ? '문제 수 미입력'
-                      : `${review.submission.submitted_problems}문제`
+                      ? '숙제 수 미입력'
+                      : `숙제 ${review.submission.submitted_problems}개`
                   }
                   approved={review.problemsApproved}
                   disabled={review.submission.submitted_problems === null}
-                  disabledNote="문제 수가 없어 승인할 수 없어요 (반려 = 0문제)"
+                  disabledNote="숙제 수가 없어 승인할 수 없어요 (반려하면 0개)"
                   onChange={(next) => patchReview({ problemsApproved: next })}
                 />
               </div>
@@ -463,7 +463,7 @@ export function HomeworkPanel({ onPendingChange }: HomeworkPanelProps): JSX.Elem
             {review.submission.status !== 'pending' ? (
               <div className="space-y-1.5">
                 <p className="rounded-2xl bg-blue-soft px-3 py-2 text-center text-[12px] font-semibold text-navy/60">
-                  이미 확인한 제출이에요 ({submissionStatusLabel(review.submission)} · {approvedLine(review.submission) || '0분 · 0문제'})
+                  이미 확인한 제출이에요 ({submissionStatusLabel(review.submission)} · {approvedLine(review.submission) || '0분 · 숙제 0개'})
                 </p>
                 {review.submission.status === 'approved' && teacherCommentText(review.submission) ? (
                   <p className="break-keep rounded-2xl border border-[#B9E8CE] bg-[#E9FAF0] px-3 py-2 text-[12px] font-semibold text-[#177A4A]">
@@ -477,7 +477,7 @@ export function HomeworkPanel({ onPendingChange }: HomeworkPanelProps): JSX.Elem
 
             {review.submission.status === 'pending' && !review.timeApproved && !review.problemsApproved ? (
               <p className="rounded-2xl bg-[#FDECEC] px-3 py-2 text-center text-[11.5px] font-semibold text-[#B32B2B]">
-                모두 반려예요. 저장하면 이 제출은 0분·0문제로 확정돼요.
+                모두 반려예요. 저장하면 이 제출은 0분·숙제 0개로 확정돼요.
               </p>
             ) : null}
           </div>

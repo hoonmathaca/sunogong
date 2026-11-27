@@ -223,8 +223,8 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
         '숙제 공부(분)',
         '공부시간(분)',
         '공부시간',
-        '학원 문제',
-        '숙제 문제',
+        '학원 푼 숙제',
+        '숙제 공부 푼 숙제',
         '푼 숙제 수',
       ])
       for (const stat of stats) {
@@ -250,9 +250,9 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
     } else {
       const header: string[] = ['학년', '이름', '코드']
       for (const date of dates) {
-        header.push(`${date} 공부(분)`, `${date} 문제`)
+        header.push(`${date} 공부(분)`, `${date} 푼 숙제`)
       }
-      header.push('합계(분)', '학원 공부(분)', '숙제 공부(분)', '합계 문제', '학원 문제', '숙제 문제')
+      header.push('합계(분)', '학원 공부(분)', '숙제 공부(분)', '합계 푼 숙제', '학원 푼 숙제', '숙제 공부 푼 숙제')
       rows.push(header)
       for (const stat of stats) {
         const row: (string | number)[] = [normalizeGrade(stat.student.grade), stat.student.name, stat.student.code]
@@ -342,19 +342,19 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
         <StatCard
           label="🏫 학원 공부"
           value={formatMinutes(totals.academyMinutes)}
-          sub={`문제 ${totals.academyProblems}개`}
+          sub={`푼 숙제 ${totals.academyProblems}개`}
           tone="academy"
         />
         <StatCard
           label="🏠 숙제 공부"
           value={formatMinutes(totals.homeworkMinutes)}
-          sub={`문제 ${totals.homeworkProblems}개`}
+          sub={`푼 숙제 ${totals.homeworkProblems}개`}
           tone="homework"
         />
         <StatCard
           label={scope === 'all' ? '합계' : `${scopeShortLabel(scope)} 합계`}
           value={formatMinutes(scopeMinutesTotal)}
-          sub={`문제 ${scopeProblemsTotal}개`}
+          sub={`푼 숙제 ${scopeProblemsTotal}개`}
         />
         <StatCard
           label={scope === 'all' ? '1인당 평균' : `${scopeShortLabel(scope)} 1인당`}
@@ -510,7 +510,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
               const avgProblems = count
                 ? sectionStats.reduce((sum, stat) => sum + scopedProblems(stat, scope), 0) / count
                 : 0
-              const problemHeading = scope === 'all' ? '문제' : scope === 'academy' ? '🏫 문제' : '🏠 문제'
+              const problemHeading = scope === 'all' ? '푼 숙제' : scope === 'academy' ? '🏫 푼 숙제' : '🏠 푼 숙제'
               const isCollapsed = Boolean(collapsed[section.grade])
               return (
                 <div key={section.grade} className="overflow-hidden rounded-2xl border border-blue-line">
@@ -531,13 +531,13 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                     </span>
                     <span className="text-right text-[11px] font-semibold text-navy/55 tabular">
                       {scope === 'all' ? '평균' : `${scopeShortLabel(scope)} 평균`} {formatMinutes(avgMinutes)} ·{' '}
-                      {Math.round(avgProblems)}문제
+                      푼 숙제 {Math.round(avgProblems)}개
                       <span className="mt-0.5 block text-[10px] font-bold">
-                        <span className={scope === 'homework' ? 'text-navy/30' : 'text-navy/60'}>
+                        <span className={scope === 'homework' ? 'text-[#1D4A9B]/30' : 'text-[#1D4A9B]/85'}>
                           🏫 {formatMinutesCompact(count ? sectionTotals.academyMinutes / count : 0)}
                         </span>
                         <span className="text-navy/20"> · </span>
-                        <span className={scope === 'academy' ? 'text-[#5B2FC0]/30' : 'text-[#5B2FC0]/85'}>
+                        <span className={scope === 'academy' ? 'text-[#D9382F]/30' : 'text-[#D9382F]/85'}>
                           🏠 {formatMinutesCompact(count ? sectionTotals.homeworkMinutes / count : 0)}
                         </span>
                       </span>
@@ -568,10 +568,10 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                             >
                               {stat.student.name}
                             </button>
-                            <span className={`text-right font-semibold tabular ${scope === 'homework' ? 'text-navy/30' : 'text-navy/80'}`}>
+                            <span className={`text-right font-semibold tabular ${scope === 'homework' ? 'text-[#1D4A9B]/30' : 'text-[#1D4A9B]'}`}>
                               {formatMinutes(stat.academyMinutes)}
                             </span>
-                            <span className={`text-right font-semibold tabular ${scope === 'academy' ? 'text-[#5B2FC0]/30' : 'text-[#5B2FC0]'}`}>
+                            <span className={`text-right font-semibold tabular ${scope === 'academy' ? 'text-[#D9382F]/30' : 'text-[#D9382F]'}`}>
                               {formatMinutes(stat.homeworkMinutes)}
                             </span>
                             <span className="text-right tabular">
@@ -613,14 +613,14 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                               </span>
                             </div>
                             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10.5px] font-semibold tabular">
-                              <span className={scope === 'homework' ? 'text-navy/35' : 'text-navy/75'}>
+                              <span className={scope === 'homework' ? 'text-[#1D4A9B]/35' : 'text-[#1D4A9B]/85'}>
                                 🏫 학원 {formatMinutesCompact(stat.academyMinutes)}
                               </span>
-                              <span className={scope === 'academy' ? 'text-[#5B2FC0]/35' : 'text-[#5B2FC0]/85'}>
+                              <span className={scope === 'academy' ? 'text-[#D9382F]/35' : 'text-[#D9382F]/85'}>
                                 🏠 숙제 {formatMinutesCompact(stat.homeworkMinutes)}
                               </span>
                               <span className="text-navy/40">
-                                {scopedProblems(stat, scope)}문제 · {scopedDays(stat, scope)}일
+                                푼 숙제 {scopedProblems(stat, scope)}개 · {scopedDays(stat, scope)}일
                               </span>
                             </div>
                             <SplitBar
@@ -644,7 +644,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
         title="학생 비교"
         description={
           scope === 'all'
-            ? '기간 동안의 기록을 학생별로 비교해요. 막대는 학원 공부(남색)와 숙제 공부(보라색)로 나뉘어 쌓입니다.'
+            ? '기간 동안의 기록을 학생별로 비교해요. 막대는 학원 공부(파랑)와 숙제 공부(빨강)로 나뉘어 쌓입니다.'
             : `${scopeLabel(scope)} 기록만으로 학생을 비교해요. 구분을 바꾸면 학원 공부와 숙제 공부를 따로 비교할 수 있어요.`
         }
         actions={
@@ -662,7 +662,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                 onClick={() => setMetric('problems')}
                 className={`rounded-full px-3 py-1 text-[11px] font-bold ${metric === 'problems' ? 'bg-navy text-white' : 'text-navy/50'}`}
               >
-                문제수
+                푼 숙제
               </button>
             </div>
             <KindScopeSwitch value={scope} onChange={setScope} label="학생 비교 구분" />
@@ -743,7 +743,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                 type="button"
                 onClick={() => setScope('academy')}
                 className={`rounded-full px-2.5 py-1 ${
-                  scope === 'academy' ? 'bg-navy text-white' : 'bg-blue-soft text-navy/50'
+                  scope === 'academy' ? 'bg-[#1D4A9B] text-white' : 'bg-blue-soft text-navy/50'
                 }`}
               >
                 🏫 학원 미제출 {missingCounts.academy}명
@@ -752,7 +752,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                 type="button"
                 onClick={() => setScope('homework')}
                 className={`rounded-full px-2.5 py-1 ${
-                  scope === 'homework' ? 'bg-[#6D3BD6] text-white' : 'bg-[#EDE4FF]/70 text-[#5B2FC0]/60'
+                  scope === 'homework' ? 'bg-[#E0453E] text-white' : 'bg-[#FFF1F0] text-[#D9382F]/70'
                 }`}
               >
                 🏠 숙제 미제출 {missingCounts.homework}명

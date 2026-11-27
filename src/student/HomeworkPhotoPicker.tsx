@@ -88,7 +88,7 @@ export function HomeworkPhotoPicker({
       <div className="flex items-center justify-between gap-2">
         <p className="text-[12px] font-bold text-navy/70">
           공부한 페이지 사진
-          <span className={`ml-1 tabular ${photos.length > 0 ? 'text-[#6D3BD6]' : 'text-navy/40'}`}>
+          <span className={`ml-1 tabular ${photos.length > 0 ? 'text-[#D9382F]' : 'text-navy/40'}`}>
             {`${photos.length}/${HOMEWORK_PHOTO_MAX}`}
           </span>
         </p>
@@ -101,6 +101,7 @@ export function HomeworkPhotoPicker({
           label={PHOTO_CAMERA_LABEL}
           capture
           tone="primary"
+          accent="homework"
           disabled={blocked}
           inputRef={cameraRef}
           onFiles={addFiles}
@@ -111,6 +112,7 @@ export function HomeworkPhotoPicker({
           name="album"
           label={PHOTO_ALBUM_LABEL}
           multiple
+          accent="homework"
           disabled={blocked}
           inputRef={albumRef}
           onFiles={addFiles}

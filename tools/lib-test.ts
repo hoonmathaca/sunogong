@@ -1191,7 +1191,7 @@ eq(
 eq('알림: 제목·본문 상수', [PUSH_TITLE, PUSH_TEST_BODY.length > 0], ['선오공 새 질문', true])
 
 /* 관리자 모바일 좌우 스와이프 탭 이동 */
-eq('스와이프: 탭 순서', ADMIN_TAB_ORDER.join(','), 'dashboard,kintoun,homework,questions,ranking')
+eq('스와이프: 탭 순서 — 실시간 먼저(2026-11-28)', ADMIN_TAB_ORDER.join(','), 'kintoun,dashboard,homework,questions,ranking')
 eq('스와이프: 기준값', [SWIPE_MIN_DISTANCE, SWIPE_SLOPE_RATIO, SWIPE_SCROLL_SLACK], [60, 1.5, 4])
 eq('스와이프: 손가락 하나만', [isSingleTouch(1), isSingleTouch(0), isSingleTouch(2)], [true, false, false])
 eq('스와이프: 이동 거리', gestureFrom({ x: 200, y: 100 }, { x: 120, y: 108 }), { dx: -80, dy: 8 })
@@ -1517,7 +1517,7 @@ eq('수업 종료: 안내 — 학원은 바로 기록', endStudyKindNotice('acad
 eq('수업 종료: 안내 — 숙제는 승인', [endStudyKindNotice('homework').includes('승인'), endStudyKindNotice('homework').includes('사진')], [true, true])
 eq('수업 종료: 확인 요약 — 공부 중', endStudySummary({ name: '이지빈', kind: 'academy', status: 'running', seconds: 1531 }), '이지빈 · 🏫 학원 공부 · 공부 중 25:31')
 eq('수업 종료: 확인 요약 — 쉬는 중', endStudySummary({ name: '이지빈', kind: 'homework', status: 'paused', seconds: 59 }), '이지빈 · 🏠 숙제 공부 · 잠깐 쉬는 중 00:59')
-eq('수업 종료: 끝난 안내 — 학원', endStudyDoneText({ name: '이지빈', kind: 'academy' }, 25, 7, false), '이지빈 · 🏫 학원 공부 25분 7문제로 수업을 마무리했어요.')
+eq('수업 종료: 끝난 안내 — 학원', endStudyDoneText({ name: '이지빈', kind: 'academy' }, 25, 7, false), '이지빈 · 🏫 학원 공부 25분 · 푼 숙제 7개로 수업을 마무리했어요.')
 eq('수업 종료: 끝난 안내 — 숙제 승인 대기', endStudyDoneText({ name: '이지빈', kind: 'homework' }, 20, 0, true).includes('승인 대기로 넘겼어요'), true)
 eq('수업 종료: 끝난 안내 — 숙제 기록 없음', endStudyDoneText({ name: '이지빈', kind: 'homework' }, 0, 0, false).includes('남길 것이 없어요'), true)
 eq('수업 종료: 이미 끝난 세션 안내', endStudyAlreadyText('이지빈'), '이지빈 학생의 공부는 이미 끝나 있었어요. 기록은 그대로 두었어요.')

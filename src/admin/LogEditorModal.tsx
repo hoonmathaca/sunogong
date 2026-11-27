@@ -120,7 +120,7 @@ export function LogEditorModal({ open, student, date, log, onClose, onSaved }: L
         <p className="mb-3 rounded-xl bg-blue-soft px-3 py-2 text-[12px] font-semibold text-navy/60">
           예전 기록이라 학원·숙제 구분이 없어요.
           <span className="mt-0.5 block text-[11px] font-medium text-navy/45">
-            합계 {formatMinutes(filledNote.minutes)} · {filledNote.problems}문제를 학원 공부로 채워 두었어요. 나눠서 고치면
+            합계 {formatMinutes(filledNote.minutes)} · 푼 숙제 {filledNote.problems}개를 학원 공부로 채워 두었어요. 나눠서 고치면
             됩니다.
           </span>
         </p>
@@ -128,7 +128,7 @@ export function LogEditorModal({ open, student, date, log, onClose, onSaved }: L
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="rounded-2xl border border-blue-line/70 bg-blue-soft/40 p-3">
-          <p className="text-[12px] font-extrabold text-navy">🏫 학원 공부</p>
+          <p className="text-[12px] font-extrabold text-[#1D4A9B]">🏫 학원 공부</p>
           <div className="mt-2 grid grid-cols-2 gap-2">
             <label className="text-[11px] font-semibold text-navy/55">
               공부시간(분)
@@ -157,10 +157,10 @@ export function LogEditorModal({ open, student, date, log, onClose, onSaved }: L
           </div>
         </div>
 
-        <div className="rounded-2xl border border-[#DCCBFF] bg-[#EDE4FF]/50 p-3">
-          <p className="text-[12px] font-extrabold text-[#5B2FC0]">🏠 숙제 공부</p>
+        <div className="rounded-2xl border border-[#F7C9C5] bg-[#FFF1F0]/60 p-3">
+          <p className="text-[12px] font-extrabold text-[#D9382F]">🏠 숙제 공부</p>
           <div className="mt-2 grid grid-cols-2 gap-2">
-            <label className="text-[11px] font-semibold text-[#5B2FC0]/60">
+            <label className="text-[11px] font-semibold text-[#D9382F]/65">
               공부시간(분)
               <input
                 type="number"
@@ -172,7 +172,7 @@ export function LogEditorModal({ open, student, date, log, onClose, onSaved }: L
                 placeholder="0"
               />
             </label>
-            <label className="text-[11px] font-semibold text-[#5B2FC0]/60">
+            <label className="text-[11px] font-semibold text-[#D9382F]/65">
               푼 숙제 수
               <input
                 type="number"
@@ -193,7 +193,7 @@ export function LogEditorModal({ open, student, date, log, onClose, onSaved }: L
         <span className="text-right text-[14px] font-extrabold tabular">
           {formatMinutes(totals.minutes)}
           <span className="ml-1.5 text-[11px] font-semibold text-white/60">
-            {totals.minutes}분 · {totals.problems}문제
+            {totals.minutes}분 · 푼 숙제 {totals.problems}개
           </span>
         </span>
       </div>

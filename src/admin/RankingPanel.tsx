@@ -219,7 +219,7 @@ export function RankingPanel({ students, studentsLoading, studentsError, reloadS
     <div className="space-y-4">
       <AdminSection
         title="기간"
-        description="매달 1일에 이번 달 기준으로 자동 바뀌어요. 공부시간·문제는 전체 / 🏫 학원 / 🏠 숙제로 따로 뽑아요."
+        description="매달 1일에 이번 달 기준으로 자동 바뀌어요. 공부시간·푼 숙제는 전체 / 🏫 학원 / 🏠 숙제로 따로 뽑아요."
         actions={
           <>
             <button type="button" className="btn-ghost border border-blue-line" onClick={() => setRefreshKey((n) => n + 1)}>
@@ -291,9 +291,9 @@ export function RankingPanel({ students, studentsLoading, studentsError, reloadS
             (entry) =>
               `🐲 일반용 ${dragonTotal(entry.student.dragons)}마리(${dragonColorKinds(entry.student.dragons)}/7색) · 🌈 무지개용 ${normalizeTicketCount(entry.student.rainbow_dragon_count)}마리`,
           )}
-          {renderRanking('문제 풀이 TOP3', '학원+숙제 합계', problemRankings.all, (value) => `${value}개`)}
-          {renderRanking('🏫 학원 문제 TOP3', '학원 공부에서 푼 숙제', problemRankings.academy, (value) => `${value}개`)}
-          {renderRanking('🏠 숙제 문제 TOP3', '숙제 공부에서 푼 숙제', problemRankings.homework, (value) => `${value}개`)}
+          {renderRanking('푼 숙제 TOP3', '학원+숙제 합계', problemRankings.all, (value) => `${value}개`)}
+          {renderRanking('🏫 학원 푼 숙제 TOP3', '학원 공부에서 푼 숙제', problemRankings.academy, (value) => `${value}개`)}
+          {renderRanking('🏠 숙제 공부 푼 숙제 TOP3', '숙제 공부에서 푼 숙제', problemRankings.homework, (value) => `${value}개`)}
 
           <p className="px-1 text-[10px] text-navy/35">
             동점이면 같은 순위로 표시하고, 그 안에서는 기록을 많이 남긴 학생을 먼저 보여줘요.

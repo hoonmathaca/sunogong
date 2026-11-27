@@ -121,7 +121,7 @@ try {
   check('확인 창: 지금까지의 시간(25분)', dialogText.includes('지금까지') && dialogText.includes('25분'), dialogText.slice(0, 200))
   check('확인 창: 공부 종류', dialogText.includes('🏫 학원 공부') && dialogText.includes('공부 중'))
   check('확인 창: 문제 수 입력칸', dialogText.includes('오늘 푼 숙제 수 (선택)'))
-  check('확인 창: 비우면 0문제 안내', dialogText.includes('0문제'))
+  check('확인 창: 비우면 0개 안내', dialogText.includes('0개') && !dialogText.includes('0문제'))
   check('확인 창: 학원은 바로 기록 안내', dialogText.includes('바로 들어가요'))
   check('확인 창: 취소·종료 버튼', dialogText.includes('취소') && dialogText.includes('수업 종료'))
   const dialogBox = await dialog.boundingBox()
@@ -139,7 +139,7 @@ try {
   await admin.waitForTimeout(2000)
 
   const afterText = (await admin.locator('main').innerText()).replace(/\s+/g, ' ')
-  check('종료 뒤: 안내 문구(25분·7문제)', afterText.includes('25분 7문제로 수업을 마무리했어요'), afterText.slice(0, 200))
+  check('종료 뒤: 안내 문구(25분·푼 숙제 7개)', afterText.includes('25분 · 푼 숙제 7개로 수업을 마무리했어요'), afterText.slice(0, 200))
   check('종료 뒤: 목록에서 사라짐', (await admin.getByRole('button', { name: '검증수업종료 수업 종료' }).count()) === 0)
   await admin.screenshot({ path: `${shotDir}/sunogong-admin-end-study-done-360.png`, fullPage: false })
 

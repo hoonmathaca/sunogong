@@ -141,7 +141,7 @@ export function PendingProblemsModal({
       </div>
 
       {isHomework ? (
-        <div className="mt-3 rounded-2xl bg-[#F5F0FF] px-3 py-2.5">
+        <div className="mt-3 rounded-2xl bg-[#FFF1F0] px-3 py-2.5">
           <HomeworkPhotoPicker
             photos={photoDraft.items}
             onAdd={(files) => {

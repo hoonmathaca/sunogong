@@ -5,8 +5,12 @@
  * 화면(`AdminApp`)은 손가락이 닿은 곳·떨어진 곳·가로로 넘길 수 있는 영역인지만 넘긴다.
  */
 
-/** 관리자 탭 순서 — 왼쪽으로 밀면 다음, 오른쪽으로 밀면 이전 */
-export const ADMIN_TAB_ORDER = ['dashboard', 'kintoun', 'homework', 'questions', 'ranking'] as const
+/**
+ * 관리자 탭 순서 — 왼쪽으로 밀면 다음, 오른쪽으로 밀면 이전
+ * 2026-11-28 원장님 지시로 「실시간 → 공부기록 → 숙제관리 → 질문함 → 랭킹」 순서(훈출과 같게),
+ * 관리자 화면을 열면 첫 탭은 「실시간」이다.
+ */
+export const ADMIN_TAB_ORDER = ['kintoun', 'dashboard', 'homework', 'questions', 'ranking'] as const
 export type AdminTab = (typeof ADMIN_TAB_ORDER)[number]
 
 /** 이만큼(px)은 밀어야 탭이 넘어간다 — 손가락이 살짝 흔들린 것은 무시 */

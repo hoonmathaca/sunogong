@@ -427,7 +427,7 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
                 dim
                   ? 'bg-white/[0.06] text-[#7E8AA1] shadow-none'
                   : isHomework
-                    ? 'bg-[#EDE4FF] text-[#5B2FC0]'
+                    ? 'bg-[#FFF1F0] text-[#D9382F]'
                     : 'bg-white text-navy'
               }`}
             >
@@ -461,7 +461,7 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
                     ? 'border border-white/10 text-[#93A0B8]'
                     : shield
                       ? 'bg-[#0B0F18] text-white'
-                      : 'border border-[#6D3BD6]/30 bg-white text-[#5B2FC0]'
+                      : 'border border-[#E0453E]/30 bg-white text-[#D9382F]'
                 }`}
               >
                 {shield ? '☀️ 밝게 보기' : '🌙 화면보호 모드'}
@@ -476,7 +476,7 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
           {isHomework ? (
             <div
               className={`rounded-2xl px-3 py-2 text-center text-[12.5px] font-bold ${
-                dim ? 'bg-[#2A1B45] text-[#B9A6DE]' : 'bg-[#6D3BD6] text-white shadow-sm'
+                dim ? 'bg-[#3A1D1B] text-[#E9A8A2]' : 'bg-[#E0453E] text-white shadow-sm'
               }`}
             >
               📵 숙제 공부는 화면을 끄거나 나가면 멈춰요
@@ -736,7 +736,7 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
         }
       >
         {isHomework ? (
-          <div className="rounded-2xl bg-[#F5F0FF] px-3 py-2.5">
+          <div className="rounded-2xl bg-[#FFF1F0] px-3 py-2.5">
             <HomeworkPhotoPicker
               photos={photoDraft.items}
               onAdd={(files) => {
@@ -768,7 +768,7 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
         ) : null}
 
         {isHomework ? (
-          <p className="mt-2 text-center text-[12px] font-semibold leading-snug text-[#5B2FC0]/70">
+          <p className="mt-2 text-center text-[12px] font-semibold leading-snug text-[#D9382F]/70">
             제출하면 선생님이 확인한 뒤 오늘 기록에 들어가요. 사진은 최대 5장, 사진 없이 내도 돼요.
           </p>
         ) : null}

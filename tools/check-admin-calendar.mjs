@@ -178,7 +178,9 @@ try {
 
   check('관리자 로그인', (await bodyText()).includes('선오공 관리자'))
 
-  /* 1) 달력 */
+  /* 1) 달력 — 첫 탭이 「실시간」이라 「공부기록」 탭으로 옮긴다 (2026-11-28) */
+  await page.getByRole('button', { name: /^공부기록$/ }).first().click()
+  await page.waitForTimeout(700)
   const calendarTitle = page.getByText('공부기록 달력', { exact: true })
   await calendarTitle.waitFor({ state: 'visible', timeout: 10000 })
   check('달력: 제목', true)
@@ -254,7 +256,7 @@ try {
   check('실시간: 오늘 공부 이력 칸', live.includes('오늘 공부 이력'))
   check(
     '실시간: 오늘 공부한 검증 학생',
-    live.includes('검증달력A') && live.includes('🏫 30분 · 4문제') && live.includes('🏠 20분 · 3문제'),
+    live.includes('검증달력A') && live.includes('🏫 30분 · 푼 숙제 4개') && live.includes('🏠 20분 · 푼 숙제 3개'),
     live.slice(0, 200),
   )
   check('실시간: 오늘 숙제공부 일괄 1명', /🏠\s*숙제공부 일괄 1명/.test(live))
@@ -283,6 +285,10 @@ try {
     await wide.waitForTimeout(900)
   }
   const wideCell = wide.getByRole('button', { name: new RegExp(`^${quietDate} 상세`) })
+  if ((await wideCell.count()) === 0) {
+    await wide.getByRole('button', { name: /^공부기록$/ }).first().click()
+    await wide.waitForTimeout(700)
+  }
   await wideCell.scrollIntoViewIfNeeded()
   await wide.waitForTimeout(500)
   const wideCellBox = await wideCell.boundingBox()

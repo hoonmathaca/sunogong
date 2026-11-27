@@ -6,7 +6,7 @@
  *   · src 의 .ts/.tsx 어디에도 옛 표기 「출훈」 이 없다
  *   · 빌드 결과(dist/assets/*.js)에도 「출훈」 이 없다
  *   · 대신 「훈출」 안내 문구가 들어 있다(훈출에서 하원하면 자동으로 마무리돼요)
- *   · 관리자 화면(src/admin)에는 「푼 문제」 가 없고 「푼 숙제」 로 통일돼 있다
+ *   · 관리자 화면(src/admin)에는 「푼 문제」·「N문제」·「문제수」 없이 「숙제」로 통일돼 있다
  *   · 학생 화면의 「지난번 푼 문제 수」 는 그대로 남아 있다 (원장님 지시)
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
@@ -44,6 +44,14 @@ const studentText = srcFiles
 check('관리자 화면에 「푼 문제」 없음', !adminText.includes('푼 문제'))
 check('관리자 화면에 「푼 숙제」 있음', adminText.includes('푼 숙제'))
 check('학생 화면 「지난번 푼 문제 수」 그대로', studentText.includes('지난번 푼 문제 수'))
+
+/* 2026-11-28 — 관리자 화면의 개수 표기도 「숙제」로 통일 (예전 「문제 417개」·「15문제」·「문제수」가 남지 않게)
+   주석(/** *\/·//)은 화면에 안 나오므로 빼고 본다. */
+const stripComments = (text) => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+const countProblemFiles = adminFiles
+  .filter((path) => !path.endsWith('QuestionsPanel.tsx')) // 질문에 올린 「문제 사진」은 그대로 둔다
+  .filter((path) => /\d\s*문제|\}문제|문제\s*\{|문제수|문제\s+\$\{/.test(stripComments(readFileSync(path, 'utf8'))))
+check('관리자 화면에 「N문제」·「문제수」 표기 없음', countProblemFiles.length === 0, countProblemFiles.join(', '))
 
 const distDir = process.argv[2] ?? 'dist'
 const assetsDir = join(distDir, 'assets')

@@ -87,14 +87,14 @@ export function EndStudyModal({
           className="w-24 rounded-xl border border-blue-line bg-white px-3 py-2 text-center text-[15px] font-extrabold text-navy tabular focus:outline-none focus:ring-2 focus:ring-blue-brand/30"
         />
         <span className="text-[12px] font-semibold text-navy/50">
-          문제 · 비워 두면 <b className="text-navy/70">0문제</b>로 마무리해요
+          푼 숙제 · 비워 두면 <b className="text-navy/70">0개</b>로 마무리해요
         </span>
       </div>
 
       {minutes < 1 ? (
         <p className="mt-2 rounded-2xl bg-[#FFF6DA] px-3 py-2 text-[11.5px] font-semibold leading-snug text-[#7A5B00]">
           1분이 안 돼서 공부 시간은 0분으로 들어가요.
-          {isHomework ? ' 문제 수도 0이면 기록에 남지 않아요.' : ''}
+          {isHomework ? ' 푼 숙제도 0개면 기록에 남지 않아요.' : ''}
         </p>
       ) : null}
 
@@ -103,7 +103,7 @@ export function EndStudyModal({
       </p>
 
       {count === 0 && !isHomework ? (
-        <p className="mt-1 text-[11px] font-semibold text-navy/35">문제 수는 나중에 대시보드에서 고칠 수 있어요.</p>
+        <p className="mt-1 text-[11px] font-semibold text-navy/35">푼 숙제 수는 나중에 공부기록에서 고칠 수 있어요.</p>
       ) : null}
 
       {error ? (

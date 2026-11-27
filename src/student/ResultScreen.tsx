@@ -102,7 +102,7 @@ export function ResultScreen({ student, result, reason, onHome, onAgain, busy = 
         ) : null}
 
         {pending ? (
-          <div className="mt-3 w-full max-w-xs rounded-3xl bg-[#6D3BD6]/40 px-4 py-3 text-left">
+          <div className="mt-3 w-full max-w-xs rounded-3xl bg-[#E0453E]/45 px-4 py-3 text-left">
             <p className="text-[12.5px] font-extrabold text-white">
               {reason === 'admin' ? '🙌 선생님이 마무리했어요 — 확인을 기다려요' : '🙌 제출했어요 — 선생님 확인을 기다려요'}
             </p>

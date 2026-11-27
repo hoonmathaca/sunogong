@@ -527,11 +527,11 @@ export function KintounPanel({ students, studentsLoading, studentsError, reloadS
                       </span>
                       <span className="block text-[10.5px] font-semibold tabular">
                         <span className={academy ? 'text-[#1D4A9B]' : 'text-navy/25'}>
-                          🏫 {row.academyMinutes}분 · {row.academyProblems}문제
+                          🏫 {row.academyMinutes}분 · 푼 숙제 {row.academyProblems}개
                         </span>
                         <span className="text-navy/20"> · </span>
                         <span className={homework ? 'text-[#D9382F]' : 'text-navy/25'}>
-                          🏠 {row.homeworkMinutes}분 · {row.homeworkProblems}문제
+                          🏠 {row.homeworkMinutes}분 · 푼 숙제 {row.homeworkProblems}개
                         </span>
                       </span>
                     </span>

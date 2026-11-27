@@ -42,19 +42,19 @@ const STAT_TONES = {
     value: 'text-white',
     sub: 'text-white/50',
   },
-  /** 🏫 학원 공부 */
+  /** 🏫 학원 공부 — 학원 파랑 */
   academy: {
     box: 'border border-blue-line bg-blue-soft/60 text-navy',
-    label: 'text-navy/50',
-    value: 'text-navy',
-    sub: 'text-navy/40',
+    label: 'text-[#1D4A9B]/60',
+    value: 'text-[#1D4A9B]',
+    sub: 'text-[#1D4A9B]/45',
   },
-  /** 🏠 숙제 공부 — 숙제 시작 버튼과 같은 보라색 */
+  /** 🏠 숙제 공부 — 숙제 시작 버튼과 같은 빨강 */
   homework: {
-    box: 'border border-[#6D3BD6]/15 bg-[#EDE4FF]/60 text-navy',
-    label: 'text-[#5B2FC0]/60',
-    value: 'text-[#5B2FC0]',
-    sub: 'text-[#5B2FC0]/50',
+    box: 'border border-[#E0453E]/20 bg-[#FFF1F0]/70 text-navy',
+    label: 'text-[#D9382F]/60',
+    value: 'text-[#D9382F]',
+    sub: 'text-[#D9382F]/50',
   },
 } as const
 
@@ -114,7 +114,7 @@ const SCOPE_OPTIONS: { scope: StatScope; label: string }[] = [
 
 /**
  * 통계 구분 고르기 — 전체 / 🏫 학원 공부 / 🏠 숙제 공부.
- * 대시보드·랭킹·학생 상세에서 같은 모양으로 쓴다.
+ * 공부기록·랭킹·학생 상세에서 같은 모양으로 쓴다.
  */
 export function KindScopeSwitch({
   value,
@@ -136,7 +136,13 @@ export function KindScopeSwitch({
     >
       {SCOPE_OPTIONS.map((option) => {
         const active = value === option.scope
-        const activeClass = option.scope === 'homework' ? 'bg-[#6D3BD6] text-white shadow-soft' : 'bg-navy text-white shadow-soft'
+        /* 학원 = 파랑, 숙제 = 빨강 (학파 숙빨) — 전체·기본 화면은 남색 */
+        const activeClass =
+          option.scope === 'homework'
+            ? 'bg-[#E0453E] text-white shadow-soft'
+            : option.scope === 'academy'
+              ? 'bg-[#1D4A9B] text-white shadow-soft'
+              : 'bg-navy text-white shadow-soft'
         return (
           <button
             key={option.scope}

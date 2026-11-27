@@ -857,7 +857,7 @@ export function endStudyDoneText(
   problems: number,
   pending: boolean,
 ): string {
-  const base = `${row.name} · ${kindText(row.kind)} ${Math.max(0, Math.floor(minutes))}분 ${Math.max(0, Math.floor(problems))}문제로 수업을 마무리했어요.`
+  const base = `${row.name} · ${kindText(row.kind)} ${Math.max(0, Math.floor(minutes))}분 · 푼 숙제 ${Math.max(0, Math.floor(problems))}개로 수업을 마무리했어요.`
   if (normalizeKind(row.kind) !== 'homework') return base
   return pending
     ? `${base} 승인 대기로 넘겼어요 — 숙제관리에서 확인해 주세요.`

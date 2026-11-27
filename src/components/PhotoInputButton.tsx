@@ -10,8 +10,10 @@ interface PhotoInputButtonProps {
   /** 여러 장 고르기 (앨범) */
   multiple?: boolean
   disabled?: boolean
-  /** 채운 버튼(보라) / 테두리 버튼(흰색) / 색은 className 으로 직접 */
+  /** 채운 버튼 / 테두리 버튼(흰색) / 색은 className 으로 직접 */
   tone?: 'primary' | 'ghost' | 'plain'
+  /** 버튼 색 — 숙제 사진은 빨강(학파 숙빨), 질문 사진은 보라 (기본) */
+  accent?: 'purple' | 'homework'
   /** 자동 점검용 표시 — camera / album / retake */
   name: string
   onFiles: (files: File[]) => void
@@ -39,6 +41,7 @@ export function PhotoInputButton({
   multiple = false,
   disabled = false,
   tone = 'ghost',
+  accent = 'purple',
   name,
   onFiles,
   inputRef,
@@ -57,16 +60,23 @@ export function PhotoInputButton({
     if (picked.length > 0) onFiles(picked)
   }
 
-  const look =
-    tone === 'primary'
-      ? 'bg-[#6D3BD6] text-white shadow-sm'
-      : tone === 'plain'
-        ? ''
-        : 'border border-[#6D3BD6]/30 bg-[#F5F0FF] text-[#4A28A0]'
+  const palette =
+    accent === 'homework'
+      ? {
+          primary: 'bg-[#E0453E] text-white shadow-sm',
+          ghost: 'border border-[#E0453E]/30 bg-[#FFF7F6] text-[#C4332B]',
+          ring: 'focus-within:ring-2 focus-within:ring-[#E0453E]/40',
+        }
+      : {
+          primary: 'bg-[#6D3BD6] text-white shadow-sm',
+          ghost: 'border border-[#6D3BD6]/30 bg-[#F5F0FF] text-[#4A28A0]',
+          ring: 'focus-within:ring-2 focus-within:ring-[#6D3BD6]/40',
+        }
+  const look = tone === 'primary' ? palette.primary : tone === 'plain' ? '' : palette.ghost
 
   return (
     <div
-      className={`relative flex items-center justify-center overflow-hidden rounded-xl transition focus-within:ring-2 focus-within:ring-[#6D3BD6]/40 ${
+      className={`relative flex items-center justify-center overflow-hidden rounded-xl transition ${palette.ring} ${
         disabled ? 'opacity-40' : 'active:scale-[0.98]'
       } ${look} ${className || 'h-[42px]'}`}
     >

@@ -101,7 +101,7 @@ export function DayDetailModal({ open, date, students, index, onClose, onSent }:
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[12.5px] font-bold text-navy">{student.name}</span>
                     <span className="block text-[10.5px] font-semibold text-navy/40 tabular">
-                      {student.grade} · {minutes}분 · {problems}문제
+                      {student.grade} · {minutes}분 · 푼 숙제 {problems}개
                     </span>
                   </span>
                   <button
@@ -138,14 +138,14 @@ export function DayDetailModal({ open, date, students, index, onClose, onSent }:
           <p className="text-[15px] font-extrabold text-[#1D4A9B] tabular">
             {sum.academyStudents}명 · {formatMinutes(sum.academyMinutes)}
           </p>
-          <p className="text-[10.5px] font-semibold text-[#1D4A9B]/70 tabular">{sum.academyProblems}문제</p>
+          <p className="text-[10.5px] font-semibold text-[#1D4A9B]/70 tabular">푼 숙제 {sum.academyProblems}개</p>
         </div>
         <div className="rounded-2xl border border-[#F7C9C5] bg-[#FFF1F0] px-3 py-2">
           <p className="text-[10.5px] font-extrabold text-[#D9382F]">🏠 숙제 공부</p>
           <p className="text-[15px] font-extrabold text-[#D9382F] tabular">
             {sum.homeworkStudents}명 · {formatMinutes(sum.homeworkMinutes)}
           </p>
-          <p className="text-[10.5px] font-semibold text-[#D9382F]/70 tabular">{sum.homeworkProblems}문제</p>
+          <p className="text-[10.5px] font-semibold text-[#D9382F]/70 tabular">푼 숙제 {sum.homeworkProblems}개</p>
         </div>
       </div>
 

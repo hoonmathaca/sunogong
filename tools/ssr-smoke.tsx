@@ -635,7 +635,7 @@ const questionChecks: [string, boolean][] = [
   ['질문: 관리자 7일 보관 안내', questionsPanelHtml.includes('7일')],
   ['질문: 관리자 질문함 탭', adminHtml.includes('질문함')],
   ['스와이프: 관리자 화면에 좌우 스와이프 탭 이동', adminHtml.includes('data-admin-swipe="tab"')],
-  ['스와이프: 관리자 탭 다섯 개', ['대시보드', '실시간', '숙제관리', '질문함', '랭킹'].every((label) => adminHtml.includes(`>${label}<`) || adminHtml.includes(label))],
+  ['스와이프: 관리자 탭 다섯 개', ['실시간', '공부기록', '숙제관리', '질문함', '랭킹'].every((label) => adminHtml.includes(`>${label}<`) || adminHtml.includes(label))],
   ['스와이프: 관리자 탭에 「학생 관리」 없음', !adminHtml.includes('학생 관리')],
   ['알림: 관리자 질문함에 알림 설정', questionsPanelHtml.includes('새 질문 알림')],
   ['알림: 알림 켜기 버튼', (rendered['PushNotifyPanel(새 질문 알림)'] ?? '').includes('알림 켜기')],
@@ -727,7 +727,7 @@ const calendarChecks: [string, boolean][] = [
   ['달력 상세: 학원 공부한 학생', dayText.includes('🏫 학원 공부한 학생 1명') && dayText.includes('이지빈')],
   ['달력 상세: 숙제 공부한 학생', dayText.includes('🏠 숙제 공부한 학생 1명') && dayText.includes('김민수')],
   ['달력 상세: 기록 없는 학생', dayText.includes('기록 없는 학생 1명') && dayText.includes('박서연')],
-  ['달력 상세: 학원 공부 시간·문제', dayText.includes('70분 · 9문제')],
+  ['달력 상세: 학원 공부 시간·푼 숙제', dayText.includes('70분 · 푼 숙제 9개')],
   ['달력 상세: 학원·숙제 일괄 버튼', dayText.includes('🏫 학원공부 일괄 1명') && dayText.includes('🏠 숙제공부 일괄 1명')],
   ['달력 상세: 개별 쏘기 버튼', dayText.includes('이지빈 학원공부 드래곤볼 쏘기') && dayText.includes('김민수 숙제공부 드래곤볼 쏘기')],
   ['달력 상세: 기록 없는 날 안내', emptyDayText.includes('이 날은 학원 공부 기록이 없어요') && emptyDayText.includes('이 날은 숙제 공부 기록이 없어요')],
@@ -746,7 +746,7 @@ for (const [name, ok] of calendarChecks) {
 /* 관리자 탭 — 「학생 관리」 탭은 2026-11-27 에 뺐다(원생 정보·닉네임 관리는 「훈출」의 원생·포인트에서) */
 const adminTabChecks: [string, boolean][] = [
   ['관리자 탭: 학생 관리 없음', !(ADMIN_TAB_ORDER as readonly string[]).includes('students')],
-  ['관리자 탭: 대시보드·실시간·숙제관리·질문함·랭킹 5개', ADMIN_TAB_ORDER.join(',') === 'dashboard,kintoun,homework,questions,ranking'],
+  ['관리자 탭: 실시간·공부기록·숙제관리·질문함·랭킹 순서 5개', ADMIN_TAB_ORDER.join(',') === 'kintoun,dashboard,homework,questions,ranking'],
 ]
 for (const [name, ok] of adminTabChecks) {
   if (!ok) failed += 1
@@ -769,7 +769,7 @@ const endStudyChecks: [string, boolean][] = [
   ['수업 종료 확인: 제목·학생 이름', endModalHtml.includes('수업을 마칠까요?') && endModalHtml.includes('김민수')],
   ['수업 종료 확인: 지금까지의 시간(25분)', endModalHtml.includes('지금까지') && /25(?:<!-- -->)?분/.test(endModalHtml)],
   ['수업 종료 확인: 문제 수 입력칸', endModalHtml.includes('오늘 푼 숙제 수 (선택)') && endModalHtml.includes('value="7"')],
-  ['수업 종료 확인: 비우면 0문제 안내', endModalHtml.includes('0문제')],
+  ['수업 종료 확인: 비우면 0개 안내', endModalHtml.includes('0개') && !endModalHtml.includes('0문제')],
   ['수업 종료 확인: 학원은 바로 기록 안내', endModalHtml.includes('바로 들어가요')],
   ['수업 종료 확인: 취소·종료 버튼', endModalHtml.includes('>취소<') && endModalHtml.includes('>수업 종료<')],
   ['수업 종료 확인: 학생 화면이 바뀐다는 안내', endModalHtml.includes('결과 화면으로 바뀌어요')],
@@ -794,6 +794,30 @@ const statsSplitChecks: [string, boolean][] = [
   ['분리: 랭킹 학원·숙제 분리 안내', rankingHtml.includes('전체 / 🏫 학원 / 🏠 숙제로 따로')],
 ]
 for (const [name, ok] of statsSplitChecks) {
+  if (!ok) failed += 1
+  console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)
+}
+
+/* 「학파 숙빨」 — 학원 파랑·숙제 빨강 통일, 관리자 탭 이름·순서, 관리자 개수 「푼 숙제」 (2026-11-28) */
+const dashboardText = plainText(dashboardHtml)
+const adminShellText = plainText(adminHtml)
+const adminAllHtml = [adminHtml, dashboardHtml, dayHtml, kintounPanelHtml, endModalHtml, liveRowHtml].join('')
+const kindColorChecks: [string, boolean][] = [
+  ['탭: 관리자 첫 화면은 실시간', adminShellText.includes('지금 공부 중인 학생')],
+  ['탭: 「공부기록」 이름, 「대시보드」 없음', adminHtml.includes('>공부기록<') && !adminHtml.includes('>대시보드<')],
+  ['색: 관리자 숙제 막대·버튼 빨강', dashboardHtml.includes('#E0453E') && dashboardHtml.includes('#D9382F')],
+  ['색: 관리자 학원 파랑', dashboardHtml.includes('#1D4A9B')],
+  ['색: 관리자 화면에 숙제 보라(#6D3BD6·#5B2FC0·#EDE4FF) 없음', !/#(?:6D3BD6|5B2FC0|EDE4FF)/i.test(adminAllHtml)],
+  ['색: 학생 홈 숙제 시작 버튼 빨강', homeHtml.includes('bg-[#E0453E]') && !homeHtml.includes('bg-[#6D3BD6]')],
+  ['색: 학생 홈 숙제 시간 칩 빨강', homeHtml.includes('bg-[#E0453E]/60')],
+  ['색: 숙제 타이머 배지·안내 빨강', homeworkHtml.includes('bg-[#FFF1F0] text-[#D9382F]') && homeworkHtml.includes('bg-[#E0453E] text-white shadow-sm')],
+  ['색: 학생 홈·숙제 타이머에 숙제 보라(#EDE4FF) 없음', !homeHtml.includes('#EDE4FF') && !homeworkHtml.includes('#EDE4FF')],
+  ['색: 학원 타이머에는 숙제 빨강 없음', !academyHtml.includes('#E0453E')],
+  ['문구: 관리자 공부기록에 「문제」 없음', !dashboardText.includes('문제')],
+  ['문구: 관리자 화면 어디에도 「문제」 없음(질문 사진 제외)', !adminShellText.includes('문제') && !plainText(dayHtml).includes('문제') && !plainText(kintounPanelHtml).includes('문제')],
+  ['문구: 관리자 카드는 「푼 숙제 N개」', /푼 숙제 (?:\d|<!-- -->\d)/.test(dashboardHtml)],
+]
+for (const [name, ok] of kindColorChecks) {
   if (!ok) failed += 1
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)
 }

@@ -127,7 +127,7 @@ export function LiveKintounStrip({ studentId, sessionId = null, sessionStatus, d
         </span>
       ) : (
         <>
-          <span className={`shrink-0 font-extrabold tabular ${dim ? 'text-[#8C97AD]' : 'text-[#5B2FC0]'}`}>
+          <span className={`shrink-0 font-extrabold tabular ${dim ? 'text-[#8C97AD]' : 'text-[#D9382F]'}`}>
             {strip.count}명 공부 중
           </span>
           <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">

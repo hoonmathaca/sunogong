@@ -43,9 +43,9 @@ function readInitialTab(): Tab {
     const value = new URLSearchParams(window.location.search).get('tab')
     if (value && (TABS as string[]).includes(value)) return value as Tab
   } catch {
-    /* 주소를 읽지 못하면 대시보드 */
+    /* 주소를 읽지 못하면 첫 탭(실시간) */
   }
-  return 'dashboard'
+  return 'kintoun'
 }
 
 export interface AdminAppProps {
@@ -53,10 +53,11 @@ export interface AdminAppProps {
 }
 
 /**
- * 관리자 화면: 대시보드 · 실시간 · 숙제관리 · 질문함 · 랭킹 (모바일에서는 좌우로 밀어 탭 이동)
+ * 관리자 화면: 실시간 · 공부기록 · 숙제관리 · 질문함 · 랭킹 (모바일에서는 좌우로 밀어 탭 이동)
  *
+ * `공부기록` 탭 이름은 2026-11-28 에 「대시보드」에서 바꿨고, 탭 순서와 첫 화면도 실시간이 먼저 오도록 훈출과 맞췄다.
  * 「학생 관리」 탭은 2026-11-27 에 뺐다 — 원생 정보·닉네임 관리는 통합 앱 「훈출」(`원생·포인트`)에서 한곳으로 맡는다.
- * 학생 이름·닉네임은 대시보드·실시간·랭킹 화면에 그대로 보인다.
+ * 학생 이름·닉네임은 공부기록·실시간·랭킹 화면에 그대로 보인다.
  */
 export function AdminApp({ onBack }: AdminAppProps): JSX.Element {
   const [signedIn, setSignedIn] = useState(readSignedIn)
@@ -188,8 +189,8 @@ export function AdminApp({ onBack }: AdminAppProps): JSX.Element {
         <nav className="mx-auto flex max-w-6xl gap-1.5 overflow-x-auto px-4 pb-2">
           {(
             [
-              { key: 'dashboard', label: '대시보드' },
               { key: 'kintoun', label: '실시간' },
+              { key: 'dashboard', label: '공부기록' },
               { key: 'homework', label: '숙제관리' },
               { key: 'questions', label: '질문함' },
               { key: 'ranking', label: '랭킹' },

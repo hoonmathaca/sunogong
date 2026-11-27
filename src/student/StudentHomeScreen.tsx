@@ -174,7 +174,7 @@ export function StudentHomeScreen({
             <span className="rounded-full bg-white/12 px-2.5 py-1">
               {KIND_EMOJI.academy} {KIND_LABEL.academy} {formatMinutes(todaySplit.academyMinutes)}
             </span>
-            <span className="rounded-full bg-[#6D3BD6]/45 px-2.5 py-1">
+            <span className="rounded-full bg-[#E0453E]/60 px-2.5 py-1">
               {KIND_EMOJI.homework} {KIND_LABEL.homework} {formatMinutes(todaySplit.homeworkMinutes)}
             </span>
           </div>
@@ -446,7 +446,7 @@ export function StudentHomeScreen({
             onClick={() => onStart('homework')}
             disabled={busy || academyActive}
             className={`h-[56px] w-full rounded-2xl text-lg font-bold text-white shadow-soft transition active:opacity-90 disabled:opacity-100 ${
-              academyActive ? 'bg-[#6D3BD6]/35' : 'bg-[#6D3BD6]'
+              academyActive ? 'bg-[#E0453E]/35' : 'bg-[#E0453E]'
             }`}
           >
             {busy ? <Spinner className="h-5 w-5 border-white/40 border-t-white" /> : `${KIND_EMOJI.homework} ${KIND_LABEL.homework} 시작`}

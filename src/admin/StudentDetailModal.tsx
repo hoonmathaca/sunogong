@@ -12,7 +12,7 @@ import { KindScopeSwitch } from './ui'
 interface StudentDetailModalProps {
   open: boolean
   student: Student | null
-  /** 그래프 기준 마지막 날 (보통 대시보드 종료일) */
+  /** 그래프 기준 마지막 날 (보통 공부기록 종료일) */
   endDate: string
   onClose: () => void
   onChanged: () => void
@@ -85,19 +85,19 @@ export function StudentDetailModal({ open, student, endDate, onClose, onChanged 
               <div className="rounded-xl bg-blue-soft px-2 py-2">
                 <p className="text-[10px] font-semibold text-navy/45">총 공부시간</p>
                 <p className="text-[14px] font-extrabold text-navy tabular">{formatMinutesCompact(totalMinutes)}</p>
-                <p className="text-[10px] font-semibold text-navy/35 tabular">{totalProblems}문제</p>
+                <p className="text-[10px] font-semibold text-navy/35 tabular">푼 숙제 {totalProblems}개</p>
               </div>
               <div className="rounded-xl bg-blue-soft px-2 py-2">
                 <p className="text-[10px] font-semibold text-navy/45">🏫 학원 공부</p>
                 <p className="text-[14px] font-extrabold text-navy tabular">{formatMinutesCompact(totalAcademyMinutes)}</p>
-                <p className="text-[10px] font-semibold text-navy/35 tabular">{totalAcademyProblems}문제</p>
+                <p className="text-[10px] font-semibold text-navy/35 tabular">푼 숙제 {totalAcademyProblems}개</p>
               </div>
-              <div className="rounded-xl bg-[#EDE4FF]/70 px-2 py-2">
-                <p className="text-[10px] font-semibold text-[#5B2FC0]/60">🏠 숙제 공부</p>
-                <p className="text-[14px] font-extrabold text-[#5B2FC0] tabular">
+              <div className="rounded-xl bg-[#FFF1F0] px-2 py-2">
+                <p className="text-[10px] font-semibold text-[#D9382F]/60">🏠 숙제 공부</p>
+                <p className="text-[14px] font-extrabold text-[#D9382F] tabular">
                   {formatMinutesCompact(totalHomeworkMinutes)}
                 </p>
-                <p className="text-[10px] font-semibold text-[#5B2FC0]/45 tabular">{totalHomeworkProblems}문제</p>
+                <p className="text-[10px] font-semibold text-[#D9382F]/45 tabular">푼 숙제 {totalHomeworkProblems}개</p>
               </div>
               <div className="rounded-xl bg-blue-soft px-2 py-2">
                 <p className="text-[10px] font-semibold text-navy/45">기록한 날</p>
@@ -132,7 +132,7 @@ export function StudentDetailModal({ open, student, endDate, onClose, onChanged 
                   <li key={log.id} className="flex items-center justify-between gap-2 py-2 text-[12px]">
                     <span className="font-semibold text-navy/70">{formatDateKo(log.date)}</span>
                     <span className="text-right tabular text-navy/60">
-                      {formatMinutes(log.minutes)} · {log.problems}문제
+                      {formatMinutes(log.minutes)} · 푼 숙제 {log.problems}개
                       {(log.academy_minutes ?? 0) > 0 || (log.homework_minutes ?? 0) > 0 ? (
                         <span className="block text-[11px] text-navy/40">
                           🏫 {log.academy_minutes ?? 0}분 · 🏠 {log.homework_minutes ?? 0}분
