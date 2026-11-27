@@ -438,7 +438,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                     aria-label={`${cell.date} 상세${
                       sum ? ` · 학원 ${sum.academyStudents}명 ${sum.academyMinutes}분 · 숙제 ${sum.homeworkStudents}명 ${sum.homeworkMinutes}분` : ''
                     }`}
-                    className={`flex min-h-[66px] flex-col rounded-lg border px-1 pb-1 pt-0.5 text-left transition sm:min-h-[88px] sm:px-1.5 ${
+                    className={`flex min-h-[66px] flex-col rounded-lg border px-0.5 pb-1 pt-0.5 text-left transition sm:min-h-[88px] sm:px-1.5 ${
                       cell.inMonth ? 'border-blue-line bg-white' : 'border-blue-line/50 bg-blue-soft/30'
                     } ${future ? 'opacity-40' : 'hover:border-blue-brand hover:bg-blue-soft/60'} ${
                       isToday ? 'ring-2 ring-[#F08C00]' : ''
@@ -458,7 +458,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                           <span className="block whitespace-nowrap text-[8.5px] font-extrabold leading-[1.25] text-[#1D4A9B] sm:text-[10px] sm:leading-[1.1]">
                             🏫 {sum.academyStudents}
                             <span className="hidden sm:inline">명</span>
-                            <span className="block whitespace-nowrap text-[8px] font-semibold text-[#1D4A9B]/80 sm:ml-1 sm:inline sm:text-[9.5px]">
+                            <span className="block whitespace-nowrap text-[7.5px] font-semibold text-[#1D4A9B]/80 sm:ml-1 sm:inline sm:text-[9.5px]">
                               <span className="sm:hidden">{cellTimeText(sum.academyMinutes)}</span>
                               <span className="hidden sm:inline">{formatMinutesCompact(sum.academyMinutes)}</span>
                             </span>
@@ -468,7 +468,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                           <span className="mt-1 block whitespace-nowrap text-[8.5px] font-extrabold leading-[1.25] text-[#D9382F] sm:mt-1 sm:text-[10px] sm:leading-[1.1]">
                             🏠 {sum.homeworkStudents}
                             <span className="hidden sm:inline">명</span>
-                            <span className="block whitespace-nowrap text-[8px] font-semibold text-[#D9382F]/80 sm:ml-1 sm:inline sm:text-[9.5px]">
+                            <span className="block whitespace-nowrap text-[7.5px] font-semibold text-[#D9382F]/80 sm:ml-1 sm:inline sm:text-[9.5px]">
                               <span className="sm:hidden">{cellTimeText(sum.homeworkMinutes)}</span>
                               <span className="hidden sm:inline">{formatMinutesCompact(sum.homeworkMinutes)}</span>
                             </span>
