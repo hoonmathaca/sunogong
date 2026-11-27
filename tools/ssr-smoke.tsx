@@ -9,6 +9,11 @@ import { AdminLogin } from '../src/admin/AdminLogin'
 import { AdminApp } from '../src/admin/AdminApp'
 import { Dashboard } from '../src/admin/Dashboard'
 import { KintounPanel } from '../src/admin/KintounPanel'
+import { DayDetailModal } from '../src/admin/DayDetailModal'
+import { DragonballBulk } from '../src/admin/DragonballBulk'
+import { DualTrendChart } from '../src/admin/Charts'
+import { indexLogs } from '../src/lib/stats'
+import type { StudyLog } from '../src/lib/types'
 import { LiveSessionRow } from '../src/admin/LiveSessionRow'
 import { EndStudyModal } from '../src/admin/EndStudyModal'
 import type { AdminLiveSession } from '../src/lib/kintoun'
@@ -129,6 +134,71 @@ const liveRow: AdminLiveSession = {
   seconds: 1531,
   dragonballCount: 2,
 }
+
+
+/* 달력·날짜 상세 확인용 — 같은 달 같은 날 학원/숙제 기록 두 학생 */
+const calendarStudents: Student[] = [
+  student,
+  {
+    id: 'cal-student-2',
+    name: '김민수',
+    code: '4123',
+    grade: '중2',
+    created_at: '2026-11-19T00:00:00Z',
+    nickname: '열공몬',
+  },
+  {
+    id: 'cal-student-3',
+    name: '박서연',
+    code: '5252',
+    grade: '중1',
+    created_at: '2026-11-19T00:00:00Z',
+  },
+]
+const calendarLogs: StudyLog[] = [
+  {
+    id: 'cal-log-1',
+    student_id: student.id,
+    date: '2026-11-25',
+    minutes: 70,
+    problems: 9,
+    academy_minutes: 70,
+    academy_problems: 9,
+    homework_minutes: 0,
+    homework_problems: 0,
+    updated_at: '2026-11-25T10:00:00Z',
+  },
+  {
+    id: 'cal-log-2',
+    student_id: 'cal-student-2',
+    date: '2026-11-25',
+    minutes: 40,
+    problems: 6,
+    academy_minutes: 0,
+    academy_problems: 0,
+    homework_minutes: 40,
+    homework_problems: 6,
+    updated_at: '2026-11-25T10:00:00Z',
+  },
+  {
+    id: 'cal-log-3',
+    student_id: 'cal-student-2',
+    date: '2026-11-26',
+    minutes: 95,
+    problems: 13,
+    academy_minutes: 60,
+    academy_problems: 8,
+    homework_minutes: 35,
+    homework_problems: 5,
+    updated_at: '2026-11-26T10:00:00Z',
+  },
+]
+const calendarIndex = indexLogs(calendarLogs)
+const dualPoints = [
+  { date: '2026-11-24', academy: 30, homework: 0 },
+  { date: '2026-11-25', academy: 70, homework: 20 },
+  { date: '2026-11-26', academy: 60, homework: 35 },
+]
 
 /* 자동 종료된 지난 공부 (문제 수 미입력) */
 const pendingSession: StudySession = {
@@ -456,6 +526,46 @@ const cases: [string, () => JSX.Element][] = [
   ['AdminLogin', () => <AdminLogin onSuccess={() => {}} onBack={() => {}} />],
   ['AdminApp', () => <AdminApp onBack={() => {}} />],
   ['Dashboard', () => <Dashboard students={[student]} studentsLoading={false} studentsError={null} reloadStudents={() => {}} />],
+  [
+    'DayDetailModal(날짜 상세)',
+    () => (
+      <DayDetailModal
+        open
+        date="2026-11-25"
+        students={calendarStudents}
+        index={calendarIndex}
+        onClose={() => {}}
+        onSent={() => {}}
+      />
+    ),
+  ],
+  [
+    'DayDetailModal(기록 없는 날)',
+    () => (
+      <DayDetailModal
+        open
+        date="2026-11-20"
+        students={calendarStudents}
+        index={calendarIndex}
+        onClose={() => {}}
+        onSent={() => {}}
+      />
+    ),
+  ],
+  [
+    'DragonballBulk(학원·숙제 일괄)',
+    () => (
+      <DragonballBulk
+        academyIds={[student.id]}
+        homeworkIds={['cal-student-2']}
+        amount={2}
+        onAmountChange={() => {}}
+        date="2026-11-25"
+        onSent={() => {}}
+      />
+    ),
+  ],
+  ['DualTrendChart(학원·숙제 두 선)', () => <DualTrendChart points={dualPoints} />],
   ['RankingPanel', () => <RankingPanel students={[student]} studentsLoading={false} studentsError={null} reloadStudents={() => {}} />],
   ['ErrorBoundary(자식)', () => <ErrorBoundary><CodeEntryScreen onSubmit={async () => ({ ok: true })} onAdmin={() => {}} /></ErrorBoundary>],
   [
@@ -603,6 +713,36 @@ const kintounChecks: [string, boolean][] = [
   ['근두운: 세션 id 넘기면 바로 읽을 준비', (rendered['LiveKintounStrip(세션 있음)'] ?? '').includes('불러오는 중')],
 ]
 
+
+/* 공부기록 달력 날짜 상세 · 일괄 드래곤볼 · 두 선 그래프 (2026-11-28) */
+/* JSX 텍스트 사이에 들어가는 SSR 주석(<!-- -->)은 빼고 글자만 본다 */
+const plainText = (html: string) => html.replace(/<!--[^>]*-->/g, '')
+const dayHtml = rendered['DayDetailModal(날짜 상세)'] ?? ''
+const dayText = plainText(dayHtml)
+const emptyDayText = plainText(rendered['DayDetailModal(기록 없는 날)'] ?? '')
+const bulkText = plainText(rendered['DragonballBulk(학원·숙제 일괄)'] ?? '')
+const dualHtml = rendered['DualTrendChart(학원·숙제 두 선)'] ?? ''
+const calendarChecks: [string, boolean][] = [
+  ['달력 상세: 날짜 제목', dayText.includes('11월 25일 (수)') && dayText.includes('공부 이력')],
+  ['달력 상세: 학원 공부한 학생', dayText.includes('🏫 학원 공부한 학생 1명') && dayText.includes('이지빈')],
+  ['달력 상세: 숙제 공부한 학생', dayText.includes('🏠 숙제 공부한 학생 1명') && dayText.includes('김민수')],
+  ['달력 상세: 기록 없는 학생', dayText.includes('기록 없는 학생 1명') && dayText.includes('박서연')],
+  ['달력 상세: 학원 공부 시간·문제', dayText.includes('70분 · 9문제')],
+  ['달력 상세: 학원·숙제 일괄 버튼', dayText.includes('🏫 학원공부 일괄 1명') && dayText.includes('🏠 숙제공부 일괄 1명')],
+  ['달력 상세: 개별 쏘기 버튼', dayText.includes('이지빈 학원공부 드래곤볼 쏘기') && dayText.includes('김민수 숙제공부 드래곤볼 쏘기')],
+  ['달력 상세: 기록 없는 날 안내', emptyDayText.includes('이 날은 학원 공부 기록이 없어요') && emptyDayText.includes('이 날은 숙제 공부 기록이 없어요')],
+  ['달력 상세: 관리자 화면에 푼 문제 없음', !dayText.includes('푼 문제')],
+  ['일괄: 확인 전에는 확인 문구 없음', !bulkText.includes('쏠까요')],
+  ['일괄: 개수 조절·랜덤 안내', bulkText.includes('1~7성구 랜덤') && bulkText.includes('1개 늘리기')],
+  ['두 선 그래프: 학원·숙제 선 모두', dualHtml.includes('data-series="academy"') && dualHtml.includes('data-series="homework"')],
+  ['두 선 그래프: 학원 파랑·숙제 빨강', dualHtml.includes('#1D4A9B') && dualHtml.includes('#E0453E')],
+  ['오늘 공부 이력: 관리자 실시간 칸', plainText(kintounPanelHtml).includes('오늘 공부 이력') && plainText(kintounPanelHtml).includes('푼 숙제')],
+]
+for (const [name, ok] of calendarChecks) {
+  if (!ok) failed += 1
+  console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)
+}
+
 /* 관리자 탭 — 「학생 관리」 탭은 2026-11-27 에 뺐다(원생 정보·닉네임 관리는 「훈출」의 원생·포인트에서) */
 const adminTabChecks: [string, boolean][] = [
   ['관리자 탭: 학생 관리 없음', !(ADMIN_TAB_ORDER as readonly string[]).includes('students')],
@@ -628,7 +768,7 @@ const endStudyChecks: [string, boolean][] = [
   ['수업 종료: 드래곤볼 쏘기 버튼은 그대로', liveRowHtml.includes('에게 드래곤볼 3개 쏘기')],
   ['수업 종료 확인: 제목·학생 이름', endModalHtml.includes('수업을 마칠까요?') && endModalHtml.includes('김민수')],
   ['수업 종료 확인: 지금까지의 시간(25분)', endModalHtml.includes('지금까지') && /25(?:<!-- -->)?분/.test(endModalHtml)],
-  ['수업 종료 확인: 문제 수 입력칸', endModalHtml.includes('오늘 푼 문제 수 (선택)') && endModalHtml.includes('value="7"')],
+  ['수업 종료 확인: 문제 수 입력칸', endModalHtml.includes('오늘 푼 숙제 수 (선택)') && endModalHtml.includes('value="7"')],
   ['수업 종료 확인: 비우면 0문제 안내', endModalHtml.includes('0문제')],
   ['수업 종료 확인: 학원은 바로 기록 안내', endModalHtml.includes('바로 들어가요')],
   ['수업 종료 확인: 취소·종료 버튼', endModalHtml.includes('>취소<') && endModalHtml.includes('>수업 종료<')],
@@ -647,7 +787,9 @@ const statsSplitChecks: [string, boolean][] = [
   ['분리: 대시보드 학원·숙제 카드', dashboardHtml.includes('🏫 학원 공부') && dashboardHtml.includes('🏠 숙제 공부')],
   ['분리: 대시보드 합계 카드', dashboardHtml.includes('>합계<')],
   ['분리: 학생 비교 구분 필터', dashboardHtml.includes('aria-label="학생 비교 구분"')],
-  ['분리: 표 구분 필터', dashboardHtml.includes('aria-label="표 구분"')],
+  ['달력: 공부기록 달력 칸', dashboardHtml.includes('공부기록 달력')],
+  ['달력: 학원·숙제 색 안내', dashboardHtml.includes('🏫 학원공부(파랑)') && dashboardHtml.includes('🏠 숙제공부(빨강)')],
+  ['달력: 이전·다음 달 버튼', dashboardHtml.includes('aria-label="이전 달"') && dashboardHtml.includes('aria-label="다음 달"')],
   ['분리: 미제출 학원·숙제 안내', dashboardHtml.includes('아래 숫자로 학원·숙제를 따로 볼 수 있어요')],
   ['분리: 랭킹 학원·숙제 분리 안내', rankingHtml.includes('전체 / 🏫 학원 / 🏠 숙제로 따로')],
 ]

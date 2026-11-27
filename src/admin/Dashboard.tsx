@@ -1,29 +1,27 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { buildMonthGrid, cellTimeText, monthDaySums, monthLabel, sumMonth } from '../lib/calendar'
 import { downloadTextFile, todayStamp, toCsv } from '../lib/csv'
 import { compareName, matchesGradeFilter, normalizeGrade, type GradeFilter } from '../lib/grades'
 import * as api from '../lib/api'
 import {
   addDays,
   currentMonthKst,
-  formatDateShort,
   formatMinutes,
   formatMinutesCompact,
   isWeekend,
   monthRange,
   rangeDates,
+  shiftMonth,
   todayKst,
   weekdayOf,
 } from '../lib/time'
 import {
   buildStats,
   groupByGrade,
-  hasScopedLog,
   indexLogs,
   scopeLabel,
   scopeShortLabel,
   scopedDays,
-  scopedLogMinutes,
-  scopedLogProblems,
   scopedMinutes,
   scopedProblems,
   sortStudents,
@@ -36,6 +34,7 @@ import {
 import { KIND_BAR_CLASS } from '../lib/kinds'
 import type { Student, StudyLog } from '../lib/types'
 import { HorizontalBars, KindLegend, SplitBar } from './Charts'
+import { DayDetailModal } from './DayDetailModal'
 import { LogEditorModal } from './LogEditorModal'
 import { StudentDetailModal } from './StudentDetailModal'
 import {
@@ -75,6 +74,12 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [detailStudent, setDetailStudent] = useState<Student | null>(null)
   const [editingCell, setEditingCell] = useState<{ student: Student; date: string; log: StudyLog | null } | null>(null)
+  /* 공부기록 달력 — 조회 기간과 따로 움직이는 한 달 (2026-11-28) */
+  const [month, setMonth] = useState(() => todayKst().slice(0, 7))
+  const [monthLogs, setMonthLogs] = useState<StudyLog[]>([])
+  const [monthLoading, setMonthLoading] = useState(true)
+  const [monthError, setMonthError] = useState<string | null>(null)
+  const [dayDate, setDayDate] = useState<string | null>(null)
 
   const safeStart = start <= end ? start : end
   const safeEnd = start <= end ? end : start
@@ -95,8 +100,31 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
     void loadLogs()
   }, [loadLogs, refreshKey])
 
+  /* 조회 기간의 끝이 바뀌면 달력도 그 달로 — 달력은 따로 넘겨 볼 수 있다 */
+  useEffect(() => {
+    setMonth(safeEnd.slice(0, 7))
+  }, [safeEnd])
+
+  const loadMonthLogs = useCallback(async () => {
+    setMonthLoading(true)
+    const range = monthRange(month)
+    const res = await api.listLogs(range.start, range.end)
+    if (res.ok) {
+      setMonthLogs(res.data)
+      setMonthError(null)
+    } else {
+      setMonthError(res.error)
+    }
+    setMonthLoading(false)
+  }, [month])
+
+  useEffect(() => {
+    void loadMonthLogs()
+  }, [loadMonthLogs, refreshKey])
+
   const dates = useMemo(() => rangeDates(safeStart, safeEnd), [safeStart, safeEnd])
   const index = useMemo(() => indexLogs(logs), [logs])
+  const monthIndex = useMemo(() => indexLogs(monthLogs), [monthLogs])
   const filteredStudents = useMemo(
     () => sortStudents(students.filter((student) => matchesGradeFilter(normalizeGrade(student.grade), grade))),
     [students, grade],
@@ -112,7 +140,6 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
     [stats, scope],
   )
   const submittedStudents = stats.filter((stat) => scopedDays(stat, scope) > 0).length
-  const maxCellMinutes = Math.max(1, ...stats.map((stat) => scopedMinutes(stat, scope)))
 
   const emptyDates = useMemo(() => {
     if (emptyPeriod === 'today') return { start: today, end: today }
@@ -139,6 +166,12 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
   )
 
   const sections = useMemo(() => groupByGrade(filteredStudents), [filteredStudents])
+
+  /* 달력 칸·달 요약 — 학년 필터가 적용된 학생만 센다 */
+  const calendarCells = useMemo(() => buildMonthGrid(month), [month])
+  const daySums = useMemo(() => monthDaySums(filteredStudents, monthIndex, month), [filteredStudents, monthIndex, month])
+  const monthTotal = useMemo(() => sumMonth(daySums.values()), [daySums])
+  const monthToday = todayKst()
 
   const barItems = useMemo(() => {
     const valueOf = (stat: StudentStat) => (metric === 'minutes' ? scopedMinutes(stat, scope) : scopedProblems(stat, scope))
@@ -192,7 +225,7 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
         '공부시간',
         '학원 문제',
         '숙제 문제',
-        '푼 문제 수',
+        '푼 숙제 수',
       ])
       for (const stat of stats) {
         for (const date of dates) {
@@ -239,12 +272,6 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
       }
     }
     downloadTextFile(`선오공_학습기록_${safeStart}_${safeEnd}_${todayStamp()}.csv`, toCsv(rows))
-  }
-
-  const cellColor = (minutes: number): string => {
-    if (minutes <= 0) return 'transparent'
-    const alpha = 0.14 + 0.78 * Math.min(1, minutes / Math.max(60, maxCellMinutes))
-    return `rgba(18, 41, 107, ${alpha.toFixed(3)})`
   }
 
   return (
@@ -338,152 +365,131 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
       {studentsError ? <ErrorBlock message={studentsError} onRetry={reloadStudents} /> : null}
 
       <AdminSection
-        title="학생 × 날짜 표"
-        description={
-          scope === 'all'
-            ? '칸을 누르면 그 날 기록을 고칠 수 있어요. 시간이 길수록 진하게 표시되고, 칸 아래 막대는 학원·숙제 비율이에요.'
-            : `${scopeLabel(scope)} 기록만 보여줘요. 시간이 길수록 진하게 표시되고, 칸을 누르면 그 날 기록을 고칠 수 있어요.`
+        title="공부기록 달력"
+        description="날짜 칸에 그날 공부한 인원과 시간이 🏫 학원공부(파랑)·🏠 숙제공부(빨강)로 나옵니다. 날짜를 누르면 그날 공부한/안 한 학생과 학원·숙제 일괄 드래곤볼 쏘기를 할 수 있어요."
+        actions={
+          <div className="flex items-center gap-1.5 whitespace-nowrap">
+            <button
+              type="button"
+              aria-label="이전 달"
+              className="rounded-lg border border-blue-line px-2 py-1 text-[12px] font-bold text-navy/60 hover:bg-blue-soft"
+              onClick={() => setMonth((value) => shiftMonth(value, -1))}
+            >
+              ‹
+            </button>
+            <span className="w-[86px] text-center text-[12px] font-extrabold text-navy tabular">{monthLabel(month)}</span>
+            <button
+              type="button"
+              aria-label="다음 달"
+              className="rounded-lg border border-blue-line px-2 py-1 text-[12px] font-bold text-navy/60 hover:bg-blue-soft"
+              onClick={() => setMonth((value) => shiftMonth(value, 1))}
+            >
+              ›
+            </button>
+            <button
+              type="button"
+              className="ml-0.5 rounded-full bg-blue-soft px-2.5 py-1 text-[11px] font-bold text-navy/60 hover:text-navy"
+              onClick={() => setMonth(monthToday.slice(0, 7))}
+            >
+              이번 달
+            </button>
+          </div>
         }
-        actions={<KindScopeSwitch value={scope} onChange={setScope} label="표 구분" />}
       >
-        {studentsLoading || loading ? (
+        <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] font-semibold">
+          <span className="rounded-full bg-[#EEF4FF] px-2.5 py-1 text-[#1D4A9B] tabular">
+            🏫 학원공부 연인원 {monthTotal.academyStudents}명 · {formatMinutes(monthTotal.academyMinutes)}
+          </span>
+          <span className="rounded-full bg-[#FFF1F0] px-2.5 py-1 text-[#D9382F] tabular">
+            🏠 숙제공부 연인원 {monthTotal.homeworkStudents}명 · {formatMinutes(monthTotal.homeworkMinutes)}
+          </span>
+          <span className="text-navy/35">날짜를 누르면 상세</span>
+        </div>
+
+        {monthError ? <ErrorBlock message={monthError} onRetry={() => void loadMonthLogs()} /> : null}
+        {studentsLoading || monthLoading ? (
           <LoadingBlock />
         ) : filteredStudents.length === 0 ? (
           <EmptyBlock message="조건에 맞는 학생이 없어요." />
         ) : (
-          <div className="max-h-[66vh] overflow-auto rounded-xl border border-blue-line">
-            <table className="border-collapse text-[10px]">
-              <thead className="sticky top-0 z-10">
-                <tr>
-                  <th className="sticky left-0 z-20 min-w-[96px] border-b border-r border-blue-line bg-white px-2 py-1.5 text-left text-[11px] font-bold text-navy">
-                    학생
-                  </th>
-                  {dates.map((date) => (
-                    <th
-                      key={date}
-                      className={`border-b border-blue-line px-0.5 py-1 text-center font-bold ${
-                        isWeekend(date) ? 'bg-blue-soft text-blue-brand' : 'bg-white text-navy/60'
+          <div className="overflow-x-auto rounded-2xl border border-blue-line p-1.5">
+            <div className="grid grid-cols-7 gap-1">
+              {WEEKDAY.map((label, weekday) => (
+                <div
+                  key={label}
+                  className={`pb-1 text-center text-[10px] font-extrabold ${
+                    weekday === 0 ? 'text-[#D9382F]' : weekday === 6 ? 'text-[#1D4A9B]' : 'text-navy/45'
+                  }`}
+                >
+                  {label}
+                </div>
+              ))}
+              {calendarCells.map((cell) => {
+                const sum = daySums.get(cell.date)
+                const future = cell.date > monthToday
+                const isToday = cell.date === monthToday
+                const weekend = isWeekend(cell.date)
+                return (
+                  <button
+                    key={cell.date}
+                    type="button"
+                    disabled={future}
+                    onClick={() => setDayDate(cell.date)}
+                    aria-label={`${cell.date} 상세${
+                      sum ? ` · 학원 ${sum.academyStudents}명 ${sum.academyMinutes}분 · 숙제 ${sum.homeworkStudents}명 ${sum.homeworkMinutes}분` : ''
+                    }`}
+                    className={`flex min-h-[66px] flex-col rounded-lg border px-1 pb-1 pt-0.5 text-left transition sm:min-h-[88px] sm:px-1.5 ${
+                      cell.inMonth ? 'border-blue-line bg-white' : 'border-blue-line/50 bg-blue-soft/30'
+                    } ${future ? 'opacity-40' : 'hover:border-blue-brand hover:bg-blue-soft/60'} ${
+                      isToday ? 'ring-2 ring-[#F08C00]' : ''
+                    }`}
+                  >
+                    <span
+                      className={`whitespace-nowrap text-[10px] font-extrabold tabular ${
+                        cell.inMonth ? (weekend ? (weekdayOf(cell.date) === 0 ? 'text-[#D9382F]' : 'text-[#1D4A9B]') : 'text-navy/70') : 'text-navy/25'
                       }`}
                     >
-                      <div className="tabular">{formatDateShort(date)}</div>
-                      <div className="text-[9px] font-medium opacity-60">{WEEKDAY[weekdayOf(date)]}</div>
-                    </th>
-                  ))}
-                  <th className="sticky right-0 z-20 border-b border-l border-blue-line bg-white px-2 py-1.5 text-right text-[11px] font-bold text-navy">
-                    {scope === 'all' ? '합계' : `${scopeShortLabel(scope)} 합계`}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.map((stat) => (
-                  <tr key={stat.student.id} className="group">
-                    <th className="sticky left-0 z-10 border-b border-r border-blue-line bg-white px-2 py-1 text-left">
-                      <button
-                        type="button"
-                        onClick={() => setDetailStudent(stat.student)}
-                        className="text-[11px] font-bold text-navy hover:underline"
-                      >
-                        {stat.student.name}
-                      </button>
-                      <span className="ml-1 text-[9px] font-medium text-navy/40">{stat.student.grade}</span>
-                    </th>
-                    {dates.map((date) => {
-                      const log = stat.byDate.get(date)
-                      const split = splitLog(log)
-                      const weekend = isWeekend(date)
-                      const filled = log ? (scope === 'all' ? true : hasScopedLog(log, scope)) : false
-                      const cellMinutes = scopedLogMinutes(log, scope)
-                      const cellProblems = scopedLogProblems(log, scope)
-                      return (
-                        <td key={date} className={`border-b border-blue-line p-0 text-center ${weekend && !filled ? 'bg-blue-soft/60' : ''}`}>
-                          <button
-                            type="button"
-                            onClick={() => setEditingCell({ student: stat.student, date, log: log ?? null })}
-                            title={`${stat.student.name} ${date}${
-                              log
-                                ? ` · 🏫 ${split.academyMinutes}분 ${split.academyProblems}문제 · 🏠 ${split.homeworkMinutes}분 ${split.homeworkProblems}문제`
-                                : ' · 기록 없음'
-                            }`}
-                            className={`flex h-[42px] w-[46px] flex-col items-center justify-center transition hover:outline hover:outline-1 hover:outline-blue-brand ${
-                              filled ? 'text-white' : 'text-navy/25'
-                            }`}
-                            style={{ backgroundColor: filled ? cellColor(cellMinutes) : weekend ? 'transparent' : '#F3F4F6' }}
-                          >
-                            {filled ? (
-                              <>
-                                <span className="text-[10px] font-bold leading-tight tabular">{cellMinutes}분</span>
-                                <span className="text-[9px] leading-tight opacity-85 tabular">{cellProblems}문제</span>
-                                {scope === 'all' && split.homeworkMinutes > 0 ? (
-                                  <SplitBar
-                                    academy={split.academyMinutes}
-                                    homework={split.homeworkMinutes}
-                                    className="mt-0.5 w-[30px]"
-                                    trackClass="bg-white/30"
-                                    academyClass="bg-white"
-                                    homeworkClass="bg-[#B9A6DE]"
-                                  />
-                                ) : null}
-                              </>
-                            ) : log ? (
-                              <span className="text-[11px] text-navy/30" title={`${scopeLabel(scope)} 기록 없음`}>
-                                {scope === 'academy' ? '🏠' : '🏫'}
-                              </span>
-                            ) : (
-                              <span className="text-[11px]">·</span>
-                            )}
-                          </button>
-                        </td>
-                      )
-                    })}
-                    <td className="sticky right-0 z-10 min-w-[92px] whitespace-nowrap border-b border-l border-blue-line bg-white px-2 pb-1.5 pt-1 text-right leading-tight tabular">
-                      <span className="block text-[10px] font-bold text-navy">
-                        {formatMinutes(scopedMinutes(stat, scope))}
-                        <span className="ml-1 text-[9px] font-medium text-navy/40">{scopedProblems(stat, scope)}문제</span>
-                      </span>
-                      {scope === 'all' ? (
-                        stat.academyMinutes + stat.homeworkMinutes > 0 ? (
-                          <>
-                            <span className="block text-[9px] font-semibold text-navy/55">
-                              🏫 {formatMinutesCompact(stat.academyMinutes)}
+                      {cell.day}
+                      {isToday ? <span className="ml-0.5 hidden text-[8px] font-bold text-[#B07200] sm:inline">오늘</span> : null}
+                    </span>
+                    {sum ? (
+                      <span className="mt-0.5 block min-w-0">
+                        {sum.academyStudents > 0 ? (
+                          <span className="block whitespace-nowrap text-[8.5px] font-extrabold leading-[1.25] text-[#1D4A9B] sm:text-[10px] sm:leading-[1.1]">
+                            🏫 {sum.academyStudents}
+                            <span className="hidden sm:inline">명</span>
+                            <span className="block whitespace-nowrap text-[8px] font-semibold text-[#1D4A9B]/80 sm:ml-1 sm:inline sm:text-[9.5px]">
+                              <span className="sm:hidden">{cellTimeText(sum.academyMinutes)}</span>
+                              <span className="hidden sm:inline">{formatMinutesCompact(sum.academyMinutes)}</span>
                             </span>
-                            <span className="block text-[9px] font-semibold text-[#5B2FC0]/85">
-                              🏠 {formatMinutesCompact(stat.homeworkMinutes)}
-                            </span>
-                          </>
-                        ) : null
-                      ) : (
-                        <>
-                          <span className="block text-[9px] font-semibold text-navy/50">
-                            {scope === 'academy' ? '🏠' : '🏫'}{' '}
-                            {formatMinutesCompact(scope === 'academy' ? stat.homeworkMinutes : stat.academyMinutes)}
                           </span>
-                          <span className="block text-[9px] font-medium text-navy/35">합계 {formatMinutesCompact(stat.minutes)}</span>
-                        </>
-                      )}
-                      {stat.otherMinutes > 0 ? (
-                        <span className="block text-[9px] font-medium text-navy/35">직접 수정 {stat.otherMinutes}분</span>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                        ) : null}
+                        {sum.homeworkStudents > 0 ? (
+                          <span className="mt-1 block whitespace-nowrap text-[8.5px] font-extrabold leading-[1.25] text-[#D9382F] sm:mt-1 sm:text-[10px] sm:leading-[1.1]">
+                            🏠 {sum.homeworkStudents}
+                            <span className="hidden sm:inline">명</span>
+                            <span className="block whitespace-nowrap text-[8px] font-semibold text-[#D9382F]/80 sm:ml-1 sm:inline sm:text-[9.5px]">
+                              <span className="sm:hidden">{cellTimeText(sum.homeworkMinutes)}</span>
+                              <span className="hidden sm:inline">{formatMinutesCompact(sum.homeworkMinutes)}</span>
+                            </span>
+                          </span>
+                        ) : null}
+                      </span>
+                    ) : null}
+                  </button>
+                )
+              })}
+            </div>
           </div>
         )}
-        <KindLegend className="mt-2.5" />
         <div className="mt-2 flex flex-wrap items-center gap-3 text-[10px] text-navy/45">
           <span className="flex items-center gap-1">
-            <span className="inline-block h-3 w-3 rounded" style={{ backgroundColor: 'rgba(18,41,107,0.2)' }} /> 짧게
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#1D4A9B]" /> 🏫 학원공부 인원·시간
           </span>
           <span className="flex items-center gap-1">
-            <span className="inline-block h-3 w-3 rounded" style={{ backgroundColor: 'rgba(18,41,107,0.9)' }} /> 길게
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#D9382F]" /> 🏠 숙제공부 인원·시간
           </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-3 w-3 rounded" style={{ backgroundColor: '#F3F4F6' }} /> 미제출
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-3 w-3 rounded bg-blue-soft ring-1 ring-blue-line" /> 주말
-          </span>
+          <span>오늘 {monthToday}</span>
         </div>
       </AdminSection>
 
@@ -773,6 +779,18 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
           {emptyDates.start === emptyDates.end ? emptyDates.start : `${emptyDates.start} ~ ${emptyDates.end}`} 기준
         </p>
       </AdminSection>
+
+      <DayDetailModal
+        open={Boolean(dayDate)}
+        date={dayDate}
+        students={filteredStudents}
+        index={monthIndex}
+        onClose={() => setDayDate(null)}
+        onSent={() => {
+          setRefreshKey((n) => n + 1)
+          reloadStudents()
+        }}
+      />
 
       <StudentDetailModal
         open={Boolean(detailStudent)}

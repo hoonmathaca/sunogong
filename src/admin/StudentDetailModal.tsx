@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Modal } from '../components/Modal'
 import { Spinner } from '../components/Keypad'
 import * as api from '../lib/api'
-import { hasScopedLog, scopedLogMinutes, scopedLogProblems, splitLog, type StatScope } from '../lib/stats'
+import { hasScopedLog, splitLog, type StatScope } from '../lib/stats'
 import { addDays, formatDateKo, formatMinutes, formatMinutesCompact, rangeDates } from '../lib/time'
 import type { Student, StudyLog } from '../lib/types'
-import { TrendLineChart, type LinePoint } from './Charts'
+import { DualTrendChart, type DualPoint } from './Charts'
 import { LogEditorModal } from './LogEditorModal'
 import { KindScopeSwitch } from './ui'
 
@@ -46,13 +46,14 @@ export function StudentDetailModal({ open, student, endDate, onClose, onChanged 
     if (open) void load()
   }, [open, load, refreshKey])
 
-  const points: LinePoint[] = useMemo(() => {
+  /* 학원(파랑)·숙제(빨강) 두 선 — 구분을 고르면 그 선만 보인다 (2026-11-28) */
+  const points: DualPoint[] = useMemo(() => {
     const byDate = new Map(logs.map((log) => [log.date, log]))
     return rangeDates(start, endDate).map((date) => {
-      const log = byDate.get(date)
-      return { date, value: scopedLogMinutes(log, scope), problems: scopedLogProblems(log, scope) }
+      const split = splitLog(byDate.get(date))
+      return { date, academy: split.academyMinutes, homework: split.homeworkMinutes }
     })
-  }, [logs, start, endDate, scope])
+  }, [logs, start, endDate])
 
   if (!open || !student) return null
 
@@ -113,12 +114,11 @@ export function StudentDetailModal({ open, student, endDate, onClose, onChanged 
               <h3 className="text-[13px] font-bold text-navy">최근 30일 추이</h3>
               <KindScopeSwitch value={scope} onChange={setScope} label="추이 구분" />
             </div>
-            <TrendLineChart
+            <DualTrendChart
               points={points}
               metric="minutes"
-              accent={scope === 'homework' ? '#6D3BD6' : '#1D4A9B'}
-              dotColor={scope === 'homework' ? '#5B2FC0' : '#12296B'}
-              areaId={`sunogong-area-${scope}`}
+              showAcademy={scope !== 'homework'}
+              showHomework={scope !== 'academy'}
             />
 
             <h3 className="mt-4 text-[13px] font-bold text-navy">최근 기록</h3>

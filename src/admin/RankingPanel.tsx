@@ -292,8 +292,8 @@ export function RankingPanel({ students, studentsLoading, studentsError, reloadS
               `🐲 일반용 ${dragonTotal(entry.student.dragons)}마리(${dragonColorKinds(entry.student.dragons)}/7색) · 🌈 무지개용 ${normalizeTicketCount(entry.student.rainbow_dragon_count)}마리`,
           )}
           {renderRanking('문제 풀이 TOP3', '학원+숙제 합계', problemRankings.all, (value) => `${value}개`)}
-          {renderRanking('🏫 학원 문제 TOP3', '학원 공부에서 푼 문제', problemRankings.academy, (value) => `${value}개`)}
-          {renderRanking('🏠 숙제 문제 TOP3', '숙제 공부에서 푼 문제', problemRankings.homework, (value) => `${value}개`)}
+          {renderRanking('🏫 학원 문제 TOP3', '학원 공부에서 푼 숙제', problemRankings.academy, (value) => `${value}개`)}
+          {renderRanking('🏠 숙제 문제 TOP3', '숙제 공부에서 푼 숙제', problemRankings.homework, (value) => `${value}개`)}
 
           <p className="px-1 text-[10px] text-navy/35">
             동점이면 같은 순위로 표시하고, 그 안에서는 기록을 많이 남긴 학생을 먼저 보여줘요.

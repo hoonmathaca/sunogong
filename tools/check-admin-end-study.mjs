@@ -120,7 +120,7 @@ try {
   check('확인 창: 학생 이름', dialogText.includes('검증수업종료'))
   check('확인 창: 지금까지의 시간(25분)', dialogText.includes('지금까지') && dialogText.includes('25분'), dialogText.slice(0, 200))
   check('확인 창: 공부 종류', dialogText.includes('🏫 학원 공부') && dialogText.includes('공부 중'))
-  check('확인 창: 문제 수 입력칸', dialogText.includes('오늘 푼 문제 수 (선택)'))
+  check('확인 창: 문제 수 입력칸', dialogText.includes('오늘 푼 숙제 수 (선택)'))
   check('확인 창: 비우면 0문제 안내', dialogText.includes('0문제'))
   check('확인 창: 학원은 바로 기록 안내', dialogText.includes('바로 들어가요'))
   check('확인 창: 취소·종료 버튼', dialogText.includes('취소') && dialogText.includes('수업 종료'))
@@ -133,7 +133,7 @@ try {
   await admin.screenshot({ path: `${shotDir}/sunogong-admin-end-study-360.png`, fullPage: false })
 
   /* 문제 수 7 을 넣고 확정 */
-  await dialog.getByLabel('오늘 푼 문제 수 (선택)').fill('7')
+  await dialog.getByLabel('오늘 푼 숙제 수 (선택)').fill('7')
   await admin.waitForTimeout(200)
   await dialog.getByRole('button', { name: '수업 종료', exact: true }).click()
   await admin.waitForTimeout(2000)

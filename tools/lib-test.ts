@@ -238,6 +238,24 @@ import {
 } from '../src/lib/homeworkBoard'
 import { pickQuote, QUOTES } from '../src/lib/quotes'
 import { friendlyError } from '../src/lib/api'
+import {
+  addLogToDaySum,
+  buildMonthGrid,
+  cellTimeText,
+  dayBreakdown,
+  EMPTY_DAY_SUM,
+  hasKind,
+  monthDaySums,
+  monthLabel,
+  sumMonth,
+} from '../src/lib/calendar'
+import {
+  bulkConfirmText,
+  bulkSentText,
+  individualSentText,
+  sendNote,
+  uniqueIds,
+} from '../src/lib/dragonballSend'
 
 let failed = 0
 function eq(name: string, actual: unknown, expected: unknown) {
@@ -1516,5 +1534,94 @@ eq('문구: 옛 표기(출훈) 없음', [friendlyError('session_managed_by_kiosk
 eq('문구: 문제 수 이미 입력 안내', friendlyError('problems_not_pending'), '이미 문제 수를 입력한 공부예요.')
 eq('문구: 학원 등원 중 숙제 시작 안내', friendlyError('academy_session_active'), '학원 등원 중에는 숙제 공부를 시작할 수 없어요.')
 eq('문구: 학원 등원 중 안내는 옛 표기 없음', friendlyError('academy_session_active').includes('출훈'), false)
+
+
+/* 공부기록 달력 — 격자·날짜별 합계·하루 상세 (2026-11-28) */
+const calStudents = [
+  { id: 's1', name: '김민수', code: '1111', grade: '중2', created_at: '2026-11-01T00:00:00Z' },
+  { id: 's2', name: '이지빈', code: '2222', grade: '초1', created_at: '2026-11-01T00:00:00Z' },
+  { id: 's3', name: '박서연', code: '3333', grade: '중1', created_at: '2026-11-01T00:00:00Z' },
+]
+const calLogs = [
+  {
+    id: 'l1', student_id: 's1', date: '2026-11-25', minutes: 70, problems: 9,
+    academy_minutes: 70, academy_problems: 9, homework_minutes: 0, homework_problems: 0,
+    updated_at: '2026-11-25T10:00:00Z',
+  },
+  {
+    id: 'l2', student_id: 's2', date: '2026-11-25', minutes: 40, problems: 6,
+    academy_minutes: 0, academy_problems: 0, homework_minutes: 40, homework_problems: 6,
+    updated_at: '2026-11-25T10:00:00Z',
+  },
+  {
+    id: 'l3', student_id: 's2', date: '2026-11-26', minutes: 95, problems: 13,
+    academy_minutes: 60, academy_problems: 8, homework_minutes: 35, homework_problems: 5,
+    updated_at: '2026-11-26T10:00:00Z',
+  },
+  {
+    id: 'l4', student_id: 's1', date: '2026-12-01', minutes: 30, problems: 4,
+    academy_minutes: 30, academy_problems: 4, homework_minutes: 0, homework_problems: 0,
+    updated_at: '2026-12-01T10:00:00Z',
+  },
+]
+const calIndex = indexLogs(calLogs)
+
+eq('달력: 2026-11 은 일요일로 시작', buildMonthGrid('2026-11')[0], { date: '2026-11-01', day: 1, inMonth: true })
+eq('달력: 2026-11 은 30칸 + 마지막 주 채움 = 35칸', buildMonthGrid('2026-11').length, 35)
+eq('달력: 2026-11 마지막 칸은 12/5', buildMonthGrid('2026-11')[34], { date: '2026-12-05', day: 5, inMonth: false })
+eq('달력: 2026-11 이번 달 칸 수', buildMonthGrid('2026-11').filter((cell) => cell.inMonth).length, 30)
+eq('달력: 2026-09 앞은 8월 30·31일로 채움', buildMonthGrid('2026-09').slice(0, 3), [
+  { date: '2026-08-30', day: 30, inMonth: false },
+  { date: '2026-08-31', day: 31, inMonth: false },
+  { date: '2026-09-01', day: 1, inMonth: true },
+])
+eq('달력: 2026-09 도 7의 배수 칸', buildMonthGrid('2026-09').length % 7, 0)
+eq('달력: 잘못된 달은 빈 격자', buildMonthGrid('').length, 0)
+eq('달력: 학원 기록 판정', [hasKind(calLogs[0], 'academy'), hasKind(calLogs[0], 'homework')], [true, false])
+eq('달력: 숙제 기록 판정', [hasKind(calLogs[1], 'academy'), hasKind(calLogs[1], 'homework')], [false, true])
+eq('달력: 기록 없음 판정', [hasKind(null, 'academy'), hasKind(undefined, 'homework')], [false, false])
+eq('달력: 두 종류 다 있으면 둘 다 참', [hasKind(calLogs[2], 'academy'), hasKind(calLogs[2], 'homework')], [true, true])
+eq('달력: 하루 합계 — 학원만', addLogToDaySum({ ...EMPTY_DAY_SUM }, calLogs[0]), {
+  academyStudents: 1, academyMinutes: 70, academyProblems: 9,
+  homeworkStudents: 0, homeworkMinutes: 0, homeworkProblems: 0, students: 1,
+})
+eq('달력: 하루 합계 — 둘 다', addLogToDaySum({ ...EMPTY_DAY_SUM }, calLogs[2]), {
+  academyStudents: 1, academyMinutes: 60, academyProblems: 8,
+  homeworkStudents: 1, homeworkMinutes: 35, homeworkProblems: 5, students: 1,
+})
+const novSums = monthDaySums(calStudents, calIndex, '2026-11')
+eq('달력: 11/25 학원 인원·시간', [novSums.get('2026-11-25')?.academyStudents, novSums.get('2026-11-25')?.academyMinutes], [1, 70])
+eq('달력: 11/25 숙제 인원·시간', [novSums.get('2026-11-25')?.homeworkStudents, novSums.get('2026-11-25')?.homeworkMinutes], [1, 40])
+eq('달력: 11/26 한 학생이 두 종류', [novSums.get('2026-11-26')?.academyStudents, novSums.get('2026-11-26')?.homeworkStudents], [1, 1])
+eq('달력: 다른 달 기록은 빼고 센다', [novSums.has('2026-12-01'), novSums.size], [false, 2])
+eq('달력: 필터에 없는 학생은 세지 않는다', monthDaySums([calStudents[0]], calIndex, '2026-11').get('2026-11-26'), undefined)
+const novTotal = sumMonth(novSums.values())
+eq('달력: 달 합계 — 학원·숙제 인원/시간', [
+  novTotal.academyStudents, novTotal.academyMinutes, novTotal.homeworkStudents, novTotal.homeworkMinutes,
+], [2, 130, 2, 75])
+eq('달력: 달 합계 — 문제', [novTotal.academyProblems, novTotal.homeworkProblems], [17, 11])
+const day = dayBreakdown(calStudents, calIndex, '2026-11-25')
+eq('달력: 11/25 학원 학생', day.academy.map((s) => s.name), ['김민수'])
+eq('달력: 11/25 숙제 학생', day.homework.map((s) => s.name), ['이지빈'])
+eq('달력: 11/25 기록 없는 학생', day.missing.map((s) => s.name), ['박서연'])
+const day2 = dayBreakdown(calStudents, calIndex, '2026-11-26')
+eq('달력: 11/26 한 학생이 양쪽 목록에', [day2.academy.map((s) => s.name), day2.homework.map((s) => s.name)], [['이지빈'], ['이지빈']])
+eq('달력: 11/26 기록 없는 학생 둘 (학년 순)', day2.missing.map((s) => s.name), ['박서연', '김민수'])
+eq('달력: 달 이름', [monthLabel('2026-11'), monthLabel('2027-01')], ['2026년 11월', '2027년 1월'])
+eq('달력: 칸 시간 — 1시간 미만은 분', [cellTimeText(0), cellTimeText(45)], ['0분', '45분'])
+eq('달력: 칸 시간 — 시간은 분을 버린다', [cellTimeText(70), cellTimeText(90), cellTimeText(2189)], ['1시간', '1시간', '36시간'])
+eq('달력: 칸 시간 — 59분은 다음 시간으로 넘기지 않는다', [cellTimeText(89), cellTimeText(119)], ['1시간', '1시간'])
+
+/* 드래곤볼 쏘기 문구 — 달력·오늘 공부 이력 (2026-11-28) */
+eq('쏘기: 중복 학생은 한 번만', uniqueIds(['a', 'b', 'a', '']), ['a', 'b'])
+eq('쏘기: 학원 일괄 확인 문구', bulkConfirmText('academy', 12, 1), '🏫 학원공부한 12명에게 드래곤볼 1개씩 쏠까요?')
+eq('쏘기: 숙제 일괄 확인 문구', bulkConfirmText('homework', 3, 2), '🏠 숙제공부한 3명에게 드래곤볼 2개씩 쏠까요?')
+eq('쏘기: 학원 일괄 결과 문구', bulkSentText('academy', 12, 1), '🏫 학원공부 12명에게 드래곤볼 1개씩 쏘았어요!')
+eq('쏘기: 받을 학생이 없으면 안내', bulkSentText('homework', 0, 1), '드래곤볼을 받을 학생이 없어요.')
+eq('쏘기: 개별 결과에 나온 성구', individualSentText(2, [4, 7]), '드래곤볼 2개 — 4성구 · 7성구')
+eq('쏘기: 개별 결과에 성구가 없으면', individualSentText(1, []), '드래곤볼 1개를 쏘았어요.')
+eq('쏘기: 이력 메모 — 일괄', sendNote('academy', '2026-11-25'), '학원공부 일괄 (11/25)')
+eq('쏘기: 이력 메모 — 오늘 일괄', sendNote('homework', null), '숙제공부 일괄')
+eq('쏘기: 이력 메모 — 개별', sendNote('homework', '2026-11-26', true), '숙제공부 개별 (11/26)')
 
 console.log(failed === 0 ? 'ALL LIB TESTS PASSED' : `${failed} FAILED`)

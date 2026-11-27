@@ -72,7 +72,7 @@ export function EndStudyModal({
       </p>
 
       <label className="mt-3 block text-[12px] font-extrabold text-navy/70" htmlFor="end-study-problems">
-        오늘 푼 문제 수 (선택)
+        오늘 푼 숙제 수 (선택)
       </label>
       <div className="mt-1.5 flex items-center gap-2">
         <input

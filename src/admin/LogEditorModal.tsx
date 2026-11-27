@@ -143,7 +143,7 @@ export function LogEditorModal({ open, student, date, log, onClose, onSaved }: L
               />
             </label>
             <label className="text-[11px] font-semibold text-navy/55">
-              푼 문제 수
+              푼 숙제 수
               <input
                 type="number"
                 min={0}
@@ -173,7 +173,7 @@ export function LogEditorModal({ open, student, date, log, onClose, onSaved }: L
               />
             </label>
             <label className="text-[11px] font-semibold text-[#5B2FC0]/60">
-              푼 문제 수
+              푼 숙제 수
               <input
                 type="number"
                 min={0}

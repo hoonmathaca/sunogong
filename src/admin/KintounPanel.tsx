@@ -2,6 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Modal } from '../components/Modal'
 import { Dragonball } from '../components/KintounCloud'
 import * as api from '../lib/kintoun'
+import { listLogs } from '../lib/api'
+import { individualSentText, sendDragonballs } from '../lib/dragonballSend'
+import { splitLog } from '../lib/stats'
+import type { SessionKind } from '../lib/kinds'
+import type { StudyLog } from '../lib/types'
+import { formatDateKo, formatHMS, todayKst } from '../lib/time'
 import {
   DRAGONBALL_MAX_AMOUNT,
   dragonTotal,
@@ -24,6 +30,7 @@ import {
 } from '../lib/kintounBoard'
 import type { Student } from '../lib/types'
 import { AdminSection, EmptyBlock, ErrorBlock, LoadingBlock, StatCard } from './ui'
+import { DragonballBulk } from './DragonballBulk'
 import { EndStudyModal } from './EndStudyModal'
 import { LiveSessionRow } from './LiveSessionRow'
 
@@ -64,6 +71,20 @@ interface UseTarget {
   ticket: TicketKey
 }
 
+/** 오늘 공부 이력 한 줄 — 오늘 기록(학원·숙제)과 지금 공부 중인 세션을 합친 것 */
+interface TodayStudyRow {
+  studentId: string
+  name: string
+  grade: string
+  academyMinutes: number
+  academyProblems: number
+  homeworkMinutes: number
+  homeworkProblems: number
+  liveStatus: 'running' | 'paused' | null
+  liveKind: SessionKind | null
+  liveSeconds: number
+}
+
 /**
  * 관리자 '실시간' — 지금 공부 중인 학생 목록과 선오공이 드래곤볼 쏘기,
  * 그리고 학원에서 실제로 준 교환권을 사용 처리하는 칸.
@@ -93,14 +114,23 @@ export function KintounPanel({ students, studentsLoading, studentsError, reloadS
   const [ending, setEnding] = useState(false)
   const [endError, setEndError] = useState<string | null>(null)
   const [endMessage, setEndMessage] = useState<string | null>(null)
+  /* 오늘 공부 이력 — 오늘 기록한 학생 전부 (2026-11-28) */
+  const today = todayKst()
+  const [todayLogs, setTodayLogs] = useState<StudyLog[]>([])
+  const [todayAmount, setTodayAmount] = useState(1)
+  const [todaySending, setTodaySending] = useState<string | null>(null)
+  const [todayMessage, setTodayMessage] = useState<string | null>(null)
+  const [todayError, setTodayError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
-    const [live, grants, uses] = await Promise.all([
+    const [live, grants, uses, logs] = await Promise.all([
       api.listLiveSessions(),
       api.listDragonballGrants(12),
       api.listTicketUses(12),
+      listLogs(today, today),
     ])
+    if (logs.ok) setTodayLogs(logs.data)
     if (live.ok) {
       setRows(live.data.rows)
       setFetchedAt(Date.now())
@@ -146,6 +176,81 @@ export function KintounPanel({ students, studentsLoading, studentsError, reloadS
   const runningAcademy = running.filter((row) => row.kind !== 'homework').length
   const runningHomework = running.length - runningAcademy
   const targets = grantTargets(liveRows, includePaused)
+
+  /* 오늘 공부 이력 — 오늘 남긴 기록 + 지금 공부 중인 세션을 학생별로 합친다 */
+  const todayRows = useMemo(() => {
+    const map = new Map<string, TodayStudyRow>()
+    const blank = (studentId: string): TodayStudyRow => ({
+      studentId,
+      name: '',
+      grade: '',
+      academyMinutes: 0,
+      academyProblems: 0,
+      homeworkMinutes: 0,
+      homeworkProblems: 0,
+      liveStatus: null,
+      liveKind: null,
+      liveSeconds: 0,
+    })
+    for (const log of todayLogs) {
+      const split = splitLog(log)
+      const row = map.get(log.student_id) ?? blank(log.student_id)
+      row.academyMinutes = split.academyMinutes
+      row.academyProblems = split.academyProblems
+      row.homeworkMinutes = split.homeworkMinutes
+      row.homeworkProblems = split.homeworkProblems
+      map.set(log.student_id, row)
+    }
+    for (const live of liveRows) {
+      const row = map.get(live.studentId) ?? blank(live.studentId)
+      row.name = live.name
+      row.grade = live.grade
+      row.liveStatus = live.status === 'running' ? 'running' : 'paused'
+      row.liveKind = live.kind
+      row.liveSeconds = live.seconds
+      map.set(live.studentId, row)
+    }
+    const byId = new Map(students.map((student) => [student.id, student]))
+    for (const row of map.values()) {
+      if (row.name) continue
+      const student = byId.get(row.studentId)
+      if (student) {
+        row.name = student.name
+        row.grade = student.grade
+      }
+    }
+    return [...map.values()]
+      .map((row) => ({ ...row, name: row.name || '학생', grade: row.grade || '미지정' }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+  }, [todayLogs, liveRows, students])
+
+  const studiedAcademy = (row: TodayStudyRow) =>
+    row.academyMinutes > 0 || row.academyProblems > 0 || (row.liveStatus !== null && row.liveKind === 'academy')
+  const studiedHomework = (row: TodayStudyRow) =>
+    row.homeworkMinutes > 0 || row.homeworkProblems > 0 || (row.liveStatus !== null && row.liveKind === 'homework')
+  const todayAcademyIds = todayRows.filter(studiedAcademy).map((row) => row.studentId)
+  const todayHomeworkIds = todayRows.filter(studiedHomework).map((row) => row.studentId)
+
+  /** 오늘 공부 이력에서 한 학생에게 바로 쏘기 */
+  const sendTodayOne = async (row: TodayStudyRow, kind: SessionKind) => {
+    if (todaySending) return
+    setTodaySending(`${row.studentId}:${kind}`)
+    setTodayMessage(null)
+    setTodayError(null)
+    const res = await sendDragonballs([row.studentId], normalizeGrantAmount(todayAmount), {
+      kind,
+      date: today,
+      individualName: row.name,
+    })
+    setTodaySending(null)
+    if (res.ok) {
+      setTodayMessage(`${row.name} · ${individualSentText(res.data.amount, res.data.stars)}`)
+      await load()
+      reloadStudents()
+    } else {
+      setTodayError(res.error)
+    }
+  }
 
   /* 교환권을 가진 학생 — 많이 가진 학생부터 */
   const ticketStudents = useMemo(() => {
@@ -369,6 +474,100 @@ export function KintounPanel({ students, studentsLoading, studentsError, reloadS
         {endMessage ? (
           <p className="mt-2 rounded-xl bg-[#F0FAF0] px-3 py-2 text-[11.5px] font-bold text-[#2E6B34]">{endMessage}</p>
         ) : null}
+      </AdminSection>
+
+      <AdminSection
+        title="오늘 공부 이력"
+        description={`오늘(${formatDateKo(today)}) 공부한 학생 전부예요. 학원공부와 숙제공부를 나눠 인원·시간·푼 숙제를 보여 주고, 학원공부 일괄 · 숙제공부 일괄로 드래곤볼을 쏠 수 있어요.`}
+        actions={
+          <button type="button" className="btn-ghost border border-blue-line" onClick={() => void load()}>
+            새로고침
+          </button>
+        }
+      >
+        {studentsLoading || (loading && todayLogs.length === 0 && liveRows.length === 0) ? (
+          <LoadingBlock />
+        ) : todayRows.length === 0 ? (
+          <EmptyBlock message="오늘은 아직 공부 기록이 없어요." />
+        ) : (
+          <>
+            <DragonballBulk
+              academyIds={todayAcademyIds}
+              homeworkIds={todayHomeworkIds}
+              amount={todayAmount}
+              onAmountChange={setTodayAmount}
+              date={today}
+              onSent={() => {
+                void load()
+                reloadStudents()
+              }}
+            />
+
+            <ul className="mt-2 divide-y divide-blue-line rounded-2xl border border-blue-line">
+              {todayRows.map((row) => {
+                const academy = studiedAcademy(row)
+                const homework = studiedHomework(row)
+                const liveText =
+                  row.liveStatus === null
+                    ? null
+                    : `${row.liveKind === 'homework' ? '🏠 숙제' : '🏫 학원'} ${
+                        row.liveStatus === 'running' ? '공부 중' : '쉬는 중'
+                      } ${formatHMS(row.liveSeconds)}`
+                return (
+                  <li key={row.studentId} className="flex items-center gap-2 px-2.5 py-2">
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[12.5px] font-bold text-navy">
+                        {row.name}
+                        <span className="ml-1 text-[10px] font-semibold text-navy/35">{row.grade}</span>
+                        {liveText ? (
+                          <span className="ml-1.5 rounded-full bg-[#FFF6E3] px-1.5 py-0.5 text-[9.5px] font-bold text-[#8A5400]">
+                            {liveText}
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="block text-[10.5px] font-semibold tabular">
+                        <span className={academy ? 'text-[#1D4A9B]' : 'text-navy/25'}>
+                          🏫 {row.academyMinutes}분 · {row.academyProblems}문제
+                        </span>
+                        <span className="text-navy/20"> · </span>
+                        <span className={homework ? 'text-[#D9382F]' : 'text-navy/25'}>
+                          🏠 {row.homeworkMinutes}분 · {row.homeworkProblems}문제
+                        </span>
+                      </span>
+                    </span>
+                    <span className="flex shrink-0 gap-1">
+                      <button
+                        type="button"
+                        disabled={!academy || todaySending !== null}
+                        onClick={() => void sendTodayOne(row, 'academy')}
+                        aria-label={`${row.name} 학원공부 드래곤볼 쏘기`}
+                        className="rounded-lg bg-[#1D4A9B] px-2 py-1 text-[10px] font-extrabold text-white transition active:scale-[0.97] disabled:opacity-25"
+                      >
+                        {todaySending === `${row.studentId}:academy` ? '쏘는 중…' : '🏫 쏘기'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!homework || todaySending !== null}
+                        onClick={() => void sendTodayOne(row, 'homework')}
+                        aria-label={`${row.name} 숙제공부 드래곤볼 쏘기`}
+                        className="rounded-lg bg-[#D9382F] px-2 py-1 text-[10px] font-extrabold text-white transition active:scale-[0.97] disabled:opacity-25"
+                      >
+                        {todaySending === `${row.studentId}:homework` ? '쏘는 중…' : '🏠 쏘기'}
+                      </button>
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+
+            {todayMessage ? (
+              <p className="mt-2 rounded-xl bg-[#F0FAF0] px-3 py-2 text-[11.5px] font-bold text-[#2E6B34]">{todayMessage}</p>
+            ) : null}
+            {todayError ? (
+              <p className="mt-2 rounded-xl bg-red-50 px-3 py-2 text-[11.5px] font-bold text-red-500">{todayError}</p>
+            ) : null}
+          </>
+        )}
       </AdminSection>
 
       <AdminSection
