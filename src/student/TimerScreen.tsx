@@ -339,6 +339,13 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
     if (result) {
       setProblemOpen(false)
       setProblems('')
+      return
+    }
+    /* 마무리되지 않았으면(방금 시작한 학원 공부·출훈 세션·연결 오류) 창을 닫아
+       타이머 화면의 안내 문구를 보여 준다 (2026-11-27) */
+    if (pendingReason !== 'limit') {
+      setProblemOpen(false)
+      setProblems('')
     }
   }
 
