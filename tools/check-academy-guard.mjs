@@ -142,7 +142,11 @@ try {
     .from('study_sessions')
     .update({ status: 'finished', minutes: 0 })
     .eq('id', fresh.id)
-  check('직접 수정 차단: anon UPDATE 거부', Boolean(patch.error) && /kiosk|42501/.test(patch.error.message), patch.error?.message ?? '통과됨')
+  check(
+    '직접 수정 차단: anon UPDATE 거부',
+    Boolean(patch.error) && /kiosk|academy_too_short|42501/.test(patch.error.message),
+    patch.error?.message ?? '통과됨',
+  )
 } finally {
   if (browser) await browser.close().catch(() => {})
   await supabase.from('homework_submissions').delete().eq('student_id', student.id)

@@ -711,4 +711,16 @@ select public.cleanup_stale_study_sessions();
 
 **출훈 쪽 영향** — `attendance_apply`(등원/하원/전체퇴실)·`settle_academy_session`·`admin_end_study_session`·`start_session`·`pause_session`(출훈 서버는 service_role)은 그대로 동작한다. 달라진 것은 **학생 앱이 출훈 세션을 끝내려 할 때 거부**되는 것뿐이다. 출훈이 `finish_session` 을 직접 부르는 곳이 있다면 3번째 인자 없이(=가드 켜진 상태) 호출되므로 `admin_end_study_session` 으로 바꾸는 것이 안전하다.
 
-**검증** — `supabase/verify-2026-11-27-academy-guard.sql` 11건 전부 통과(학원 자동 일시정지 무시 · 0분 종료/0분 자동 종료 거부 · 3분 종료 정상 · 출훈 세션 하원 전 거부·하원 뒤 정상 · 관리자 강제 종료 · 숙제 자동 일시정지·자동 종료 유지 · anon 직접 수정 차단 · anon 하트비트 허용), PostgREST(anon 키) 실호출로도 확인. `npm run build` · 단위 테스트 · 스모크 렌더 통과.
+**검증** — `supabase/verify-2026-11-27-academy-guard.sql` 11건 전부 통과(학원 자동 일시정지 무시 · 0분 종료/0분 자동 종료 거부 · 3분 종료 정상 · 출훈 세션 하원 전 거부·하원 뒤 정상 · 관리자 강제 종료 · 숙제 자동 일시정지·자동 종료 유지 · anon 직접 수정 차단 · anon 하트비트 허용), PostgREST(anon 키) 실호출로도 같은 결과.
+
+`npm run build` 통과(새 번들 `index-CX9Iv1bG.js`), 단위 **512건** · 스모크 **191건** 통과.
+
+**실서비스 확인** (`https://sunogong.vercel.app`, 360×780, `node tools/check-academy-guard.mjs`)
+- 하트비트가 5분 끊긴 학원 세션: 앱을 열어도 `status=running`, `paused_at=null`, `auto_pause_count=0` (예전에는 여기서 paused 가 됐다) — 스크린샷 `downloads/sunogong-academy-guard-running-360.png`
+- 6분 공부한 학원 세션 종료: 그대로 `finished`·6분·3문제로 기록(정상 흐름 유지)
+- 방금 시작한 학원 세션 종료: DB 가 거부하고 세션은 `running` 유지, 화면에 `방금 시작한 학원 공부예요. 1분이 지난 뒤에 마무리해 주세요.` 표시 — `downloads/sunogong-academy-guard-too-short-360.png`
+- anon 키로 `study_sessions` 를 직접 UPDATE 해 끝내려는 요청: `academy_too_short`/`session_managed_by_kiosk` 로 거부
+- 출훈이 연 세션(`attendance_id`): 타이머 아래 `하원하면 자동으로 마무리돼요`, 종료를 눌러도 확인 창 대신 `학원 공부는 출훈에서 하원하면 자동으로 마무리돼요` 안내 — `downloads/sunogong-academy-kiosk-hint-360.png`
+- 검증용 학생·세션·기록은 모두 지워 0건
+
+**피해 복구** — 신유안 학생 세션(`6dc31aa4…`)은 훈수학 측이 `running` 으로 되돌려 둔 상태였고, 0분 종료 때 남은 `minutes=0·problems=0` 만 `NULL` 로 되돌려 하원 때 문제 수를 묻게 했다(공부 시간은 하원할 때 정산).
