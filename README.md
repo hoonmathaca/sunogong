@@ -505,6 +505,11 @@ node tools/e2e-homework-approval.mjs
 #      같은 세션 두 번 제출해도 한 줄 → 초안 지우기 → 1분 미만은 남길 것 없음 → 세션 삭제 시 초안 정리
 node tools/e2e-homework-draft.mjs
 
+# 6-2-2) 숙제·질문 사진 「📷 바로 찍기」 앱 안 카메라 (가짜 카메라로 실제 촬영까지) — 검증용 학생은 끝나고 삭제
+#      셔터 → 미리 보기 → 다시 찍기/이대로 올리기 → 1/5(탭 새로고침 0회) → 앨범 3/5 → 제출·Storage 사진 →
+#      질문 사진도 같은 창 → 권한 거부면 안내 + 사진 선택기 폴백 → 5장 잠금
+node tools/check-inapp-camera.mjs https://sunogong.vercel.app /workspace/downloads
+
 # 6-3) 숙제 승인 「선생님 칭찬 한마디」 실서비스 E2E — 검증용 학생은 끝나고 삭제
 #      승인+칭찬 저장 → 학생 목록에 그대로 → 칩 여러 개 → 예전 4개 인자 호출 → 모두 반려면 미저장 →
 #      200자 초과 거절 → 공백만 null → 두 번 처리 거절 → 기록·드래곤볼 그대로
@@ -915,3 +920,32 @@ select public.cleanup_stale_study_sessions();
 - 고침: `supabase/migrate-2026-11-28-fix-homework-autoend.sql` — 11/27 가드(재원 중이면 자동 종료하지 않음 · 60초 미만 자동 종료 금지)는 그대로 두고 숙제 갈래만 되살렸다. 운영 DB 적용 + `schema.sql` 반영(맨 끝 정의). **이미 들어간 기록은 소급 변경하지 않았다.**
 - 확인: 실서비스에서 숙제 세션을 61분 전 일시정지로 만들어 자동 종료 → `pending_approval: true`, 제출 1건(40분 · 문제 수 미입력), `study_logs` **0건**. `node tools/check-homework-no-photo.mjs https://sunogong.vercel.app /workspace/downloads` **17건 전부 통과**(자동 종료 뒤 「지난 숙제 공부 제출」 창 → 사진 0장 확인 창 → 12문제 제출). 검증 데이터 잔여 0건.
 - 스크린샷: `downloads/sunogong-student-calendar-real-360.png` · `sunogong-student-calendar-real-card-360.png`(실제 학생 — `11월 23일 (월)` `15:36 등원 ~ 18:21 하원`, `11월 3일 16:41 등원 · 하원 미확인(자동 마감)`) · `sunogong-student-calendar-check-360.png` · `sunogong-student-calendar-check-card-360.png`(검증 학생 — `총 2시간 51분`·`푼 문제 43개/6개`)
+
+## 19. 숙제 사진 「바로 찍기」 — 앱 안 카메라로 교체 (2026-11-28)
+
+원장님 제보: 이지빈 학생이 `📷 바로 찍기`로 카메라 사진을 올리면 안드로이드 크롬 아래에 **「메모리가 부족하여 이전 작업을 완료할 수 없습니다.」** 가 뜨고 사진이 올라가지 않는다(그래서 학생들이 사진을 못 올리고 있었다).
+
+**1) 원인**
+- `📷 바로 찍기`가 `<input type="file" capture="environment">` 로 **폰 기본 카메라 앱**을 띄웠다. 카메라 앱이 메모리를 크게 쓰는 동안 뒤의 크롬(파일 선택 액티비티)이 OS 에게 회수되고, 돌아올 때 위 안내가 뜨며 고른 파일이 사라진다.
+- 그래서 11/23 의 탭 새로고침 방어(`createImageBitmap` 1200px·1장씩 업로드·DB 초안)는 **찍은 사진이 사라진 뒤**를 메웠을 뿐, 사진을 못 올리는 원인 자체는 남아 있었다.
+
+**2) 고침 — 화면을 벗어나지 않는 카메라 (`src/components/InAppCamera.tsx`·`PhotoCaptureButton.tsx`·`src/lib/camera.ts`)**
+- `📷 바로 찍기` → `navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 960 } } })` 로 **크롬 화면 안에서** 카메라를 연다. 셔터 → **미리 보기** → `🔄 다시 찍기` / `이대로 올리기` → 바로 압축 업로드. 크롬을 벗어나지 않으므로 탭이 회수되지 않는다.
+- 찍은 화면은 그 자리에서 **긴 변 1200px · JPEG 0.82** 로 줄이고(`cameraFrameSize`), 카메라 트랙은 셔터 직후 `track.stop()` 으로 끈다. 창을 닫거나 다른 앱으로 나가도 끄고, 돌아오면 저절로 다시 연다.
+- 카메라를 못 쓰는 기기(권한 거부·카메라 없음·미지원·http)는 **이유를 보여 주고** `🖼️ 사진 선택기로 고르기`(`<input type="file" accept="image/*">`, capture 없음)로 넘어간다. `🗙 다시 열기` 로 재시도할 수 있고, 앱 카메라 자체가 없는 기기에서는 `📷 바로 찍기`가 처음부터 사진 선택기로 열린다(`CAMERA_FALLBACK_NOTICE` 안내).
+- **질문 사진(`QuestionAskForm`)도 같은 버튼**을 쓴다. 덤으로 질문 사진은 고르는 즉시 줄여 **줄인 사진으로 미리 보기**한다(예전에는 원본 주소로 그려 12~50MP 사진을 화면마다 다시 열었다).
+- 압축은 예전 그대로 `createImageBitmap({ resizeWidth, resizeQuality: 'medium', imageOrientation: 'from-image' })` 우선 + 미지원 브라우저만 `<img>` 폴백, `bitmap.close()`·`URL.revokeObjectURL`·`canvas.width=0` 정리(`src/lib/imageCompress.ts`).
+- **문구·기능은 그대로**: `사진 없이 제출`(확인 창 포함)·`최대 5장`·`🖼️ 앨범에서 고르기`·`긴 변 1200px` 안내. `node tools/check-wording.mjs dist` 통과.
+
+**검증**
+- 단위 **609건**(+18 — 앱 카메라 지원 판정·카메라 조건·오류 안내 4가지·찍은 사진 크기/이름) · 스모크 **256건**(+4 — 「바로 찍기」가 capture input 이 아니라 앱 카메라 버튼, 카메라 창(영상·셔터·여는 중)·셔터 잠금·1200px 안내) · `npm run build` · `node tools/check-wording.mjs dist` 통과.
+- 실서비스 360px **새 점검** `node tools/check-inapp-camera.mjs https://sunogong.vercel.app /workspace/downloads` — **37건 전부 통과**. 가짜 카메라(`--use-fake-device-for-media-stream`)로 실제 촬영까지 확인했다.
+  - `📷 바로 찍기`가 앱 카메라 버튼이고 `capture=environment` input 이 **없음**, 두 버튼이 360px 안(32~327)에 나란히
+  - 카메라 창 `data-inapp-camera="live"`(`videoWidth > 0`) → 셔터 → **미리 보기 + 다시 찍기/이대로 올리기** → 다시 찍기로 화면이 다시 살아남 → 이대로 올리기 → **1/5**, 그동안 **탭 새로고침 0회**(`framenavigated` 2 → 2)
+  - 앨범 2장 더해 **3/5**, 제출 → 승인 대기 1줄(15문제)·**사진 3장 Storage 존재**·찍은 사진이 JPEG 로 작게(수십 KB)
+  - 질문 창의 `📷 사진 찍기`도 같은 창으로 찍혀 **문제 사진으로 들어감**
+  - 권한 거부(가짜 카메라 없이 실행): `카메라를 찾지 못했어요. 사진 선택기로 골라 주세요.` + `다시 열기` + `🖼️ 사진 선택기로 고르기` → 사진 선택기로 **1/5** 담김, 5장이면 두 버튼 잠김·`5장을 다 담았어요`
+  - 검증용 학생·세션·제출·사진은 지워 **잔여 0건**
+- 회귀(실서비스): `check-homework-ui` **70건**(+1 — 「바로 찍기」 앱 카메라 버튼·창·닫기) · `check-homework-no-photo` **18건**(사진 0장 확인 창·자동 종료 뒤 지난 숙제 제출) 모두 통과, 검증 데이터 잔여 0건.
+- 스크린샷(`downloads/`): `sunogong-inapp-camera-live-360.png`(카메라 창) · `sunogong-inapp-camera-shot-360.png`(찍은 뒤 확인) · `sunogong-inapp-camera-uploaded-360.png`(1/5) · `sunogong-inapp-camera-album-360.png`(3/5) · `sunogong-inapp-camera-denied-360.png`(권한 거부 안내·폴백) · `sunogong-inapp-camera-fallback-360.png`(폴백으로 담김) · `sunogong-inapp-camera-question-360.png`(질문 사진) · `sunogong-inapp-camera-full-360.png`(5/5 잠금)
+- 남은 것: 실제 안드로이드 폰에서 **카메라 권한 허용 창 → 촬영 → 업로드**를 한 번 눌러 보는 확인(가짜 카메라로는 같은 경로를 확인했고, 실기기 권한 창만 남았다). 카메라를 한 번 허용하면 그 뒤로는 창이 뜨지 않는다.
