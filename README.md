@@ -859,5 +859,8 @@ select public.cleanup_stale_study_sessions();
 - **학생 화면 문구는 그대로** (`지난번 푼 문제 수`, `오늘 푼 문제 수`, `푼 문제 12개`).
 
 **검증**
-- 단위 테스트(탭 순서·수업 종료 안내 포함)·스모크(탭 이름·첫 화면·색·문구 13건 추가)·`npm run build`·`node tools/check-wording.mjs dist` 통과. `check-wording` 은 주석을 뺀 `src/admin` 에서 `N문제`·`문제수` 표기가 0건인지도 확인한다.
-- 실서비스 `node tools/check-admin-calendar.mjs`, `check-academy-start-removed.mjs` 로 360px 화면 확인 + 스크린샷.
+- 단위 **563건** · 스모크 **227건**(+13 — 탭 이름·첫 화면·색·문구), `npm run build`, `node tools/check-wording.mjs dist` 통과. `check-wording` 은 주석을 뺀 `src/admin` 에서 `N문제`·`문제수` 표기가 0건인지도 확인한다.
+- 실서비스 `node tools/check-kind-colors.mjs https://sunogong.vercel.app` (새 점검 스크립트) — **16건 통과**(360): 숙제 시작 버튼 빨강 `rgb(224, 69, 62)`·56px, 숙제 타이머 배지 `rgb(255, 241, 240)`/빨강 글자·안내 줄 빨강, 관리자 첫 화면 `실시간`, 탭 순서 `실시간,공부기록,숙제관리,질문함,랭킹`, 공부기록 카드 `푼 숙제 N개`(「문제 N개」 없음), 구분 스위치 학원 `rgb(29, 74, 155)`·숙제 `rgb(224, 69, 62)`. 검증 학생·세션·기록은 지워 0건.
+- 실서비스 `node tools/check-admin-calendar.mjs`(달력·두 선·「푼 숙제」·첫 탭이 실시간이라 `공부기록` 을 눌러 확인하도록 수정) · `check-homework-ui.mjs` **69건** · `check-admin-end-study.mjs` **29건** · `check-academy-start-removed.mjs` **12건** 모두 통과. 세 스크립트는 이 환경의 크롬 라이브러리(`LD_LIBRARY_PATH`)를 스스로 잡도록 손봤고, 실제 학생의 대기 제출·선생님 종료 기록이 쌓여 있어도 검증 학생 몫만 보도록 고쳤다.
+- 스크린샷: `downloads/sunogong-kind-colors-home-360.png` · `sunogong-kind-colors-timer-360.png` · `sunogong-admin-first-tab-live-360.png` · `sunogong-admin-kind-colors-dashboard-360.png`
+- 남은 것: `훈출`(`hoonmath-app`) 쪽 「선오공 관리」 화면의 색·탭도 같은 「학파 숙빨」로 맞출지는 세컨폰 피클(`훈수학`) 몫이다(이 저장소 밖).

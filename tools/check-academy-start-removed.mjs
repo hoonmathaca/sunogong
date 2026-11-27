@@ -10,6 +10,11 @@
  *   · 학원 공부를 마친 결과 화면에는 '공부 더 하기' 가 없고 '홈으로' 만 있다
  * 검증용 학생·세션·기록은 끝나고 지운다.
  */
+/* 헤드리스 크롬이 쓰는 라이브러리(이 환경에는 시스템에 없음) */
+process.env.LD_LIBRARY_PATH = ['/workspace/work/.tools/chromelibs', process.env.LD_LIBRARY_PATH]
+  .filter(Boolean)
+  .join(':')
+
 import pw from '/workspace/tmp/pw/node_modules/playwright/index.js'
 import { createClient } from '@supabase/supabase-js'
 import { readFileSync } from 'node:fs'

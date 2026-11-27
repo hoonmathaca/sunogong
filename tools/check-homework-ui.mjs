@@ -4,9 +4,14 @@
  * 확인하는 것
  *   · 학생: 숙제 공부 종료 → 「숙제 공부 제출」 창(확정 안내 문구·사진 고르기·문제 수) → 제출 → 승인 대기 안내
  *   · 학생 홈: 숙제 제출 목록에 승인 대기 → (승인 뒤) 승인 표시
- *   · 관리자: 상단 탭 「숙제관리」와 배지 → 제출 상세(사진·시간·문항수·승인/반려·반려 사유) → 확인(저장)
+ *   · 관리자: 상단 탭 「숙제관리」와 배지 → 제출 상세(사진·시간·숙제 수·승인/반려·반려 사유) → 확인(저장)
  * 검증용 학생·기록·사진은 끝나고 지운다.
  */
+/* 헤드리스 크롬이 쓰는 라이브러리(이 환경에는 시스템에 없음) */
+process.env.LD_LIBRARY_PATH = ['/workspace/work/.tools/chromelibs', process.env.LD_LIBRARY_PATH]
+  .filter(Boolean)
+  .join(':')
+
 import pw from '/workspace/tmp/pw/node_modules/playwright/index.js'
 import { createClient } from '@supabase/supabase-js'
 import { readFileSync } from 'node:fs'
@@ -263,7 +268,8 @@ try {
   }
   const navText = (await admin.locator('nav').innerText()).replace(/\s+/g, ' ')
   check('관리자: 상단 탭에 숙제관리', navText.includes('숙제관리'))
-  check('관리자: 숙제관리 배지 1', /숙제관리\s*1/.test(navText), navText)
+  /* 대기 건수는 실제 학생 제출까지 포함될 수 있어 1건 이상인지만 본다 (검증 학생 몫은 반드시 들어 있다) */
+  check('관리자: 숙제관리 배지(1 이상)', /숙제관리\s*[1-9]/.test(navText), navText)
 
   await admin.getByRole('button', { name: /숙제관리/ }).first().click()
   await admin.waitForTimeout(1500)
@@ -289,7 +295,10 @@ try {
   check('상세: 선생님 칭찬 한마디 칸(선택)', detailText.includes('선생님 칭찬 한마디') && detailText.includes('(선택 · 학생에게 보여요)'))
   check('상세: 칭찬 칩 다섯 개', ['풀이가 꼼꼼해요', '글씨가 깔끔해요', '어려운 문제 잘 고민했어요', '꾸준히 잘하고 있어요', '스스로 잘 풀었어요'].every((chip) => detailText.includes(chip)))
   check('상세: 비워 두면 예전처럼 승인 안내', detailText.includes('비워 두면 한마디 없이 예전처럼 승인돼요'))
-  check('상세: 사진 1장', detailText.includes('숙제 사진') && (await detail.locator('img').count()) >= 1)
+  /* 사진은 서명 URL 로 늦게 뜰 수 있다 — 잠깐 기다렸다 센다 */
+  await detail.locator('img').first().waitFor({ state: 'visible', timeout: 6000 }).catch(() => {})
+  const detailPhotos = await detail.locator('img').count()
+  check('상세: 사진 1장', detailText.includes('숙제 사진') && detailPhotos >= 1, `${detailPhotos}장`)
   await admin.screenshot({ path: `${shotDir}/sunogong-homework-admin-detail-360.png`, fullPage: false })
 
   /* 칭찬 한마디 — 칩을 누르고 직접 한마디를 덧붙인다 */
@@ -311,11 +320,15 @@ try {
   await admin.getByRole('button', { name: '닫기' }).last().click()
   await admin.waitForTimeout(400)
 
+  /* 360px 에서는 내용이 길어 저장 버튼이 창 아래쪽에 있다 — 창을 끝까지 내린 뒤 누른다 */
+  await detail.evaluate((node) => node.scrollTo(0, node.scrollHeight))
+  await admin.waitForTimeout(300)
   await detail.getByRole('button', { name: '확인(저장)' }).click()
   await admin.waitForTimeout(2500)
   const afterReview = (await admin.locator('body').innerText()).replace(/\s+/g, ' ')
   check('관리자: 저장 결과 안내', afterReview.includes('승인했어요'))
-  check('관리자: 저장 뒤 목록 갱신(대기 0)', !/확인을 기다리는 숙제가/.test(afterReview))
+  /* 다른 학생의 대기 건이 남아 있으면 창이 다음 학생으로 넘어간다 — 검증 학생 몫만 사라졌는지 본다 */
+  check('관리자: 저장 뒤 검증 학생은 대기 목록에서 사라짐', !afterReview.includes('검증화면'))
 
   const reviewed = await run(
     supabase.from('homework_submissions').select('*').eq('id', submission.id).single(),
@@ -323,6 +336,9 @@ try {
   check('저장: 승인 상태', [reviewed.status, reviewed.time_verdict, reviewed.problems_verdict], ['approved', 'approved', 'approved'])
   check('저장: 승인된 값', [reviewed.approved_minutes, reviewed.approved_problems], [25, 30])
   check('저장: 선생님 한마디가 그대로', reviewed.teacher_comment, '풀이가 꼼꼼해요 다음에도 이렇게 해봐요!')
+  /* 다음 대기 학생이 남아 있으면 확인 창이 열린 채다 — Esc 로 닫고 승인 목록으로 */
+  await admin.keyboard.press('Escape')
+  await admin.waitForTimeout(500)
   await admin.getByRole('button', { name: /^승인\s*\d/ }).first().click()
   await admin.waitForTimeout(1200)
   const approvedPanel = (await admin.locator('main').innerText()).replace(/\s+/g, ' ')

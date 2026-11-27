@@ -10,6 +10,11 @@
  *   · 학생 기기가 타이머에 머물러 있어도 10초 안에 '선생님이 마무리' 결과 화면으로 바뀜
  * 검증용 학생·세션·기록은 끝나고 지운다.
  */
+/* 헤드리스 크롬이 쓰는 라이브러리(이 환경에는 시스템에 없음) */
+process.env.LD_LIBRARY_PATH = ['/workspace/work/.tools/chromelibs', process.env.LD_LIBRARY_PATH]
+  .filter(Boolean)
+  .join(':')
+
 import pw from '/workspace/tmp/pw/node_modules/playwright/index.js'
 import { createClient } from '@supabase/supabase-js'
 import { readFileSync } from 'node:fs'
@@ -233,14 +238,11 @@ try {
     .from('study_logs')
     .select('id', { count: 'exact', head: true })
     .eq('student_id', student.id)
-  const { count: leftAdminEnded } = await supabase
-    .from('study_sessions')
-    .select('id', { count: 'exact', head: true })
-    .eq('ended_by_admin', true)
+  /* 실제 학생의 「수업 종료」 기록은 원래 쌓여 있으니 검증 학생 몫만 본다 */
   check(
-    '정리: 검증용 데이터 0건 (실제 학생의 선생님 종료 0건)',
-    leftStudents === 0 && leftSessions === 0 && leftSubs === 0 && leftLogs === 0 && leftAdminEnded === 0,
-    { leftStudents, leftSessions, leftSubs, leftLogs, leftAdminEnded },
+    '정리: 검증용 데이터 0건',
+    leftStudents === 0 && leftSessions === 0 && leftSubs === 0 && leftLogs === 0,
+    JSON.stringify({ leftStudents, leftSessions, leftSubs, leftLogs }),
   )
 }
 
