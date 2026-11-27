@@ -196,7 +196,12 @@ begin
   end if;
 
   -- (2026-11-27) 학원 공부 0분 종료 가드 -------------------------------------
-  if not coalesce(p_force, false) and coalesce(s.kind, 'academy') <> 'homework' then
+  --   오늘 세션에만 적용한다. 지난 날 남은 세션 정리(cleanup_stale_study_sessions)와
+  --   5시간 상한 자동 마무리(reconcile_session·resume_session)는 그대로 끝낼 수 있다.
+  if not coalesce(p_force, false)
+     and coalesce(s.kind, 'academy') <> 'homework'
+     and s.date = public.kst_today()
+     and v_secs < 18000 then
     -- ① 방금 시작한 공부(60초 미만)는 0분짜리 기록이 되므로 마무리하지 않는다
     if v_secs < public.academy_min_study_seconds() then
       raise exception 'academy_too_short' using errcode = 'P0002';

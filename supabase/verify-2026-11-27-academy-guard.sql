@@ -217,6 +217,49 @@ begin
     insert into _verify_guard values ('T11 anon 하트비트 허용', false, v_msg);
   end;
 
+  -- T10/T11 의 검증용(막힌 뒤 running 으로 남은) 세션을 정리해 다음 검증이 열리게 한다
+  delete from public.study_sessions where id = v_kiosk;
+
+  ------------------------------------------------------------------
+  -- ⑫ 5시간을 채운 세션은 하원 전이라도 가드 없이 마무리된다 (reconcile·resume 경로)
+  ------------------------------------------------------------------
+  insert into public.study_sessions (student_id, kind, status, started_at, last_heartbeat_at, date)
+  values (v_stu, 'academy', 'running', now() - interval '5 hours' - interval '10 seconds', now(), public.kst_today())
+  returning id into v_admin;
+
+  begin
+    v_res := public.finish_session(v_admin, 40);
+    insert into _verify_guard values (
+      'T12 5시간 상한 종료',
+      (v_res ->> 'minutes')::int = 300 and (v_res ->> 'problems')::int = 40,
+      format('minutes=%s', v_res ->> 'minutes')
+    );
+  exception when others then
+    insert into _verify_guard values ('T12 5시간 상한 종료', false, sqlerrm);
+  end;
+
+  ------------------------------------------------------------------
+  -- ⑬ 지난 날 남은 세션 정리는 오늘 가드에 걸리지 않는다 (cleanup_stale 경로)
+  ------------------------------------------------------------------
+  insert into public.study_sessions (student_id, kind, status, started_at, last_heartbeat_at, date, paused_at)
+  values (v_stu, 'academy', 'paused', public.kst_today() - interval '1 day' + interval '19 hours',
+          public.kst_today() - interval '1 day' + interval '19 hours' + interval '20 seconds',
+          public.kst_today() - interval '1 day',
+          public.kst_today() - interval '1 day' + interval '19 hours' + interval '20 seconds')
+  returning id into v_admin;
+
+  begin
+    v_res := public.finish_session(v_admin, 0);
+    select * into v_row from public.study_sessions where id = v_admin;
+    insert into _verify_guard values (
+      'T13 지난 날 세션 정리 종료',
+      coalesce((v_res ->> 'discarded')::boolean, false) or (v_res ->> 'minutes') is not null,
+      format('discarded=%s, minutes=%s, status=%s', v_res ->> 'discarded', v_res ->> 'minutes', v_row.status)
+    );
+  exception when others then
+    insert into _verify_guard values ('T13 지난 날 세션 정리 종료', false, sqlerrm);
+  end;
+
   ------------------------------------------------------------------
   -- 정리 — 검증용 학생과 그 세션·기록·출결을 지운다
   ------------------------------------------------------------------

@@ -711,7 +711,9 @@ select public.cleanup_stale_study_sessions();
 
 **출훈 쪽 영향** — `attendance_apply`(등원/하원/전체퇴실)·`settle_academy_session`·`admin_end_study_session`·`start_session`·`pause_session`(출훈 서버는 service_role)은 그대로 동작한다. 달라진 것은 **학생 앱이 출훈 세션을 끝내려 할 때 거부**되는 것뿐이다. 출훈이 `finish_session` 을 직접 부르는 곳이 있다면 3번째 인자 없이(=가드 켜진 상태) 호출되므로 `admin_end_study_session` 으로 바꾸는 것이 안전하다.
 
-**검증** — `supabase/verify-2026-11-27-academy-guard.sql` 11건 전부 통과(학원 자동 일시정지 무시 · 0분 종료/0분 자동 종료 거부 · 3분 종료 정상 · 출훈 세션 하원 전 거부·하원 뒤 정상 · 관리자 강제 종료 · 숙제 자동 일시정지·자동 종료 유지 · anon 직접 수정 차단 · anon 하트비트 허용), PostgREST(anon 키) 실호출로도 같은 결과.
+**검증** — `supabase/verify-2026-11-27-academy-guard.sql` 13건 전부 통과(학원 자동 일시정지 무시 · 0분 종료/0분 자동 종료 거부 · 3분 종료 정상 · 출훈 세션 하원 전 거부·하원 뒤 정상 · 관리자 강제 종료 · 숙제 자동 일시정지·자동 종료 유지 · anon 직접 수정 차단 · anon 하트비트 허용 · 5시간 상한 종료 · 지난 날 세션 정리 종료), PostgREST(anon 키) 실호출로도 같은 결과.
+
+가드는 **오늘(KST) 세션**에만 적용하고 5시간 상한(18,000초)으로 마무리되는 경우는 통과시킵니다 — 그래서 `reconcile_session`·`resume_session`·`cleanup_stale_study_sessions` 같은 기존 자동 마무리가 막히지 않습니다.
 
 `npm run build` 통과(새 번들 `index-CX9Iv1bG.js`), 단위 **512건** · 스모크 **191건** 통과.
 
