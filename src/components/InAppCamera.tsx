@@ -175,6 +175,20 @@ export function InAppCamera({
     }
   }, [start, stopStream])
 
+  /* 화면이 그려진 뒤에도 비디오에 카메라를 붙여 둔다 (다시 찍기로 다시 그릴 때 빠지지 않게) */
+  useEffect(() => {
+    if (stage !== 'live') return
+    const video = videoRef.current
+    const stream = streamRef.current
+    if (!video || !stream) return
+    if (video.srcObject === stream) return
+    video.srcObject = stream
+    video.muted = true
+    video.play().catch(() => {
+      /* 자동 재생이 막혀도 화면에 잡히면 손으로 찍을 수 있다 */
+    })
+  }, [stage])
+
   /* 앱 전환·화면 꺼짐 — 찍는 중이면 카메라를 끄고, 돌아오면 다시 연다 */
   useEffect(() => {
     const onVisibility = () => {
