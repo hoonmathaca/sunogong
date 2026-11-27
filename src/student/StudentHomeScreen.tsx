@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { BrandFooter, Mascot } from '../components/Brand'
 import { Spinner } from '../components/Keypad'
 import * as api from '../lib/api'
@@ -9,11 +9,13 @@ import {
 import * as homeworkApi from '../lib/homework'
 import { splitLog, splitPercents } from '../lib/stats'
 import { hasTodayAcademy } from '../lib/problemsEdit'
-import { addDays, formatDateKo, formatMinutes, formatMinutesCompact, todayKst, weekdayOf } from '../lib/time'
-import type { HomeworkSubmission, Student, StudyLog } from '../lib/types'
+import { buildDayViews, defaultSelectedDate } from '../lib/studentCalendar'
+import { addDays, currentMonthKst, formatDateKo, formatMinutes, formatMinutesCompact, monthRange, todayKst } from '../lib/time'
+import type { HomeworkSubmission, Student, StudyLog, StudentDayRecord } from '../lib/types'
 import { EditAcademyProblemsModal } from './EditAcademyProblemsModal'
 import { HomeworkSubmissionRow } from './HomeworkSubmissionRow'
 import { LiveKintounCard } from './LiveKintounCard'
+import { StudentStudyCalendar } from './StudentStudyCalendar'
 
 interface StudentHomeScreenProps {
   student: Student
@@ -36,7 +38,6 @@ interface StudentHomeScreenProps {
   busy?: boolean
 }
 
-const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토']
 const PERIODS = [7, 30] as const
 type Period = (typeof PERIODS)[number]
 
@@ -62,7 +63,11 @@ export function StudentHomeScreen({
   const [editProblemsOpen, setEditProblemsOpen] = useState(false)
   /* 문제 수를 고친 뒤 잠깐 보여 주는 안내 */
   const [savedProblems, setSavedProblems] = useState<number | null>(null)
-  const listRef = useRef<HTMLUListElement | null>(null)
+  /* 공부 기록 달력 — 보고 있는 달, 그 달 날짜별 값, 고른 날 (2026-11-28) */
+  const [month, setMonth] = useState<string>(() => currentMonthKst())
+  const [dayRecords, setDayRecords] = useState<StudentDayRecord[]>([])
+  const [dayRecordsLoading, setDayRecordsLoading] = useState(true)
+  const [selectedDate, setSelectedDate] = useState<string | null>(() => todayKst())
 
   const today = todayKst()
   // 30일치를 한 번에 받아 두고, 기간(7일/30일)만 바꿔서 보여준다
@@ -91,16 +96,6 @@ export function StudentHomeScreen({
 
   const periodStart = addDays(today, -(period - 1))
 
-  const days = useMemo(
-    () =>
-      Array.from({ length: period }, (_, index) => {
-        const date = addDays(periodStart, index)
-        const log = logs.find((item) => item.date === date)
-        return { date, log }
-      }),
-    [logs, period, periodStart],
-  )
-
   const totals = useMemo(() => {
     return logs
       .filter((log) => log.date >= periodStart && log.date <= today)
@@ -121,23 +116,45 @@ export function StudentHomeScreen({
   }, [logs, periodStart, today])
 
   const todayLog = logs.find((item) => item.date === today)
-  const todaySplit = splitLog(todayLog)
   /* 오늘 학원 공부 기록이 있으면 학생이 문제 수를 직접 고칠 수 있다 */
+  const todaySplit = splitLog(todayLog)
   const canEditProblems = hasTodayAcademy(todaySplit)
   const recentSubmissions = submissions.slice(0, 5)
   const waitingSubmissions = countPending(submissions)
   const weekMinutes = logs
     .filter((log) => log.date >= addDays(today, -6))
     .reduce((sum, item) => sum + (item.minutes ?? 0), 0)
-  const maxMinutes = Math.max(30, ...days.map((day) => day.log?.minutes ?? 0))
   const percents = splitPercents(totals.academy, totals.homework)
   const hasSplit = totals.academy + totals.homework > 0
 
-  /* 30일은 상자가 넘쳐서, 열 때 가장 최근(맨 아래)이 보이게 */
+  /* 달력에서 그릴 날짜별 값 — DB 함수 값(등·하원 포함)이 있으면 그것을, 없으면 공부 기록을 쓴다 */
+  const dayViews = useMemo(() => buildDayViews(dayRecords, logs), [dayRecords, logs])
+
+  /* 보고 있는 달의 날짜별 등·하원·공부 기록 (한 달에 한 번) */
+  const loadMonth = useCallback(async () => {
+    const { start, end } = monthRange(month)
+    setDayRecordsLoading(true)
+    const res = await api.studentDayRecords(student.id, start, end)
+    if (res.ok) {
+      setDayRecords(res.data ?? [])
+    } else {
+      // 함수가 아직 없는 DB(마이그레이션 전)에서도 달력은 공부 기록만으로 그린다
+      console.warn('[sunogong] student_day_records:', res.error)
+      setDayRecords([])
+    }
+    setDayRecordsLoading(false)
+  }, [month, student.id])
+
   useEffect(() => {
-    const list = listRef.current
-    if (list) list.scrollTop = list.scrollHeight
-  }, [period, loading])
+    void loadMonth()
+    // refreshKey — 지난 공부를 마저 내면 달력도 다시 읽는다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadMonth, refreshKey])
+
+  /* 달을 바꾸면 그 달에서 볼 날짜를 다시 고른다 (이번 달 → 오늘, 지난 달 → 마지막 날) */
+  useEffect(() => {
+    setSelectedDate((prev) => (prev && prev.slice(0, 7) === month ? prev : defaultSelectedDate(month, today)))
+  }, [month, today])
 
   /* 저장 안내는 5초 뒤 사라진다 */
   useEffect(() => {
@@ -311,61 +328,16 @@ export function StudentHomeScreen({
                 </p>
               </div>
 
-              <ul
-                ref={listRef}
-                className={`mt-3 space-y-1.5 ${period === 30 ? 'max-h-[248px] overflow-y-auto pr-1' : ''}`}
-              >
-                {days.map(({ date, log }) => {
-                  const split = splitLog(log)
-                  const minutes = log?.minutes ?? 0
-                  const width = minutes > 0 ? Math.max(6, Math.round((minutes / maxMinutes) * 100)) : 0
-                  const academyShare = minutes > 0 ? (split.academyMinutes / minutes) * 100 : 0
-                  const isToday = date === today
-                  return (
-                    <li key={date} className="flex items-center gap-2 text-[12px]">
-                      <span
-                        className={`w-[62px] shrink-0 whitespace-nowrap text-[11px] font-semibold tabular ${
-                          isToday ? 'text-navy' : weekdayOf(date) === 0 ? 'text-red-400' : 'text-navy/45'
-                        }`}
-                      >
-                        {Number(date.slice(5, 7))}/{Number(date.slice(8, 10))} ({WEEKDAY[weekdayOf(date)]})
-                      </span>
-                      <span className="h-3 flex-1 overflow-hidden rounded-full bg-blue-soft">
-                        {width > 0 ? (
-                          <span className="flex h-full overflow-hidden rounded-full" style={{ width: `${width}%` }}>
-                            {split.academyMinutes > 0 ? (
-                              <span className={`block h-full ${KIND_BAR_CLASS.academy}`} style={{ width: `${academyShare}%` }} />
-                            ) : null}
-                            {split.homeworkMinutes > 0 ? (
-                              <span
-                                className={`block h-full ${KIND_BAR_CLASS.homework}`}
-                                style={{ width: `${100 - academyShare}%` }}
-                              />
-                            ) : null}
-                          </span>
-                        ) : null}
-                      </span>
-                      <span className={`w-14 shrink-0 text-right font-semibold tabular ${log ? 'text-navy' : 'text-navy/25'}`}>
-                        {log ? formatMinutesCompact(minutes) : '—'}
-                      </span>
-                      <span className="w-9 shrink-0 text-right text-[11px] tabular text-navy/40">
-                        {log ? `${log.problems}개` : ''}
-                      </span>
-                    </li>
-                  )
-                })}
-              </ul>
-
-              <div className="mt-2.5 flex flex-wrap items-center gap-3 text-[10px] font-semibold text-navy/45">
-                <span className={`flex items-center gap-1 ${KIND_TEXT_CLASS.academy}`}>
-                  <span className={`inline-block h-2.5 w-2.5 rounded-full ${KIND_BAR_CLASS.academy}`} />
-                  {KIND_LABEL.academy}
-                </span>
-                <span className={`flex items-center gap-1 ${KIND_TEXT_CLASS.homework}`}>
-                  <span className={`inline-block h-2.5 w-2.5 rounded-full ${KIND_BAR_CLASS.homework}`} />
-                  {KIND_LABEL.homework}
-                </span>
-              </div>
+              {/* 달력에서 날짜를 누르면 그날 등·하원과 학원·숙제 기록이 보인다 */}
+              <StudentStudyCalendar
+                month={month}
+                today={today}
+                selectedDate={selectedDate}
+                views={dayViews}
+                loading={dayRecordsLoading}
+                onSelect={setSelectedDate}
+                onMonthChange={setMonth}
+              />
             </>
           )}
 
@@ -471,6 +443,7 @@ export function StudentHomeScreen({
           setEditProblemsOpen(false)
           setSavedProblems(log?.academy_problems ?? todaySplit.academyProblems)
           void load()
+          void loadMonth()
         }}
       />
     </div>

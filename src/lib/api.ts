@@ -3,7 +3,15 @@ import type { SessionKind } from './kinds'
 import { editTotals, normalizeEditValues } from './logEdit'
 import { MAX_PROBLEMS, PROBLEMS_LIMIT_MESSAGE } from './pauseWatch'
 import { todayKst } from './time'
-import type { FinishResult, Student, StudyLog, StudySession, AutoEndResult, PendingProblemsResult } from './types'
+import type {
+  FinishResult,
+  Student,
+  StudyLog,
+  StudySession,
+  AutoEndResult,
+  PendingProblemsResult,
+  StudentDayRecord,
+} from './types'
 
 export const NOT_CONFIGURED_MESSAGE =
   'Supabase 연결 정보가 없어요. .env 의 VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY 를 채우고 다시 빌드해주세요.'
@@ -417,6 +425,18 @@ export const upsertLog = (input: LogUpsertInput) => {
 }
 
 export const deleteLog = (id: string) => run<null>(() => supabase.from('study_logs').delete().eq('id', id))
+
+/* ------------------------------------------------------------------ */
+/* 학생 「공부 기록」 달력 — 날짜별 등·하원 + 학원·숙제 (2026-11-28)        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * 학생 한 명의 날짜별 등·하원 시각과 학원·숙제 시간·문제.
+ * 훈출 출결 표(attendance_sessions)는 RLS 로 닫혀 있어 DB 함수가 대신 읽는다.
+ * 함수가 아직 없는 DB(마이그레이션 전)에서는 오류가 나고, 화면은 study_logs 값만으로 그린다.
+ */
+export const studentDayRecords = (studentId: string, start: string, end: string) =>
+  rpc<StudentDayRecord[]>('student_day_records', { p_student_id: studentId, p_start: start, p_end: end })
 
 export const deleteLogByKey = (studentId: string, date: string) =>
   run<null>(() => supabase.from('study_logs').delete().eq('student_id', studentId).eq('date', date))

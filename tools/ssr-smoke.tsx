@@ -32,6 +32,8 @@ import { LiveKintounStrip } from '../src/student/LiveKintounStrip'
 import { CandyPickModal } from '../src/student/CandyPickModal'
 import { PendingProblemsModal } from '../src/student/PendingProblemsModal'
 import { EditAcademyProblemsModal } from '../src/student/EditAcademyProblemsModal'
+import { StudentStudyCalendar } from '../src/student/StudentStudyCalendar'
+import { buildDayViews } from '../src/lib/studentCalendar'
 import { TimerScreen } from '../src/student/TimerScreen'
 import { ErrorBoundary } from '../src/components/ErrorBoundary'
 import { PhotoPager } from '../src/components/PhotoPager'
@@ -39,7 +41,7 @@ import { HomeworkPanel } from '../src/admin/HomeworkPanel'
 import { PraiseEditor } from '../src/admin/PraiseEditor'
 import { HomeworkSubmissionRow } from '../src/student/HomeworkSubmissionRow'
 import { DesktopBlockScreen } from '../src/components/DesktopBlockScreen'
-import type { FinishResult, HomeworkSubmission, Student, StudySession } from '../src/lib/types'
+import type { FinishResult, HomeworkSubmission, Student, StudySession, StudentDayRecord } from '../src/lib/types'
 import { QUOTES } from '../src/lib/quotes'
 
 /* 서버에는 localStorage 가 없어서, 관리자 화면(로그인 유지) 스모크용으로 최소 저장소를 흉내 낸다 */
@@ -269,6 +271,74 @@ const todayAcademyResult: FinishResult = {
   total_problems: 17,
 }
 
+
+/* 학생 「공부 기록」 달력 — 11월 실제 모양(김도혁 11/27 과 같은 값) + 경계 날들 (2026-11-28) */
+const calRecords: StudentDayRecord[] = [
+  {
+    record_date: '2026-11-20',
+    check_in_at: '2026-11-20T06:36:00+00:00',
+    check_out_at: '2026-11-20T08:48:00+00:00',
+    check_out_auto: false,
+    check_out_missing: false,
+    visits: 1,
+    academy_minutes: 131,
+    academy_problems: 43,
+    homework_minutes: 40,
+    homework_problems: 6,
+  },
+  {
+    record_date: '2026-11-21',
+    check_in_at: '2026-11-21T06:31:00+00:00',
+    check_out_at: '2026-11-21T12:30:00+00:00',
+    check_out_auto: true,
+    check_out_missing: false,
+    visits: 1,
+    academy_minutes: 120,
+    academy_problems: 38,
+    homework_minutes: 0,
+    homework_problems: 0,
+  },
+  {
+    record_date: '2026-11-22',
+    check_in_at: '2026-11-22T06:30:00+00:00',
+    check_out_at: null,
+    check_out_auto: false,
+    check_out_missing: true,
+    visits: 1,
+    academy_minutes: 60,
+    academy_problems: 20,
+    homework_minutes: 0,
+    homework_problems: 0,
+  },
+  {
+    record_date: '2026-10-15',
+    check_in_at: '2026-10-15T06:10:00+00:00',
+    check_out_at: '2026-10-15T08:20:00+00:00',
+    check_out_auto: false,
+    check_out_missing: false,
+    visits: 1,
+    academy_minutes: 0,
+    academy_problems: 0,
+    homework_minutes: 0,
+    homework_problems: 0,
+  },
+]
+/* 11/24 — 훈출 키오스크를 안 쓴 날: 등·하원 없이 공부 기록만 */
+const calViews = buildDayViews(calRecords, [
+  {
+    id: 'cal-log-1',
+    student_id: student.id,
+    date: '2026-11-24',
+    minutes: 135,
+    problems: 45,
+    academy_minutes: 135,
+    academy_problems: 45,
+    homework_minutes: 0,
+    homework_problems: 0,
+    updated_at: '2026-11-24T09:00:00Z',
+  },
+])
+
 const cases: [string, () => JSX.Element][] = [
   [
     'TimerScreen(숙제)',
@@ -441,6 +511,85 @@ const cases: [string, () => JSX.Element][] = [
         unreadAnswers={0}
         pendingProblems={2}
         onPendingProblems={() => {}}
+      />
+    ),
+  ],
+  [
+    'StudentStudyCalendar(11월 기록)',
+    () => (
+      <StudentStudyCalendar
+        month="2026-11"
+        today="2026-11-28"
+        selectedDate="2026-11-20"
+        views={calViews}
+        onSelect={() => {}}
+        onMonthChange={() => {}}
+      />
+    ),
+  ],
+  [
+    'StudentStudyCalendar(자동 마감)',
+    () => (
+      <StudentStudyCalendar
+        month="2026-11"
+        today="2026-11-28"
+        selectedDate="2026-11-21"
+        views={calViews}
+        onSelect={() => {}}
+        onMonthChange={() => {}}
+      />
+    ),
+  ],
+  [
+    'StudentStudyCalendar(재원 중)',
+    () => (
+      <StudentStudyCalendar
+        month="2026-11"
+        today="2026-11-28"
+        selectedDate="2026-11-22"
+        views={calViews}
+        onSelect={() => {}}
+        onMonthChange={() => {}}
+      />
+    ),
+  ],
+  [
+    'StudentStudyCalendar(10월 출결만)',
+    () => (
+      <StudentStudyCalendar
+        month="2026-10"
+        today="2026-11-28"
+        selectedDate="2026-10-15"
+        views={calViews}
+        onSelect={() => {}}
+        onMonthChange={() => {}}
+      />
+    ),
+  ],
+  [
+    'StudentStudyCalendar(기록 없는 날)',
+    () => (
+      <StudentStudyCalendar
+        month="2026-11"
+        today="2026-11-28"
+        selectedDate="2026-11-25"
+        views={calViews}
+        onSelect={() => {}}
+        onMonthChange={() => {}}
+      />
+    ),
+  ],
+  [
+    'StudentStudyCalendar(불러오는 중)',
+    () => (
+      <StudentStudyCalendar
+        month="2026-11"
+        today="2026-11-28"
+        selectedDate="2026-11-20"
+        views={calViews}
+        loading
+        onSelect={() => {}}
+        onMonthChange={() => {}}
       />
     ),
   ],
@@ -818,6 +967,39 @@ const kindColorChecks: [string, boolean][] = [
   ['문구: 관리자 카드는 「푼 숙제 N개」', /푼 숙제 (?:\d|<!-- -->\d)/.test(dashboardHtml)],
 ]
 for (const [name, ok] of kindColorChecks) {
+  if (!ok) failed += 1
+  console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)
+}
+
+/* 학생 「공부 기록」 달력 — 등·하원·자동 마감·공부 기록 없음 (2026-11-28) */
+const calHtml = rendered['StudentStudyCalendar(11월 기록)'] ?? ''
+const calAutoHtml = rendered['StudentStudyCalendar(자동 마감)'] ?? ''
+const calInHtml = rendered['StudentStudyCalendar(재원 중)'] ?? ''
+const calOctHtml = rendered['StudentStudyCalendar(10월 출결만)'] ?? ''
+const calEmptyHtml = rendered['StudentStudyCalendar(기록 없는 날)'] ?? ''
+const calLoadHtml = rendered['StudentStudyCalendar(불러오는 중)'] ?? ''
+const studentCalendarChecks: [string, boolean][] = [
+  ['학생달력: 달 이름', calHtml.includes('2026년 11월')],
+  ['학생달력: 요일 머리', calHtml.includes('>일<') && calHtml.includes('>토<')],
+  ['학생달력: 범례 학원·숙제', calHtml.includes('학원 공부') && calHtml.includes('숙제 공부')],
+  ['학생달력: 고른 날 제목(요일까지)', calHtml.includes('11월 20일 (금)')],
+  ['학생달력: 하루 합계 시간', calHtml.includes('총 2시간 51분')],
+  ['학생달력: 등원 ~ 하원', calHtml.includes('15:36 등원 ~ 17:48 하원')],
+  ['학생달력: 학원 공부 시간', calHtml.includes('2시간 11분')],
+  ['학생달력: 학원 푼 문제', calHtml.includes('푼 문제 ') && calHtml.includes('43개')],
+  ['학생달력: 숙제 푼 문제', calHtml.includes('6개')],
+  ['학생달력: 자동 마감은 하원 시각 대신 안내', calAutoHtml.includes('15:31 등원 · 하원 미확인(자동 마감)')],
+  ['학생달력: 재원 중 안내', calInHtml.includes('15:30 등원 · 아직 학원에 있어요')],
+  ['학생달력: 10월은 등·하원만', calOctHtml.includes('15:10 등원 ~ 17:20 하원')],
+  ['학생달력: 10월은 공부 시간 기록 없음', calOctHtml.includes('공부 시간 기록 없음')],
+  ['학생달력: 기록 없는 날 안내', calEmptyHtml.includes('이 날은 등·하원도 공부 기록도 없어요')],
+  ['학생달력: 아무 기록 없는 날은 「기록 없음」', calEmptyHtml.includes('기록 없음')],
+  ['학생달력: 불러오는 중에는 상세 대신 스피너', !calLoadHtml.includes('총 2시간 51분') && calLoadHtml.includes('animate-spin')],
+  ['학생달력: 앞으로의 날짜는 누를 수 없음', calHtml.includes('disabled=""')],
+  ['학생달력: 오늘 날짜 표시', calHtml.includes('11월 28일 (토) 오늘')],
+  ['학생달력: 날짜 칸에 학원·숙제 점', calHtml.includes('h-[5px] w-[5px] rounded-full bg-[#1D4A9B]') && calHtml.includes('h-[5px] w-[5px] rounded-full bg-[#E0453E]')],
+]
+for (const [name, ok] of studentCalendarChecks) {
   if (!ok) failed += 1
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)
 }

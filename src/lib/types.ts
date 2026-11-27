@@ -68,6 +68,33 @@ export interface StudyLog {
 }
 
 /* ------------------------------------------------------------------ */
+/* 학생 「공부 기록」 달력 — 날짜별 등·하원 + 학원·숙제 (2026-11-28)        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * 학생 한 명의 하루치 — DB 함수 student_day_records 가 돌려준다.
+ * 등·하원은 훈출(키오스크) 출결(attendance_sessions), 시간·문제는 선오공 기록(study_logs)에서 온다.
+ */
+export interface StudentDayRecord {
+  /** 그날 날짜 'YYYY-MM-DD' */
+  record_date: string
+  /** 그날 첫 입실 시각 (없으면 null) */
+  check_in_at: string | null
+  /** 그날 마지막 퇴실 시각 (아직 안 나갔으면 null) */
+  check_out_at: string | null
+  /** 하원을 찍지 않아 시스템이 닫은 날 (마감 시각은 실제 하원이 아니다) */
+  check_out_auto: boolean
+  /** 아직 학원에 있는 날 (하원 미체크) */
+  check_out_missing: boolean
+  /** 그날 입실 횟수 (좌석 이동·재입실) */
+  visits: number
+  academy_minutes: number
+  academy_problems: number
+  homework_minutes: number
+  homework_problems: number
+}
+
+/* ------------------------------------------------------------------ */
 /* '선오공에게 질문하기' Q&A                                            */
 /* ------------------------------------------------------------------ */
 

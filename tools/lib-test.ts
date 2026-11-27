@@ -2,6 +2,21 @@
 import { addDays, formatHMS, formatMinutes, formatMinutesCompact, kstDateString, monthRange, rangeDates, weekRange, weekdayOf, kstDayEndMs, kstMidnightMs } from '../src/lib/time'
 import { buildStats, hasScopedLog, indexLogs, longestStreakAllTime, longestStreakInRange, rankByKind, rankEntries, rankValue, scopeLabel, scopeShortLabel, scopedDays, scopedLogMinutes, scopedLogProblems, scopedMinutes, scopedProblems, splitLog, splitPercents, studentsWithoutKind, sumSplits } from '../src/lib/stats'
 import { editTotals, editValuesFromLog, normalizeEditValues } from '../src/lib/logEdit'
+
+import {
+  academyTimeText,
+  attendanceLine,
+  buildDayView,
+  buildDayViews,
+  canOpenMonth,
+  dayDots,
+  dayHasContent,
+  dayTotalMinutes,
+  dayTotalProblems,
+  defaultSelectedDate,
+  homeworkTimeText,
+  problemsText,
+} from '../src/lib/studentCalendar'
 import { hasTodayAcademy, problemsAfterAcademyEdit } from '../src/lib/problemsEdit'
 import { computeElapsedSeconds, isAcademySessionActive, isHeartbeatStale, pausedSecondsOf } from '../src/lib/session'
 import {
@@ -1623,5 +1638,72 @@ eq('쏘기: 개별 결과에 성구가 없으면', individualSentText(1, []), '�
 eq('쏘기: 이력 메모 — 일괄', sendNote('academy', '2026-11-25'), '학원공부 일괄 (11/25)')
 eq('쏘기: 이력 메모 — 오늘 일괄', sendNote('homework', null), '숙제공부 일괄')
 eq('쏘기: 이력 메모 — 개별', sendNote('homework', '2026-11-26', true), '숙제공부 개별 (11/26)')
+
+/* 학생 「공부 기록」 달력 — 등·하원·자동 마감·공부 기록 없음 (2026-11-28) */
+const dayRec = (over: Partial<import('../src/lib/types').StudentDayRecord>) => ({
+  record_date: '2026-11-20',
+  check_in_at: '2026-11-20T06:36:00+00:00',
+  check_out_at: '2026-11-20T08:48:00+00:00',
+  check_out_auto: false,
+  check_out_missing: false,
+  visits: 1,
+  academy_minutes: 131,
+  academy_problems: 43,
+  homework_minutes: 40,
+  homework_problems: 6,
+  ...over,
+})
+const normalDay = buildDayView('2026-11-20', dayRec({}))
+eq('학생달력: 등원·하원 (UTC→한국 시간)', attendanceLine(normalDay.attendance), '15:36 등원 ~ 17:48 하원')
+eq('학생달력: 학원 시간 글', academyTimeText(normalDay), '2시간 11분')
+eq('학생달력: 숙제 시간 글', homeworkTimeText(normalDay), '40분')
+eq('학생달력: 푼 문제 글', problemsText(normalDay.homeworkProblems), '푼 문제 6개')
+eq('학생달력: 하루 합계 시간·문제', [dayTotalMinutes(normalDay), dayTotalProblems(normalDay)], [171, 49])
+eq('학생달력: 점 — 학원·숙제 모두', dayDots(normalDay), { academy: true, homework: true })
+eq('학생달력: 보여 줄 것 있음', dayHasContent(normalDay), true)
+
+const autoDay = buildDayView('2026-11-21', dayRec({ record_date: '2026-11-21', check_in_at: '2026-11-21T06:31:00+00:00', check_out_at: '2026-11-21T12:30:00+00:00', check_out_auto: true }))
+eq('학생달력: 자동 마감은 21:30 을 하원으로 안 보여 준다', attendanceLine(autoDay.attendance), '15:31 등원 · 하원 미확인(자동 마감)')
+eq('학생달력: 자동 마감이면 하원 시각 없음', autoDay.attendance?.outAt ?? null, '2026-11-21T12:30:00+00:00')
+
+const inDay = buildDayView('2026-11-22', dayRec({ record_date: '2026-11-22', check_in_at: '2026-11-22T06:30:00+00:00', check_out_at: null, check_out_missing: true }))
+eq('학생달력: 재원 중 문구', attendanceLine(inDay.attendance), '15:30 등원 · 아직 학원에 있어요')
+
+const noAtt = buildDayView('2026-11-24', null, { id: 'l1', student_id: 's1', date: '2026-11-24', minutes: 135, problems: 45, academy_minutes: 135, academy_problems: 45, homework_minutes: 0, homework_problems: 0, updated_at: '' })
+eq('학생달력: 출결 없이 공부만 있는 날', attendanceLine(noAtt.attendance), '등·하원 기록 없음')
+eq('학생달력: 공부만 있는 날 학원 시간', academyTimeText(noAtt), '2시간 15분')
+eq('학생달력: 공부만 있는 날 숙제는 기록 없음', homeworkTimeText(noAtt), '기록 없음')
+
+const oldDay = buildDayView('2026-10-15', dayRec({ record_date: '2026-10-15', check_in_at: '2026-10-15T15:10:00+09:00', check_out_at: '2026-10-15T17:20:00+09:00', academy_minutes: 0, academy_problems: 0, homework_minutes: 0, homework_problems: 0 }))
+eq('학생달력: 출결만 있는 날(10월) 시각', attendanceLine(oldDay.attendance), '15:10 등원 ~ 17:20 하원')
+eq('학생달력: 출결만 있는 날 학원 문구', academyTimeText(oldDay), '공부 시간 기록 없음')
+eq('학생달력: 출결만 있어도 보여 줄 것이 있다', [dayHasContent(oldDay), dayDots(oldDay)], [true, { academy: false, homework: false }])
+
+const zeroMin = buildDayView('2026-11-19', dayRec({ record_date: '2026-11-19', academy_minutes: 0, academy_problems: 47, homework_minutes: 0, homework_problems: 0 }))
+eq('학생달력: 0분인데 푼 문제만 있으면', academyTimeText(zeroMin), '시간 기록 없음')
+eq('학생달력: 0분이어도 문제가 있으면 점', dayDots(zeroMin), { academy: true, homework: false })
+
+const emptyDay = buildDayView('2026-11-25', null, null)
+eq('학생달력: 아무 기록 없는 날', [attendanceLine(emptyDay.attendance), academyTimeText(emptyDay), homeworkTimeText(emptyDay), dayHasContent(emptyDay)], ['등·하원 기록 없음', '기록 없음', '기록 없음', false])
+eq('학생달력: 아무 기록 없는 날 점 없음', dayDots(emptyDay), { academy: false, homework: false })
+
+/* 두 값을 날짜로 합치기 — DB 함수 값이 study_logs 값보다 우선 */
+const merged = buildDayViews(
+  [dayRec({}), dayRec({ record_date: '2026-11-21', check_in_at: '2026-11-21T06:31:00+00:00', academy_minutes: 5, academy_problems: 2 })],
+  [
+    { id: 'l1', student_id: 's1', date: '2026-11-20', minutes: 0, problems: 0, academy_minutes: 0, academy_problems: 0, homework_minutes: 0, homework_problems: 0, updated_at: '' },
+    { id: 'l2', student_id: 's1', date: '2026-11-26', minutes: 90, problems: 30, academy_minutes: 90, academy_problems: 30, homework_minutes: 0, homework_problems: 0, updated_at: '' },
+  ],
+)
+eq('학생달력: 함수 값이 기록 값보다 우선', [merged.get('2026-11-20')?.academyMinutes, merged.get('2026-11-20')?.attendance !== null], [131, true])
+eq('학생달력: 함수 값에 없는 날은 기록만', [merged.get('2026-11-26')?.academyMinutes, merged.get('2026-11-26')?.attendance ?? null], [90, null])
+eq('학생달력: 달력에 그릴 날 수(합집합)', merged.size, 3)
+
+/* 달을 바꿀 때 처음 고를 날 */
+eq('학생달력: 이번 달 → 오늘', defaultSelectedDate('2026-11', '2026-11-28'), '2026-11-28')
+eq('학생달력: 지난 달 → 마지막 날', defaultSelectedDate('2026-10', '2026-11-28'), '2026-10-31')
+eq('학생달력: 지난 달 2월 → 28일', defaultSelectedDate('2026-02', '2026-11-28'), '2026-02-28')
+eq('학생달력: 다음 달 → 고를 날 없음', defaultSelectedDate('2026-12', '2026-11-28'), null)
+eq('학생달력: 다음 달은 열지 않는다', [canOpenMonth('2026-12', '2026-11-28'), canOpenMonth('2026-11', '2026-11-28'), canOpenMonth('2026-10', '2026-11-28')], [false, true, true])
 
 console.log(failed === 0 ? 'ALL LIB TESTS PASSED' : `${failed} FAILED`)

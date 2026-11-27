@@ -93,6 +93,7 @@ select id, public, file_size_limit from storage.buckets where id = 'homework-pho
 > - `supabase/migrate-2026-11-27-pending-problems-save-fix.sql` — 가드가 앱 RPC까지 막던 역할 판별 수정(`study_session_guard` security invoker) (2026-11-27 운영 DB 적용 완료)
 > - `supabase/migrate-2026-11-28-academy-homework-block.sql` — 학원 등원 중 숙제 시작 차단(`start_session` → `academy_session_active`)·0분 정산 대기 가드(`settle_academy_session`) (2026-11-28 운영 DB 적용 완료)
 > - `supabase/fix-2026-11-28-1127-data.sql` — 2026-11-27 기록 이상 3건 정리(김도혁 131분 복구 · 정시훈 1분 중복 세션 · 이지빈 0분 유령 대기) (2026-11-28 운영 DB 적용 완료)
+> - `supabase/migrate-2026-11-28-student-calendar.sql` — 학생 「공부 기록」 달력용 `student_day_records(uuid, date, date)`(훈출 출결 `attendance_sessions` 를 security definer 로 읽어 날짜별 등·하원 + 학원·숙제 시간·문제를 돌려준다) (2026-11-28 운영 DB 적용 완료 · 검증은 `verify-2026-11-28-student-calendar.sql` 19건 통과)
 
 ## 3. 실행 / 빌드
 
