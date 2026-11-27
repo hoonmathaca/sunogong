@@ -173,15 +173,21 @@ try {
     const pendingBefore = await run(supabase.rpc('pending_problem_sessions', { p_student_id: jibinBefore.id }))
     await enter(JIBIN_CODE)
     const jibinModal = page.getByRole('dialog', { name: '지난번 푼 문제 수' })
-    const jibinOpen = await jibinModal.waitFor({ state: 'visible', timeout: 8000 }).then(() => true).catch(() => false)
-    const jibinText = jibinOpen ? (await jibinModal.innerText()).replace(/\s+/g, ' ') : (await text(page))
-    check('지빈이 계정: 창이 뜬다', jibinOpen)
-    check('지빈이 계정: 「1분 공부」 줄', jibinText.includes('1분 공부'), jibinText.slice(0, 120))
-    check('지빈이 계정: 옛 표기(출훈) 없음', !jibinText.includes('출훈'))
-    await page.screenshot({ path: `${shotDir}/sunogong-pending-problems-jibin-360.png` })
-    if (jibinOpen) {
-      await jibinModal.getByRole('button', { name: '건너뛰기', exact: true }).click()
-      await page.waitForTimeout(1200)
+    /* 2026-11-28 — 지빈이에게 대기 중인 공부가 없을 때는 창이 뜨지 않는 게 정상이다(실제 기록은 건드리지 않는다) */
+    if (pendingBefore.length > 0) {
+      const jibinOpen = await jibinModal.waitFor({ state: 'visible', timeout: 8000 }).then(() => true).catch(() => false)
+      const jibinText = jibinOpen ? (await jibinModal.innerText()).replace(/\s+/g, ' ') : (await text(page))
+      check('지빈이 계정: 창이 뜬다', jibinOpen)
+      check('지빈이 계정: 「1분 공부」 줄', jibinText.includes('1분 공부'), jibinText.slice(0, 120))
+      check('지빈이 계정: 옛 표기(출훈) 없음', !jibinText.includes('출훈'))
+      await page.screenshot({ path: `${shotDir}/sunogong-pending-problems-jibin-360.png` })
+      if (jibinOpen) {
+        await jibinModal.getByRole('button', { name: '건너뛰기', exact: true }).click()
+        await page.waitForTimeout(1200)
+      }
+    } else {
+      console.log('skip 지빈이 계정: 지금은 대기 중인 공부가 없어 창이 뜨지 않는다 (기록은 그대로)')
+      check('지빈이 계정: 창 없이 홈으로 들어간다', (await text(page)).includes('선오공'), '')
     }
     const pendingAfter = await run(supabase.rpc('pending_problem_sessions', { p_student_id: jibinBefore.id }))
     check(

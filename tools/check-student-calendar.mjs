@@ -218,19 +218,23 @@ try {
       if (!monthMatch || Number(monthMatch[1]) !== monthNumber) continue
       await cell.click()
       await page.waitForTimeout(120)
-      lines.push(`${monthMatch[2]}일: ${await detailText()}`)
+      lines.push({ day: Number(monthMatch[2]), text: await detailText() })
     }
-    const joined = lines.join(' | ')
+    const joined = lines.map((line) => `${line.day}일: ${line.text}`).join(' | ')
     const dotCount = await gridcells.locator('i').count()
     check('실제: 달력에 학원·숙제 점이 있음', dotCount > 0, `${dotCount}개`)
     check('실제: 등원 ~ 하원 시각이 보이는 날 있음', /등원 ~ \d\d:\d\d 하원/.test(joined), joined.slice(0, 200))
-    const autoDay = lines.find((line) => line.includes('하원 미확인(자동 마감)'))
-    check('실제: 자동 마감 안내', Boolean(autoDay), autoDay ?? '')
+    const autoDay = lines.find((line) => line.text.includes('하원 미확인(자동 마감)'))
+    check('실제: 자동 마감 안내', Boolean(autoDay), autoDay ? `${autoDay.day}일: ${autoDay.text}` : '')
     check('실제: 등·하원 없는 날 안내', joined.includes('등·하원 기록 없음'))
-    if (autoDay) {
-      const dayNumber = Number(autoDay.slice(0, autoDay.indexOf('일')))
-      const autoCell = card.getByRole('gridcell', { name: new RegExp(`^${monthNumber}월 ${dayNumber}일`) })
-      await autoCell.click()
+    /* 스크린샷은 등·하원과 공부 시간이 함께 있는 날(없으면 자동 마감 날)로 */
+    const shotDay =
+      lines.find((line) => /등원 ~ \d\d:\d\d 하원/.test(line.text) && !line.text.includes('공부 시간 기록 없음')) ??
+      autoDay ??
+      lines[lines.length - 1]
+    if (shotDay) {
+      const shotCell = card.getByRole('gridcell', { name: new RegExp(`^${monthNumber}월 ${shotDay.day}일`) })
+      await shotCell.click()
       await page.waitForTimeout(400)
     }
   }

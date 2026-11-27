@@ -166,22 +166,27 @@ try {
       }),
     )
   } else {
-    const att = await run(supabase.from('attendance_sessions').select('id').eq('student_id', student.id).maybeSingle())
+    /* service 키가 없을 때는 출결 표에 등원 줄 자체가 없다(위에서 start_session 으로만 열었다).
+       그래서 하원은 학원 세션을 관리자 종료로 정산한다 — 출결 표(attendance_sessions)는 anon 이 못 읽는다. */
     const open = await run(
       supabase.from('study_sessions').select('id').eq('student_id', student.id).eq('kind', 'academy').single(),
     )
-    if (att?.id) {
-      await run(supabase.from('attendance_sessions').update({ check_out_at: new Date().toISOString(), check_out_by: 'staff' }).eq('id', att.id))
-    }
     await run(supabase.rpc('admin_end_study_session', { p_session_id: open.id, p_problems: 0 }))
     checkOut = { ok: true }
   }
   const settled = await run(
     supabase.from('study_sessions').select('id,kind,status,minutes,problems_pending').eq('student_id', student.id).eq('kind', 'academy').single(),
   )
-  check('훈출 하원 → 학원 세션 정산(8분)',
-    Boolean(checkOut?.ok) && settled?.status === 'finished' && settled?.minutes >= 8,
-    `ok=${checkOut?.ok}, status=${settled?.status}, minutes=${settled?.minutes}`)
+  if (checkedIn) {
+    check('훈출 하원 → 학원 세션 정산(8분)',
+      Boolean(checkOut?.ok) && settled?.status === 'finished' && settled?.minutes >= 8,
+      `ok=${checkOut?.ok}, status=${settled?.status}, minutes=${settled?.minutes}`)
+  } else {
+    /* service 키가 없는 환경 — 학원 세션을 방금 열어 0분으로 정산되는 것이 정상이다 */
+    check('학원 세션 정산(대체 경로 — 방금 시작해 0분)',
+      Boolean(checkOut?.ok) && settled?.status === 'finished' && (settled?.minutes ?? -1) >= 0,
+      `ok=${checkOut?.ok}, status=${settled?.status}, minutes=${settled?.minutes}`)
+  }
   if (checkedIn) {
     check('정산된 학원 세션은 문제 수를 묻는다(1분 이상)', settled?.problems_pending === true, String(settled?.problems_pending))
   }
@@ -217,8 +222,13 @@ try {
   check('DB: 숙제 세션이 새로 열림', homework?.status === 'running', JSON.stringify(homework))
 
   const log = await run(supabase.from('study_logs').select('*').eq('student_id', student.id).maybeSingle())
-  check('DB: 학원 8분이 그날 기록에 들어감', (log?.academy_minutes ?? 0) >= 8 && (log?.homework_minutes ?? 0) === 0,
-    `academy=${log?.academy_minutes}, homework=${log?.homework_minutes}`)
+  if (checkedIn) {
+    check('DB: 학원 8분이 그날 기록에 들어감', (log?.academy_minutes ?? 0) >= 8 && (log?.homework_minutes ?? 0) === 0,
+      `academy=${log?.academy_minutes}, homework=${log?.homework_minutes}`)
+  } else {
+    check('DB: 0분 학원 세션은 기록을 만들지 않는다', (log?.academy_minutes ?? 0) === 0 && (log?.homework_minutes ?? 0) === 0,
+      `academy=${log?.academy_minutes}, homework=${log?.homework_minutes}`)
+  }
 
   /* ── 7) 화면이 아직 잠기기 전(홈을 연 직후)에 누르면 DB 거부 안내가 뜬다 ───── */
   if (serviceKey) {

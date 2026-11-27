@@ -94,6 +94,7 @@ select id, public, file_size_limit from storage.buckets where id = 'homework-pho
 > - `supabase/migrate-2026-11-28-academy-homework-block.sql` — 학원 등원 중 숙제 시작 차단(`start_session` → `academy_session_active`)·0분 정산 대기 가드(`settle_academy_session`) (2026-11-28 운영 DB 적용 완료)
 > - `supabase/fix-2026-11-28-1127-data.sql` — 2026-11-27 기록 이상 3건 정리(김도혁 131분 복구 · 정시훈 1분 중복 세션 · 이지빈 0분 유령 대기) (2026-11-28 운영 DB 적용 완료)
 > - `supabase/migrate-2026-11-28-student-calendar.sql` — 학생 「공부 기록」 달력용 `student_day_records(uuid, date, date)`(훈출 출결 `attendance_sessions` 를 security definer 로 읽어 날짜별 등·하원 + 학원·숙제 시간·문제를 돌려준다) (2026-11-28 운영 DB 적용 완료 · 검증은 `verify-2026-11-28-student-calendar.sql` 19건 통과)
+> - `supabase/migrate-2026-11-28-fix-homework-autoend.sql` — 60분 자동 종료된 「숙제 공부」를 승인 대기로 되돌림(11/27 가드 마이그레이션에서 빠진 `close_homework_session` 갈래 복구, `auto_end_paused_session`) (2026-11-28 운영 DB 적용 완료)
 
 ## 3. 실행 / 빌드
 
@@ -151,7 +152,7 @@ python3 tools/make_color_dragons.py
 1. **코드 입력** — 4자리 숫자 키패드. 코드는 문자열이라 `0575`처럼 앞자리 0이 유지됩니다.
    같은 코드를 쓰는 학생이 여럿이면 `누구세요?` 이름 선택 화면이 뜹니다.
    - **💬 오늘의 한줄 (2026-11-22)** — 키패드 바로 아래에 명언 카드 한 장(`src/lib/quotes.ts` 124개, `src/components/QuoteCard.tsx`). 화면(앱)을 열 때마다 한 개를 무작위로 골라 보여 주고, **카드는 누를 수 없는 일반 카드(`<div>`)라 눌러도 바뀌지 않습니다** — 예전 `눌러서 바꾸기` 문구와 탭 기능은 2026-11-22 원장님 요청으로 뺐습니다. 명언마다 출처(`— 이름 (작품·저서·장절)`)를 함께 보여 주고, 124개는 원장님이 확인한 99개 + 만화·애니·영화 명대사 25개입니다.
-2. **홈** — 오늘 누적 공부시간과 **학원 공부(파랑)·숙제 공부(빨강)** 시간을 색 칩으로 따로 표시, `공부 기록` 카드에 **최근 7일 / 최근 30일** 전환 · 기간 합계와 두 색 비율 막대(인바디형) · 날짜별 누적 막대(30일은 카드 안에서 스크롤), **☁️ 근두운**(지금 공부 중인 친구 수·구름·실시간 순위·닉네임 바꾸기)과 **🐉 내 드래곤볼**, `🏠 숙제 공부 시작`
+2. **홈** — 오늘 누적 공부시간과 **학원 공부(파랑)·숙제 공부(빨강)** 시간을 색 칩으로 따로 표시, `공부 기록` 카드에 **최근 7일 / 최근 30일** 전환 · 기간 합계와 두 색 비율 막대(인바디형) · **월별 달력**(날짜를 누르면 그날 등·하원 시각과 학원·숙제 시간·푼 문제, 2026-11-28), **☁️ 근두운**(지금 공부 중인 친구 수·구름·실시간 순위·닉네임 바꾸기)과 **🐉 내 드래곤볼**, `🏠 숙제 공부 시작`
    - **2026-11-26 — `🏫 학원 공부 시작` 버튼을 홈에서 뺐습니다.** 학원 공부는 새 출결 앱 '훈출'이 등원·하원에 맞춰 자동으로 시작·정산하므로, 선오공에서는 학생이 따로 누르지 않습니다(아래 「12. 학원 공부 시작 버튼 제거」).
 3. **타이머** — 학생이 시작하는 것은 `🏠 숙제 공부 시작` 하나이고(학원 공부 타이머는 훈출이 시작한 세션을 이어 보여 준다), `HH:MM:SS` · 종류 배지 · `일시정지` / `종료`(일시정지 중에는 `계속` / `종료`)
    - **`⛶ 전체화면`** — 브라우저 주소창·하단 내비게이션 바를 숨긴다(`document.documentElement.requestFullscreen()`). 다시 누르면 `⛶ 전체화면 나가기`(`exitFullscreen()`).
@@ -865,3 +866,49 @@ select public.cleanup_stale_study_sessions();
 - 실서비스 `node tools/check-admin-calendar.mjs`(달력·두 선·「푼 숙제」·첫 탭이 실시간이라 `공부기록` 을 눌러 확인하도록 수정) · `check-homework-ui.mjs` **69건** · `check-admin-end-study.mjs` **29건** · `check-academy-start-removed.mjs` **12건** 모두 통과. 세 스크립트는 이 환경의 크롬 라이브러리(`LD_LIBRARY_PATH`)를 스스로 잡도록 손봤고, 실제 학생의 대기 제출·선생님 종료 기록이 쌓여 있어도 검증 학생 몫만 보도록 고쳤다.
 - 스크린샷: `downloads/sunogong-kind-colors-home-360.png` · `sunogong-kind-colors-timer-360.png` · `sunogong-admin-first-tab-live-360.png` · `sunogong-admin-kind-colors-dashboard-360.png`
 - 남은 것: `훈출`(`hoonmath-app`) 쪽 「선오공 관리」 화면의 색·탭도 같은 「학파 숙빨」로 맞출지는 세컨폰 피클(`훈수학`) 몫이다(이 저장소 밖).
+
+## 18. 학생 「공부 기록」 달력 — 등·하원 · 자동 마감 · 학원/숙제 상세 (2026-11-28)
+
+원장님: **"부모가 선오공 들어가면 아이가 며칠 몇 시에 왔는지"** — 360px 시안(`downloads/sunogong-student-calendar-preview-1.png`)을 먼저 보여 드리고 "시안 그대로" 확인을 받은 뒤 반영했습니다.
+
+**1) DB — `student_day_records(p_student_id, p_start, p_end)`** (`supabase/migrate-2026-11-28-student-calendar.sql`)
+- 학생 폰(anon 키)이 **한 학생의 날짜별 등·하원 시각**(훈출 출결 `attendance_sessions`)과 **학원·숙제 시간·푼 문제**(선오공 `study_logs`)를 한 번에 읽는다.
+- `attendance_sessions` 는 RLS 가 켜져 있고 정책이 없어 anon 은 401 이다. 구조는 그대로 두고 **security definer 함수(소유자 postgres)** 만 표를 읽는다. 돌려주는 값은 "한 학생의 날짜별 요약"뿐이라 이름·좌석·찍은 사람·메모·세션 id 는 밖으로 나가지 않는다.
+- 하루에 여러 번 입실(좌석 이동·재입실): `check_in_at` = 그날 첫 입실, `check_out_at` = 마지막 퇴실, `visits` = 횟수.
+- 하원을 안 찍어 자동 마감된 날: `check_out_auto = true` (21:30 같은 마감 시각은 실제 하원이 아니므로 화면에서 시각으로 보여 주지 않는다).
+- 아직 학원에 있는 날: `check_out_missing = true`. 기간은 400일로 자른다. `revoke all from public` + `grant execute to anon, authenticated, service_role`.
+- 운영 DB(`qdzlenhmhszdsnygslhp`) 적용 완료 · `supabase/verify-2026-11-28-student-calendar.sql` **19건 통과**(검증용 학생을 만들었다가 마지막에 지워 실제 데이터는 그대로) · `schema.sql` 에도 같은 정의를 넣었습니다.
+  - 검증 항목: 함수·security definer·anon 실행 권한·PUBLIC 권한 없음(→ `aclexplode` 로 `proacl` 확인, `has_function_privilege('public', …)` 는 역할 이름이 아니라 오류가 난다)·출결 표 RLS 유지, 보통 하루, 두 번 입실, 자동 마감, 재원 중, 출결 없이 공부만, 마지막 방문이 정상이면 자동 아님, 기간 밖 제외, 한 달 30칸.
+
+**2) 화면 — `src/student/StudentStudyCalendar.tsx` + `src/lib/studentCalendar.ts`**
+- 카드 위쪽의 **최근 7일 / 최근 30일 전환 · 합계 · 두 색 비율 막대는 그대로** 두고, 그 아래 날짜별 막대 목록을 **월별 달력 + 고른 날 상세**로 바꿨습니다(시안 그대로).
+- 달력: 일요일 시작(`buildMonthGrid` 재사용), 날짜 칸에 **🏫 학원(파랑 `#1D4A9B`)·🏠 숙제(빨강 `#E0453E`) 점**, 오늘은 테두리, 고른 날은 남색 원, 앞으로의 날짜와 이웃 달 날짜는 흐리게 두고 누를 수 없다. **이번 달에서는 `›`(다음 달)가 잠긴다**(볼 기록이 없음).
+- 날짜 상세: `11월 27일 (금)` · `총 2시간 51분` + 🏫 학원 공부(시간 · 등·하원 한 줄 · 푼 문제 N개) + 🏠 숙제 공부(시간 · 푼 문제 N개).
+- 경계 문구(그대로 지킴):
+
+| 그날 상태 | 화면 |
+|---|---|
+| 보통 | `15:36 등원 ~ 17:48 하원` |
+| 하원을 안 찍어 자동 마감 | `15:36 등원 · 하원 미확인(자동 마감)` |
+| 아직 학원에 있음 | `15:36 등원 · 아직 학원에 있어요` |
+| 훈출 키오스크를 안 쓴 날 | `등·하원 기록 없음` |
+| 0분인데 푼 문제는 있음 | `시간 기록 없음` + `푼 문제 47개` |
+| 등·하원만 있고 공부 기록 없음(선오공 도입 전 10월 등) | 시각 + `공부 시간 기록 없음` |
+| 아무것도 없음 | `기록 없음` · `이 날은 등·하원도 공부 기록도 없어요` |
+
+- 함수가 아직 없는 DB(마이그레이션 전)에서도 달력이 비지 않도록, 등·하원 값이 없으면 `study_logs` 값만으로 그린다(`buildDayViews` — 함수 값이 있으면 그 값이 우선).
+- **학생 화면의 「지난번 푼 문제 수」 문구는 한 글자도 바꾸지 않았습니다**(`check-wording` 통과).
+
+**검증**
+- 단위 테스트 **591건**(+28 — 등원/하원 UTC→한국 시간, 자동 마감, 재원 중, 등·하원 없음, 0분+문제, 10월, 두 값 합치기, 달 이동) · 스모크 **252건**(+25 — 달력·상세 6화면) · `npm run build` · `node tools/check-wording.mjs dist` 모두 통과.
+- 실서비스 360px `node tools/check-student-calendar.mjs https://sunogong.vercel.app /workspace/downloads` — **19건 통과**(이번 달 이름·요일·범례·35칸, 오늘 `총 2시간 51분`·`푼 문제 43개/6개`, 등·하원 기록 없음, 다른 날 값, 기록 없는 날, 이전 달 이동·다음 달 잠김, 360px 가로 넘침 없음). 검증용 학생·기록은 지워 **남은 0건**.
+- 실제 학생 기록으로도 확인(`--code=9374`): `11월 23일 (월) 총 1시간 15분 · 15:36 등원 ~ 18:21 하원 · 푼 문제 48개`, `11월 3일 (화) 16:41 등원 · 하원 미확인(자동 마감)`.
+- **재원 중 상태는 실제 경로로 확인** — 훈출 `attendance_apply(check_in)` 로 등원시킨 뒤 앱에서 `06:09 등원 · 아직 학원에 있어요`, `check_out` 뒤 `06:09 등원 ~ 06:11 하원` (검증 학생은 지움).
+- 회귀 점검(실서비스): `check-pending-problems`(지난번 푼 문제 수 저장) · `check-academy-homework-block`(등원 중 숙제 차단) · `check-admin-calendar` · `check-kind-colors` · `check-homework-ui` · `check-academy-start-removed` · `check-admin-end-study` · `check-problems-edit-ui` · `check-academy-guard` · `check-login-quotes` · `check-login-mascot` 모두 통과. 검증 데이터 잔여 0건.
+  - 이 환경에는 `service_role` 키가 없어 `check-academy-homework-block` 은 훈출 등원을 `start_session('academy')` 대체 경로로 확인했다(그래서 "8분 정산" 대신 "0분 학원 세션은 기록을 만들지 않는다"로 확인). 등원 중 차단 문구·클릭 잠금·DB `academy_session_active` 거부는 그대로 통과.
+  - `check-pending-problems` 는 이지빈 계정에 대기 중인 공부가 없을 때 창이 뜨지 않는 것이 정상이라, 그 경우는 실패가 아니라 건너뛰기로 바꿨다(실제 기록은 건드리지 않음).
+**3) 함께 고친 회귀 — 60분 자동 종료된 숙제가 승인 없이 기록에 들어가던 문제 (2026-11-28)**
+- 회귀 점검 중 발견: `auto_end_paused_session` 에 2026-11-23 에 넣은 **숙제 → 승인 대기(`close_homework_session`)** 갈래가 **2026-11-27 가드 마이그레이션**이 이 함수를 옛 복사본으로 다시 만들면서 사라졌다. 그래서 쉬는 시간이 길어 자동 종료된 숙제가 **선생님 확인(사진·시간/문항수 승인) 없이 바로 `study_logs`(기록·랭킹)에 들어갔다**. (`check-homework-no-photo` 의 자동 종료 단계에서 드러남)
+- 고침: `supabase/migrate-2026-11-28-fix-homework-autoend.sql` — 11/27 가드(재원 중이면 자동 종료하지 않음 · 60초 미만 자동 종료 금지)는 그대로 두고 숙제 갈래만 되살렸다. 운영 DB 적용 + `schema.sql` 반영(맨 끝 정의). **이미 들어간 기록은 소급 변경하지 않았다.**
+- 확인: 실서비스에서 숙제 세션을 61분 전 일시정지로 만들어 자동 종료 → `pending_approval: true`, 제출 1건(40분 · 문제 수 미입력), `study_logs` **0건**. `node tools/check-homework-no-photo.mjs https://sunogong.vercel.app /workspace/downloads` **17건 전부 통과**(자동 종료 뒤 「지난 숙제 공부 제출」 창 → 사진 0장 확인 창 → 12문제 제출). 검증 데이터 잔여 0건.
+- 스크린샷: `downloads/sunogong-student-calendar-360.png` · `sunogong-student-calendar-card-360.png`(실제 학생, 등·하원) · `sunogong-student-calendar-check-360.png` · `-check-card-360.png`(검증 학생)
