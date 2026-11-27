@@ -752,3 +752,9 @@ select public.cleanup_stale_study_sessions();
 - `supabase/verify-2026-11-27-pending-problems.sql` — 운영 DB에서 **9건 전부 통과**: 트리거가 invoker 인지 · 훈출 세션 0문제 저장(앱 경로) · 5문제 저장과 기록 합산 · anon 직접 수정 차단 · anon 0분 종료 차단 · anon 하트비트 허용 · 앱 RPC 일시정지·재개 · 하원 전 종료 거부(함수 가드) · 관리자 수업 종료.
 - PostgREST(anon 키) 실호출: 대기 목록 1건 → `set_session_problems(0)` 성공 → 세션 `problems=0·problems_pending=false` → 대기 목록 0건, 표 직접 UPDATE 는 여전히 `session_managed_by_kiosk` 로 거부. 검증용 학생·세션·기록은 모두 지웠다.
 - 단위 **512건** · 스모크 **189건** 통과(추가 4건: `훈출(등·하원)` 안내 2건·옛 표기 없음·문제 수 안내), `node tools/check-wording.mjs` 로 `src`·빌드 번들에 `출훈` 이 없고 `훈출` 안내가 있는지 확인, `npm run build` 통과.
+
+**실서비스 확인** (`https://sunogong.vercel.app`, 새 번들 `index-CL8ziixN.js`, 360×780, `node tools/check-pending-problems.mjs <url> <코드> <학생id> <출결id>`)
+- 훈출이 연 1분 학원 세션(문제 수 대기)으로 로그인 → 「지난번 푼 문제 수」 창(`11월 27일 (금) · 🏫 학원 공부 · 1분 공부`)이 뜨고, 빨간 오류 줄 없이 `0` → `저장` → **창이 닫히고 홈으로 넘어간다**(DB `problems=0`, `problems_pending=false`, 대기 목록 0건) — `downloads/sunogong-pending-problems-modal-360.png`, `downloads/sunogong-pending-problems-saved-360.png`
+- 같은 훈출 세션에서 `종료`를 누르면 `학원 공부는 훈출에서 하원하면 자동으로 마무리돼요` 가 보이고 세션은 `running` 그대로 — `downloads/sunogong-pending-problems-hint-360.png`
+- 지빈이(코드 3733) 계정: 같은 창이 뜨고 옛 표기 `출훈` 은 화면에 없음. 기록을 건드리지 않도록 `건너뛰기` 로 닫아 대기 1건 그대로 — `downloads/sunogong-pending-problems-jibin-360.png`
+- 검증용 학생·세션·기록·출결은 모두 지워 0건(원생 55명 그대로).
