@@ -315,6 +315,8 @@ export function Dashboard({ students, studentsLoading, studentsError, reloadStud
                 onClick={() => {
                   setStart(preset.start)
                   setEnd(preset.end)
+                  /* 기간을 고르면 달력도 그 끝 날짜의 달로 (2026-11-28) */
+                  setMonth(preset.end.slice(0, 7))
                 }}
               >
                 {preset.label}
