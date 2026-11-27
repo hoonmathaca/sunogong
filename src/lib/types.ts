@@ -48,6 +48,8 @@ export interface StudySession {
   problems_pending?: boolean
   /** 일시정지 60분 경과로 자동 종료된 세션 (2026-11-22 추가) */
   auto_ended?: boolean
+  /** 출훈(키오스크) 등원으로 열린 세션이면 그 출결 id — 학원 공부는 하원으로 마무리된다 (2026-11-27) */
+  attendance_id?: string | null
   created_at: string
 }
 
@@ -196,6 +198,8 @@ export interface AutoEndResult {
   already_finished?: boolean
   /** 쉬는 중이 아니라 자동 종료하지 않았다 */
   not_paused?: boolean
+  /** 실제 공부가 1분도 안 돼서 자동 종료하지 않았다 (2026-11-27 가드) */
+  too_short?: boolean
   /** 자정을 넘긴 공부라 기록하지 않고 버렸다 */
   discarded?: boolean
   /** 숙제 공부 — 승인 대기 제출을 만들었다 */

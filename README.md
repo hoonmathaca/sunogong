@@ -320,7 +320,7 @@ python3 tools/make_color_dragons.py
 | 학원 공부: 페이지를 떠날 때는 그 시각만 남긴다 (아이폰은 화면 잠금에도 pagehide 가 와서 멈추지 않음) | `heartbeatBeacon` (keepalive) |
 | **숙제 공부: 화면을 끄거나 다른 화면·앱으로 나가면 즉시 일시정지** | `visibilitychange hidden`/`blur`/`pagehide` → `pause_sessionBeacon`(keepalive) + 화면 즉시 반영 |
 | 숙제 공부: 요청이 닿지 못해도 서버가 30초 뒤 자동 일시정지 (멈춘 시각 = 마지막 신호) | `reconcile_session` (kind = homework) |
-| 앱을 닫았다가 다시 열면 마지막 신호 시각까지로 일시정지 | 클라이언트 `isHeartbeatStale` + `pause_session` |
+| 앱을 닫았다가 다시 열면 마지막 신호 시각까지로 일시정지 (**숙제 공부만** — 학원 공부는 2026-11-27 부터 멈추지 않는다) | 클라이언트 `isHeartbeatStale` + `pause_session` |
 | **공부 중 '선오공에게 질문하기' 창을 여는 동안(카메라로 넘어간 시간 포함)에는 숙제 공부도 멈추지 않는다** | `holdOnLeave` — 창을 닫을 때 마지막 신호를 현재로 다시 맞춤 |
 | 10초마다 마지막 신호 시각만 갱신 (서버가 임의로 멈추지 않게) | `study_sessions.last_heartbeat_at` 직접 갱신 |
 | 일시정지 시간은 한 번만 뺀다 (멈춘 시각 = 마지막 신호면 그 뒤 시간은 이미 안 세므로 `paused_seconds` 를 또 더하지 않음) | `pause_session` |
@@ -678,3 +678,37 @@ select public.cleanup_stale_study_sessions();
 - `node tools/check-problems-edit-ui.mjs` — **27건 통과**(기존 25건 + `홈: 학원 공부 시작 버튼 없음` · `숙제 공부 시작 → 숙제 타이머`), 가로 넘침 없음(`scrollWidth 360`).
 - 스크린샷: `downloads/sunogong-home-homework-start-only-360.png`(홈 아래 `🏠 숙제 공부 시작` 하나), `downloads/sunogong-academy-result-no-again-360.png`(학원 결과 화면 — `홈으로` 만).
 - 컴퓨터 브라우저로 열면 예전처럼 `스마트폰 또는 태블릿에서만 이용할 수 있어요` 안내가 뜨므로, 학생 화면 확인은 휴대폰 화면(360×780)으로 했다.
+
+---
+
+## 13. 학원 세션 「0분 자동 종료」 원천 차단 가드 (2026-11-27)
+
+**증상** — 2026-11-27 15:41 신유안 학생이 `출훈` 키오스크로 등원(W-4)해 학원 공부 세션(`6dc31aa4…`)이 시작되자마자 같은 시각에 `status='finished'`, `minutes=0`, `auto_pause_count=1` 로 끝났다는 보고(훈수학 비서).
+
+**원인 (운영 DB에서 재현 확인)** — 서비스워커 캐시가 아니라 `pause_session` + `finish_session` 조합이었습니다.
+
+1. `출훈`은 등원할 때 `study_sessions(kind='academy', status='running', attendance_id=…)` 를 INSERT 하는데, `last_heartbeat_at` 은 INSERT 시각(= `started_at`) 그대로이고 **출훈은 하트비트를 보내지 않는다**(하트비트는 선오공 앱만 10초마다).
+2. 30초만 지나면 선오공 앱은 그 세션을 "하트비트 끊김"으로 봅니다(`isHeartbeatStale`). 2026-11-26까지의 `useStudyTimer` 는 앱을 열 때 `settleLoaded` 에서 **학원 세션도** `pause_session(p_auto=true)` 로 멈췄습니다.
+3. `pause_session` 은 끊김이 30초를 넘으면 `paused_at = last_heartbeat_at` 으로 저장합니다 → **멈춘 시각 = 시작 시각**(이때 `auto_pause_count` +1).
+4. 그 뒤 학생이 종료를 누르거나(구버전 `pagehide` 의 `pauseSessionBeacon` 도 같은 경로) 60분 일시정지 자동 종료가 돌면, `finish_session` 은 `ended_at = paused_at` 을 쓰므로 **`started_at == ended_at`(같은 시각) · `minutes 0` · `problems 0`** 인 0분 기록이 남습니다.
+
+같은 모양의 실데이터: `6cdb7a40…`(04:58:19 시작, 시작=종료, 0분, auto_pause 1), `eaf72fa1…`(06:36:37→06:37:29, 0분, auto_pause 1). 재현 테스트(트랜잭션 안에서 `pause_session(auto)`→`finish_session(0)` 후 롤백)도 같은 결과였다.
+
+**가드 4가지** (`supabase/migrate-2026-11-27-academy-zero-end-guard.sql`)
+
+| 가드 | 내용 |
+|---|---|
+| `pause_session` | 학원(`kind='academy'`)은 **자동 일시정지하지 않는다**(숙제만). 수동 일시정지도 `paused_at ≥ started_at + 1초` 로 보정 → 0초 일시정지가 생기지 않는다. |
+| `finish_session(…, p_force default false)` | 학원 세션이 **실제 공부 60초 미만**이면 `academy_too_short`, **출훈이 연 세션(`attendance_id`)인데 아직 하원 전**이면 `academy_managed_by_kiosk` 로 거부. `p_force=true` 는 관리자 「수업 종료」 전용. |
+| `auto_end_paused_session` | 실제 공부가 60초 미만이면 자동 종료하지 않고 `too_short` 로 돌려준다(세션은 그대로). |
+| `study_sessions` UPDATE 트리거 | 학생 폰(anon/authenticated)이 표를 **직접** 고쳐 출훈 세션을 끝내지 못하게 한다(하트비트 컬럼만 허용, 60초 미만 `finished` 금지). 앱 RPC(security definer)는 통과. |
+
+**프론트엔드**
+- `src/student/useStudyTimer.ts` — 앱을 열 때 학원 세션은 더 이상 일시정지하지 않고 마지막 신호만 지금으로 맞춘다(숙제만 기존처럼 일시정지). 자동 종료 응답이 `too_short` 면 다시 시도하지 않는다.
+- `src/student/TimerScreen.tsx` — 출훈이 연 학원 세션(`attendance_id`)은 종료 창을 열지 않고 `학원 공부는 출훈에서 하원하면 자동으로 마무리돼요` 안내를 띄운다.
+- `src/lib/api.ts` — `academy_too_short` · `academy_managed_by_kiosk` · `session_managed_by_kiosk` 를 학생이 읽을 수 있는 문장으로 바꾼다.
+- `src/lib/appUpdate.ts` + `src/main.tsx` — 화면이 다시 보일 때(10분에 한 번) 서버 `index.html` 이 가리키는 번들 이름을 확인해 다르면 새로고침 → 예전 탭이 옛 규칙으로 계속 도는 문제를 줄인다. `vercel.json` 에 `index.html`·`sw.js` `Cache-Control: no-cache, no-store` 를 넣었다. (`public/sw.js` 는 푸시 전용이라 fetch 를 가로채지 않는 것을 다시 확인)
+
+**출훈 쪽 영향** — `attendance_apply`(등원/하원/전체퇴실)·`settle_academy_session`·`admin_end_study_session`·`start_session`·`pause_session`(출훈 서버는 service_role)은 그대로 동작한다. 달라진 것은 **학생 앱이 출훈 세션을 끝내려 할 때 거부**되는 것뿐이다. 출훈이 `finish_session` 을 직접 부르는 곳이 있다면 3번째 인자 없이(=가드 켜진 상태) 호출되므로 `admin_end_study_session` 으로 바꾸는 것이 안전하다.
+
+**검증** — `supabase/verify-2026-11-27-academy-guard.sql` 11건 전부 통과(학원 자동 일시정지 무시 · 0분 종료/0분 자동 종료 거부 · 3분 종료 정상 · 출훈 세션 하원 전 거부·하원 뒤 정상 · 관리자 강제 종료 · 숙제 자동 일시정지·자동 종료 유지 · anon 직접 수정 차단 · anon 하트비트 허용), PostgREST(anon 키) 실호출로도 확인. `npm run build` · 단위 테스트 · 스모크 렌더 통과.

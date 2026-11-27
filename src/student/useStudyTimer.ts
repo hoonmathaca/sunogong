@@ -163,26 +163,29 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
   }, [syncServerTime, computeElapsed])
 
   /* 앱을 닫았다가 다시 연 경우: 마지막 신호 시점에 멈춘 것으로 본다.
-     (화면만 꺼진 경우에는 페이지가 살아 있어서 여기로 오지 않는다) */
+     (화면만 꺼진 경우에는 페이지가 살아 있어서 여기로 오지 않는다)
+     숙제 공부만 멈춘다. 학원 공부는 앱을 닫았다 열어도 그대로 두고 마지막 신호만 지금으로 맞춘다.
+     (출훈이 등원으로 연 학원 세션은 하트비트가 시작 시각에 멈춰 있어 '끊김'으로 보이는데,
+      여기서 일시정지하면 멈춘 시각이 곧 시작 시각이 되어 0분짜리 기록이 될 수 있다 — 2026-11-27) */
   const settleLoaded = useCallback(
     async (active: StudySession | null) => {
       let next = active
       if (next && next.status === 'running' && isHeartbeatStale(next, Date.now() + offsetRef.current)) {
-        const paused = await api.pauseSession(next.id, true)
-        if (paused.ok) {
-          next = paused.data
-          setNotice(
-            pausesOnLeave(next.kind)
-              ? '화면을 벗어나서 멈췄어요'
-              : '앱을 벗어나 있던 시간은 빼고 일시정지했어요',
-          )
+        if (pausesOnLeave(next.kind)) {
+          const paused = await api.pauseSession(next.id, true)
+          if (paused.ok) {
+            next = paused.data
+            setNotice('화면을 벗어나서 멈췄어요')
+          }
+        } else {
+          void api.touchHeartbeat(next.id, nowIso())
         }
       }
       applySession(next)
       setElapsed(computeElapsed(next))
       if (next?.status === 'paused') setNotice((prev) => prev ?? '일시정지 중이에요')
     },
-    [applySession, computeElapsed],
+    [applySession, computeElapsed, nowIso],
   )
 
   /* 처음 들어올 때 진행 중인 세션 확인 */
@@ -380,6 +383,12 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
       return
     }
     const data = res.data
+    if (data.too_short) {
+      // 실제 공부가 1분도 안 됐다 — 자동 종료하지 않고 그대로 둔다 (DB 가드와 같은 판단)
+      autoEndFailedIdRef.current = current.id
+      if (data.session) applySession(data.session)
+      return
+    }
     if (data.discarded) {
       // 자정을 넘긴 공부 — 기록 없이 버린다 (기존 규칙)
       applySession(null)

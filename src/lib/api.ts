@@ -47,6 +47,9 @@ export function friendlyError(error: unknown): string {
   if (raw.includes('session_not_finished')) return '아직 끝나지 않은 공부예요.'
   if (raw.includes('problems_not_pending')) return '이미 문제 수를 입력한 공부예요.'
   if (raw.includes('problems_out_of_range')) return PROBLEMS_LIMIT_MESSAGE
+  if (raw.includes('academy_too_short')) return '방금 시작한 학원 공부예요. 1분이 지난 뒤에 마무리해 주세요.'
+  if (raw.includes('academy_managed_by_kiosk')) return '학원 공부는 출훈(등·하원)에서 하원하면 자동으로 마무리돼요.'
+  if (raw.includes('session_managed_by_kiosk')) return '학원 공부는 출훈(등·하원)에서 하원하면 자동으로 마무리돼요.'
   if (raw.includes('log_not_found')) return '오늘 공부 기록이 없어서 문제 수를 고칠 수 없어요.'
   if (raw.includes('no_academy_today')) return '오늘 학원 공부 기록이 없어서 문제 수를 고칠 수 없어요.'
   if (raw.includes('invalid_code')) return '4자리 숫자 코드를 입력해주세요.'

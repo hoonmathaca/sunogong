@@ -80,6 +80,8 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
 
   const { session, status, elapsedSeconds, pausedSeconds, busy, error, notice, limitReached, wakeLockOk, kind } = timer
   const isHomework = kind === 'homework'
+  /* 출훈(키오스크) 등원으로 열린 학원 세션 — 하원이 곧 마무리다 (2026-11-27) */
+  const isKioskAcademy = !isHomework && Boolean(session?.attendance_id)
   const dim = isHomework && shield
   /* 숙제 공부 — 공부한 페이지 사진 초안 (고르는 즉시 올리고 초안에 저장한다) */
   const photoDraft = useHomeworkPhotos({
@@ -242,6 +244,11 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
 
   const openFinishFlow = () => {
     if (busy) return
+    // 출훈이 등원으로 연 학원 공부는 하원으로 마무리된다 (DB 도 이 종료를 막는다)
+    if (isKioskAcademy) {
+      showHint('학원 공부는 출훈에서 하원하면 자동으로 마무리돼요')
+      return
+    }
     setConfirmOpen(true)
   }
 
@@ -617,7 +624,9 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
           <p className={`mt-2 text-center text-[11px] ${dim ? 'text-[#333B49]' : 'text-navy/35'}`}>
             {isHomework
               ? '화면을 끄거나 다른 앱으로 나가면 자동으로 멈춰요 · 끝나면 꼭 종료를 눌러주세요'
-              : '화면이 꺼져도 시간은 계속 가요 · 끝나면 꼭 종료를 눌러주세요'}
+              : isKioskAcademy
+                ? '화면이 꺼져도 시간은 계속 가요 · 하원하면 자동으로 마무리돼요'
+                : '화면이 꺼져도 시간은 계속 가요 · 끝나면 꼭 종료를 눌러주세요'}
           </p>
         </div>
 

@@ -19,6 +19,7 @@ import {
   secondsUntilAutoEnd,
 } from '../src/lib/pauseWatch'
 import { normalizeKind, pausesOnLeave } from '../src/lib/kinds'
+import { bundleFromHtml } from '../src/lib/appUpdate'
 import {
   draftProblemsOf,
   draftProblemsText,
@@ -1493,5 +1494,10 @@ eq('수업 종료: 끝난 안내 — 학원', endStudyDoneText({ name: '이지�
 eq('수업 종료: 끝난 안내 — 숙제 승인 대기', endStudyDoneText({ name: '이지빈', kind: 'homework' }, 20, 0, true).includes('승인 대기로 넘겼어요'), true)
 eq('수업 종료: 끝난 안내 — 숙제 기록 없음', endStudyDoneText({ name: '이지빈', kind: 'homework' }, 0, 0, false).includes('남길 것이 없어요'), true)
 eq('수업 종료: 이미 끝난 세션 안내', endStudyAlreadyText('이지빈'), '이지빈 학생의 공부는 이미 끝나 있었어요. 기록은 그대로 두었어요.')
+
+/* 새 배포 감지 — 서버 index.html 의 번들 이름 비교 (2026-11-27) */
+eq('새 배포: 번들 이름 추출', bundleFromHtml('<script type="module" crossorigin src="/assets/index-B7tUziBA.js"></script>'), '/assets/index-B7tUziBA.js')
+eq('새 배포: 다른 자산·스타일은 상관없음', bundleFromHtml('/assets/index-CvKnG_PY.css /assets/html2canvas.esm-Dw6mdHwC.js'), '')
+eq('새 배포: 번들이 없으면 비움', [bundleFromHtml(''), bundleFromHtml('<div>선오공</div>')], ['', ''])
 
 console.log(failed === 0 ? 'ALL LIB TESTS PASSED' : `${failed} FAILED`)
