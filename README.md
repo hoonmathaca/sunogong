@@ -833,7 +833,7 @@ select public.cleanup_stale_study_sessions();
 - **학생 화면은 그대로** — `지난번 푼 문제 수`, `오늘 푼 문제 수`, `푼 문제 N개` 등 학생 문구는 한 글자도 바꾸지 않았다(원장님 지시). `tools/check-wording.mjs` 가 `src/admin` 에 `푼 문제` 0건·`푼 숙제` 있음, `src/student` 에 `지난번 푼 문제 수` 있음, 빌드 번들에도 같은 상태인지 확인한다.
 
 **검증**
-- 단위 **560건**(+36 — 달력 격자·이웃 달 칸·날짜별 학원/숙제 인원·시간·문제·달 합계·하루 상세(학년 순)·칸 시간 표기·일괄/개별 쏘기 문구·지급 메모·중복 학생 제거), 스모크 **214건**(+20 — `DayDetailModal` 2종·`DragonballBulk`·`DualTrendChart`·달력 칸·오늘 공부 이력), `npm run build` 통과.
+- 단위 **563건**(+39 — 달력 격자·이웃 달 칸·날짜별 학원/숙제 인원·시간·문제·달 합계·하루 상세(학년 순)·칸 시간 표기·일괄/개별 쏘기 문구·지급 메모·중복 학생 제거), 스모크 **214건**(+20 — `DayDetailModal` 2종·`DragonballBulk`·`DualTrendChart`·달력 칸·오늘 공부 이력), `npm run build` 통과.
 - `node tools/check-wording.mjs dist` — 옛 표기(출훈) 없음 · 관리자 `푼 숙제` · 학생 `지난번 푼 문제 수` · 번들까지 확인 통과.
 - 실서비스 `node tools/check-admin-calendar.mjs https://sunogong.vercel.app` — **43건 통과**(360·1280): 달력 칸의 인원·시간, 날짜 상세의 학원/숙제/기록 없는 학생, 일괄 확인 → 취소 시 지급 0건·드래곤볼 그대로, 개별 쏘기로 검증 학생 +1, 두 선 꺾은선 2개(색까지), 기록 수정 창 `푼 숙제 수` 두 칸, 실시간 오늘 공부 이력, 랭킹 `푼 숙제`, 학생 화면 `지난번 푼 문제 수`. 검증용 학생·기록·지급은 지워 남은 데이터 0건.
 - 스크린샷: `downloads/sunogong-admin-calendar-360.png` · `sunogong-admin-calendar-desktop.png` · `sunogong-admin-day-detail-360.png` · `sunogong-admin-day-bulk-confirm-360.png` · `sunogong-admin-day-sent-360.png` · `sunogong-admin-today-history-360.png` · `sunogong-admin-trend-dual-desktop.png` · `sunogong-admin-log-editor-푼숙제-desktop.png` · `sunogong-student-pending-problems-360.png`
