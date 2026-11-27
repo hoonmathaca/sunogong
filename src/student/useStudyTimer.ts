@@ -165,7 +165,7 @@ export function useStudyTimer({ studentId, initialSession = null, onFinished, on
   /* 앱을 닫았다가 다시 연 경우: 마지막 신호 시점에 멈춘 것으로 본다.
      (화면만 꺼진 경우에는 페이지가 살아 있어서 여기로 오지 않는다)
      숙제 공부만 멈춘다. 학원 공부는 앱을 닫았다 열어도 그대로 두고 마지막 신호만 지금으로 맞춘다.
-     (출훈이 등원으로 연 학원 세션은 하트비트가 시작 시각에 멈춰 있어 '끊김'으로 보이는데,
+     (훈출이 등원으로 연 학원 세션은 하트비트가 시작 시각에 멈춰 있어 '끊김'으로 보이는데,
       여기서 일시정지하면 멈춘 시각이 곧 시작 시각이 되어 0분짜리 기록이 될 수 있다 — 2026-11-27) */
   const settleLoaded = useCallback(
     async (active: StudySession | null) => {

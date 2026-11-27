@@ -48,7 +48,7 @@ export interface StudySession {
   problems_pending?: boolean
   /** 일시정지 60분 경과로 자동 종료된 세션 (2026-11-22 추가) */
   auto_ended?: boolean
-  /** 출훈(키오스크) 등원으로 열린 세션이면 그 출결 id — 학원 공부는 하원으로 마무리된다 (2026-11-27) */
+  /** 훈출(키오스크) 등원으로 열린 세션이면 그 출결 id — 학원 공부는 하원으로 마무리된다 (2026-11-27) */
   attendance_id?: string | null
   created_at: string
 }

@@ -147,8 +147,8 @@ python3 tools/make_color_dragons.py
    같은 코드를 쓰는 학생이 여럿이면 `누구세요?` 이름 선택 화면이 뜹니다.
    - **💬 오늘의 한줄 (2026-11-22)** — 키패드 바로 아래에 명언 카드 한 장(`src/lib/quotes.ts` 124개, `src/components/QuoteCard.tsx`). 화면(앱)을 열 때마다 한 개를 무작위로 골라 보여 주고, **카드는 누를 수 없는 일반 카드(`<div>`)라 눌러도 바뀌지 않습니다** — 예전 `눌러서 바꾸기` 문구와 탭 기능은 2026-11-22 원장님 요청으로 뺐습니다. 명언마다 출처(`— 이름 (작품·저서·장절)`)를 함께 보여 주고, 124개는 원장님이 확인한 99개 + 만화·애니·영화 명대사 25개입니다.
 2. **홈** — 오늘 누적 공부시간과 **학원 공부(남색)·숙제 공부(보라)** 시간을 색 칩으로 따로 표시, `공부 기록` 카드에 **최근 7일 / 최근 30일** 전환 · 기간 합계와 두 색 비율 막대(인바디형) · 날짜별 누적 막대(30일은 카드 안에서 스크롤), **☁️ 근두운**(지금 공부 중인 친구 수·구름·실시간 순위·닉네임 바꾸기)과 **🐉 내 드래곤볼**, `🏠 숙제 공부 시작`
-   - **2026-11-26 — `🏫 학원 공부 시작` 버튼을 홈에서 뺐습니다.** 학원 공부는 새 출결 앱 '출훈'이 등원·하원에 맞춰 자동으로 시작·정산하므로, 선오공에서는 학생이 따로 누르지 않습니다(아래 「12. 학원 공부 시작 버튼 제거」).
-3. **타이머** — 학생이 시작하는 것은 `🏠 숙제 공부 시작` 하나이고(학원 공부 타이머는 출훈이 시작한 세션을 이어 보여 준다), `HH:MM:SS` · 종류 배지 · `일시정지` / `종료`(일시정지 중에는 `계속` / `종료`)
+   - **2026-11-26 — `🏫 학원 공부 시작` 버튼을 홈에서 뺐습니다.** 학원 공부는 새 출결 앱 '훈출'이 등원·하원에 맞춰 자동으로 시작·정산하므로, 선오공에서는 학생이 따로 누르지 않습니다(아래 「12. 학원 공부 시작 버튼 제거」).
+3. **타이머** — 학생이 시작하는 것은 `🏠 숙제 공부 시작` 하나이고(학원 공부 타이머는 훈출이 시작한 세션을 이어 보여 준다), `HH:MM:SS` · 종류 배지 · `일시정지` / `종료`(일시정지 중에는 `계속` / `종료`)
    - **`⛶ 전체화면`** — 브라우저 주소창·하단 내비게이션 바를 숨긴다(`document.documentElement.requestFullscreen()`). 다시 누르면 `⛶ 전체화면 나가기`(`exitFullscreen()`).
    - 숙제 공부: `📵 숙제 공부는 화면을 끄거나 나가면 멈춰요` 안내 + **`🌙 화면보호 모드`** 버튼(어두운 저조도 화면, 화면 아무 곳이나 누르면 `☀️ 밝게 보기`로 복귀)
      - **☁️ 근두운 한 줄** — 숙제 공부 타이머 위쪽에 `N명 공부 중` 과 친구 3명(닉네임 + 진행 시간, 내 이름은 노란색)을 얇은 줄로 띄운다. 타이머 숫자·일시정지·종료 버튼을 가리지 않고, 15초마다 새로 읽으며 그 사이 1초마다 시간이 흐른다(`src/student/LiveKintounStrip.tsx`, 화면보호 모드에서는 어두운 색). 학원 공부 타이머에는 나오지 않는다.
@@ -164,7 +164,7 @@ python3 tools/make_color_dragons.py
    - **🏠 숙제 공부는 `숙제 공부 제출` 창**에서 `오늘 공부한 페이지를 찍어올리고 푼 문제수를 적어주세요` 안내와 함께 **공부한 페이지 사진(최대 5장)** 을 붙인다. 사진은 필수가 아니라 **0장으로도 제출**할 수 있고, 0장으로 제출을 누르면 `사진 없이 공부를 마치면 반려될 수 있습니다. 그래도 제출하시겠습니까?` 를 한 번 더 묻는다(2026-11-23 부터). 종료를 누르면 그 순간 타이머가 멈춰 사진 고르는 시간이 공부 시간에 들어가지 않는다.
    - 낸 시간·문제 수는 기록에 바로 들어가지 않고 **승인 대기**로 남는다(아래 「숙제 공부 사진 인증」).
 5. **결과** — `오늘 ○시간 ○분 공부했어요` + 오늘 합계 · 오늘 학원/숙제 시간 · 푼 문제 수. 숙제 공부는 `🙌 제출했어요 — 선생님 확인을 기다려요` 와 `오늘 기록(승인된 것)` 을 함께 보여 준다.
-   - **2026-11-26 — 학원 공부 결과 화면에는 `공부 더 하기` 가 없습니다.** 학원 공부는 출훈이 시작하므로 결과 화면에서는 `홈으로` 만 두고, 숙제 공부 결과 화면에는 예전처럼 `공부 더 하기` 가 있습니다.
+   - **2026-11-26 — 학원 공부 결과 화면에는 `공부 더 하기` 가 없습니다.** 학원 공부는 훈출이 시작하므로 결과 화면에서는 `홈으로` 만 두고, 숙제 공부 결과 화면에는 예전처럼 `공부 더 하기` 가 있습니다.
    - **✏️ 문제 수 수정 (2026-11-23)** — 학원 공부를 마친 결과 화면과 학생 홈(오늘 학원 기록이 있을 때)에 `✏️ 문제 수 수정` 이 있어, 오늘 학원 공부 문제 수를 학생이 직접 0~999 로 고칠 수 있다(아래 「문제 수 0~999 상한」).
    - **선생님이 수업을 마무리한 경우 (2026-11-23)** — 학생이 종료를 누르지 않아도 관리자 실시간 탭의 `수업 종료` 로 끝나면, 10초 안에 이 결과 화면으로 바뀌며 `선생님이 수업을 마무리해서 타이머를 멈췄어요` 가 함께 보인다. 숙제 공부는 `🙌 선생님이 마무리했어요 — 확인을 기다려요` 로 안내한다.
 6. **지난번 푼 문제 수 (2026-11-22)** — 자동 종료된 공부가 남아 있으면, 다음에 코드를 넣고 홈에 들어올 때 `지난번 푼 문제 수` 창이 뜬다.
@@ -659,22 +659,22 @@ select public.cleanup_stale_study_sessions();
 
 ---
 
-## 12. 학원 공부 시작 버튼 제거 — 출훈 연동 (2026-11-26)
+## 12. 학원 공부 시작 버튼 제거 — 훈출 연동 (2026-11-26)
 
-새 출결·학원관리 앱 **'출훈'**(`https://hoonmath-app.vercel.app`)이 학생이 **등원하면 선오공 DB(`qdzlenhmhszdsnygslhp`)의 `study_sessions(kind='academy')` 를 시작하고, 하원하면 `admin_end_study_session` 으로 `study_logs` 까지 정산**하도록 연결되면서, 선오공 학생 화면에서 `🏫 학원 공부 시작` 을 뺐다(원장님 요청 2026-11-26).
+새 출결·학원관리 앱 **'훈출'**(`https://hoonmath-app.vercel.app`)이 학생이 **등원하면 선오공 DB(`qdzlenhmhszdsnygslhp`)의 `study_sessions(kind='academy')` 를 시작하고, 하원하면 `admin_end_study_session` 으로 `study_logs` 까지 정산**하도록 연결되면서, 선오공 학생 화면에서 `🏫 학원 공부 시작` 을 뺐다(원장님 요청 2026-11-26).
 
 **바뀐 곳**
 - `src/student/StudentHomeScreen.tsx` — 홈 아래 버튼이 `🏠 숙제 공부 시작` 하나가 됐다(높이 56px, 숙제 색 보라 `#6D3BD6` 그대로).
-- `src/student/ResultScreen.tsx` — 학원 공부 결과 화면에서 `공부 더 하기` 를 숨기고 `홈으로` 만 남긴다(출훈이 끝낸 학원 세션을 학생이 선오공에서 다시 시작하지 않도록). 숙제 공부 결과 화면의 `공부 더 하기` 는 예전과 같다.
+- `src/student/ResultScreen.tsx` — 학원 공부 결과 화면에서 `공부 더 하기` 를 숨기고 `홈으로` 만 남긴다(훈출이 끝낸 학원 세션을 학생이 선오공에서 다시 시작하지 않도록). 숙제 공부 결과 화면의 `공부 더 하기` 는 예전과 같다.
 - `src/student/TimerScreen.tsx` — 진행 중인 세션이 없을 때 뜨는 빈 화면의 `공부 시작` 버튼이 (기본값 `academy` 로) 몰래 학원 세션을 여는 길이라 `🏠 숙제 공부 시작` 으로 바꿨다.
-- 학원 공부 타이머·문제 수(0~999) 수정·지난번 푼 문제 수·근두운·통계는 그대로다. 출훈이 시작한 학원 세션은 선오공을 열면 예전처럼 타이머로 이어 보여 준다.
+- 학원 공부 타이머·문제 수(0~999) 수정·지난번 푼 문제 수·근두운·통계는 그대로다. 훈출이 시작한 학원 세션은 선오공을 열면 예전처럼 타이머로 이어 보여 준다.
 
-**그대로 둔 것** — 숙제 공부 시작, 드래곤볼·근두운·성구·교환권, 숙제 제출·`숙제관리`, 질문함, 랭킹, 학원/숙제 분리 통계, 마이그레이션, DB 함수(`start_session`·`finish_session`·`admin_end_study_session`·`study_sessions`·`study_logs` 등). 출훈이 부르는 함수도 손대지 않았다.
+**그대로 둔 것** — 숙제 공부 시작, 드래곤볼·근두운·성구·교환권, 숙제 제출·`숙제관리`, 질문함, 랭킹, 학원/숙제 분리 통계, 마이그레이션, DB 함수(`start_session`·`finish_session`·`admin_end_study_session`·`study_sessions`·`study_logs` 등). 훈출이 부르는 함수도 손대지 않았다.
 
 **검증** — 단위 **509건** 통과, 스모크 **191건** 통과(새 확인 4건: 홈에 `학원 공부 시작` 없음 · `숙제 공부 시작` 있음, 학원 결과 화면에 `공부 더 하기` 없음 · 숙제 결과 화면에는 있음), `npm run build` 통과.
 
 **실서비스 확인** (배포본 `https://sunogong.vercel.app`, 새 번들 `index-BPIb71nf.js`, 360×780)
-- `node tools/check-academy-start-removed.mjs https://sunogong.vercel.app` — **12건 통과**: 홈에 `학원 공부 시작` 없음 · `🏠 숙제 공부 시작` 있음(보라, 높이 56px, 360px 안) · 누르면 숙제 타이머 · 출훈이 시작한 것처럼 만든 학원 세션은 선오공 학원 타이머로 그대로 이어짐 · 종료 뒤 결과 화면에 `공부 더 하기` 없이 `홈으로` 만 · DB에 학원 25분·5문제 기록. 검증용 학생·세션·기록은 지워 0건.
+- `node tools/check-academy-start-removed.mjs https://sunogong.vercel.app` — **12건 통과**: 홈에 `학원 공부 시작` 없음 · `🏠 숙제 공부 시작` 있음(보라, 높이 56px, 360px 안) · 누르면 숙제 타이머 · 훈출이 시작한 것처럼 만든 학원 세션은 선오공 학원 타이머로 그대로 이어짐 · 종료 뒤 결과 화면에 `공부 더 하기` 없이 `홈으로` 만 · DB에 학원 25분·5문제 기록. 검증용 학생·세션·기록은 지워 0건.
 - `node tools/check-problems-edit-ui.mjs` — **27건 통과**(기존 25건 + `홈: 학원 공부 시작 버튼 없음` · `숙제 공부 시작 → 숙제 타이머`), 가로 넘침 없음(`scrollWidth 360`).
 - 스크린샷: `downloads/sunogong-home-homework-start-only-360.png`(홈 아래 `🏠 숙제 공부 시작` 하나), `downloads/sunogong-academy-result-no-again-360.png`(학원 결과 화면 — `홈으로` 만).
 - 컴퓨터 브라우저로 열면 예전처럼 `스마트폰 또는 태블릿에서만 이용할 수 있어요` 안내가 뜨므로, 학생 화면 확인은 휴대폰 화면(360×780)으로 했다.
@@ -683,11 +683,11 @@ select public.cleanup_stale_study_sessions();
 
 ## 13. 학원 세션 「0분 자동 종료」 원천 차단 가드 (2026-11-27)
 
-**증상** — 2026-11-27 15:41 신유안 학생이 `출훈` 키오스크로 등원(W-4)해 학원 공부 세션(`6dc31aa4…`)이 시작되자마자 같은 시각에 `status='finished'`, `minutes=0`, `auto_pause_count=1` 로 끝났다는 보고(훈수학 비서).
+**증상** — 2026-11-27 15:41 신유안 학생이 `훈출` 키오스크로 등원(W-4)해 학원 공부 세션(`6dc31aa4…`)이 시작되자마자 같은 시각에 `status='finished'`, `minutes=0`, `auto_pause_count=1` 로 끝났다는 보고(훈수학 비서).
 
 **원인 (운영 DB에서 재현 확인)** — 서비스워커 캐시가 아니라 `pause_session` + `finish_session` 조합이었습니다.
 
-1. `출훈`은 등원할 때 `study_sessions(kind='academy', status='running', attendance_id=…)` 를 INSERT 하는데, `last_heartbeat_at` 은 INSERT 시각(= `started_at`) 그대로이고 **출훈은 하트비트를 보내지 않는다**(하트비트는 선오공 앱만 10초마다).
+1. `훈출`은 등원할 때 `study_sessions(kind='academy', status='running', attendance_id=…)` 를 INSERT 하는데, `last_heartbeat_at` 은 INSERT 시각(= `started_at`) 그대로이고 **훈출은 하트비트를 보내지 않는다**(하트비트는 선오공 앱만 10초마다).
 2. 30초만 지나면 선오공 앱은 그 세션을 "하트비트 끊김"으로 봅니다(`isHeartbeatStale`). 2026-11-26까지의 `useStudyTimer` 는 앱을 열 때 `settleLoaded` 에서 **학원 세션도** `pause_session(p_auto=true)` 로 멈췄습니다.
 3. `pause_session` 은 끊김이 30초를 넘으면 `paused_at = last_heartbeat_at` 으로 저장합니다 → **멈춘 시각 = 시작 시각**(이때 `auto_pause_count` +1).
 4. 그 뒤 학생이 종료를 누르거나(구버전 `pagehide` 의 `pauseSessionBeacon` 도 같은 경로) 60분 일시정지 자동 종료가 돌면, `finish_session` 은 `ended_at = paused_at` 을 쓰므로 **`started_at == ended_at`(같은 시각) · `minutes 0` · `problems 0`** 인 0분 기록이 남습니다.
@@ -699,19 +699,19 @@ select public.cleanup_stale_study_sessions();
 | 가드 | 내용 |
 |---|---|
 | `pause_session` | 학원(`kind='academy'`)은 **자동 일시정지하지 않는다**(숙제만). 수동 일시정지도 `paused_at ≥ started_at + 1초` 로 보정 → 0초 일시정지가 생기지 않는다. |
-| `finish_session(…, p_force default false)` | 학원 세션이 **실제 공부 60초 미만**이면 `academy_too_short`, **출훈이 연 세션(`attendance_id`)인데 아직 하원 전**이면 `academy_managed_by_kiosk` 로 거부. `p_force=true` 는 관리자 「수업 종료」 전용. |
+| `finish_session(…, p_force default false)` | 학원 세션이 **실제 공부 60초 미만**이면 `academy_too_short`, **훈출이 연 세션(`attendance_id`)인데 아직 하원 전**이면 `academy_managed_by_kiosk` 로 거부. `p_force=true` 는 관리자 「수업 종료」 전용. |
 | `auto_end_paused_session` | 실제 공부가 60초 미만이면 자동 종료하지 않고 `too_short` 로 돌려준다(세션은 그대로). |
-| `study_sessions` UPDATE 트리거 | 학생 폰(anon/authenticated)이 표를 **직접** 고쳐 출훈 세션을 끝내지 못하게 한다(하트비트 컬럼만 허용, 60초 미만 `finished` 금지). 앱 RPC(security definer)는 통과. |
+| `study_sessions` UPDATE 트리거 | 학생 폰(anon/authenticated)이 표를 **직접** 고쳐 훈출 세션을 끝내지 못하게 한다(하트비트 컬럼만 허용, 60초 미만 `finished` 금지). 앱 RPC(security definer)는 통과. |
 
 **프론트엔드**
 - `src/student/useStudyTimer.ts` — 앱을 열 때 학원 세션은 더 이상 일시정지하지 않고 마지막 신호만 지금으로 맞춘다(숙제만 기존처럼 일시정지). 자동 종료 응답이 `too_short` 면 다시 시도하지 않는다.
-- `src/student/TimerScreen.tsx` — 출훈이 연 학원 세션(`attendance_id`)은 종료 창을 열지 않고 `학원 공부는 출훈에서 하원하면 자동으로 마무리돼요` 안내를 띄운다.
+- `src/student/TimerScreen.tsx` — 훈출이 연 학원 세션(`attendance_id`)은 종료 창을 열지 않고 `학원 공부는 훈출에서 하원하면 자동으로 마무리돼요` 안내를 띄운다.
 - `src/lib/api.ts` — `academy_too_short` · `academy_managed_by_kiosk` · `session_managed_by_kiosk` 를 학생이 읽을 수 있는 문장으로 바꾼다.
 - `src/lib/appUpdate.ts` + `src/main.tsx` — 화면이 다시 보일 때(10분에 한 번) 서버 `index.html` 이 가리키는 번들 이름을 확인해 다르면 새로고침 → 예전 탭이 옛 규칙으로 계속 도는 문제를 줄인다. `vercel.json` 에 `index.html`·`sw.js` `Cache-Control: no-cache, no-store` 를 넣었다. (`public/sw.js` 는 푸시 전용이라 fetch 를 가로채지 않는 것을 다시 확인)
 
-**출훈 쪽 영향** — `attendance_apply`(등원/하원/전체퇴실)·`settle_academy_session`·`admin_end_study_session`·`start_session`·`pause_session`(출훈 서버는 service_role)은 그대로 동작한다. 달라진 것은 **학생 앱이 출훈 세션을 끝내려 할 때 거부**되는 것뿐이다. 출훈이 `finish_session` 을 직접 부르는 곳이 있다면 3번째 인자 없이(=가드 켜진 상태) 호출되므로 `admin_end_study_session` 으로 바꾸는 것이 안전하다.
+**훈출 쪽 영향** — `attendance_apply`(등원/하원/전체퇴실)·`settle_academy_session`·`admin_end_study_session`·`start_session`·`pause_session`(훈출 서버는 service_role)은 그대로 동작한다. 달라진 것은 **학생 앱이 훈출 세션을 끝내려 할 때 거부**되는 것뿐이다. 훈출이 `finish_session` 을 직접 부르는 곳이 있다면 3번째 인자 없이(=가드 켜진 상태) 호출되므로 `admin_end_study_session` 으로 바꾸는 것이 안전하다.
 
-**검증** — `supabase/verify-2026-11-27-academy-guard.sql` 13건 전부 통과(학원 자동 일시정지 무시 · 0분 종료/0분 자동 종료 거부 · 3분 종료 정상 · 출훈 세션 하원 전 거부·하원 뒤 정상 · 관리자 강제 종료 · 숙제 자동 일시정지·자동 종료 유지 · anon 직접 수정 차단 · anon 하트비트 허용 · 5시간 상한 종료 · 지난 날 세션 정리 종료), PostgREST(anon 키) 실호출로도 같은 결과.
+**검증** — `supabase/verify-2026-11-27-academy-guard.sql` 13건 전부 통과(학원 자동 일시정지 무시 · 0분 종료/0분 자동 종료 거부 · 3분 종료 정상 · 훈출 세션 하원 전 거부·하원 뒤 정상 · 관리자 강제 종료 · 숙제 자동 일시정지·자동 종료 유지 · anon 직접 수정 차단 · anon 하트비트 허용 · 5시간 상한 종료 · 지난 날 세션 정리 종료), PostgREST(anon 키) 실호출로도 같은 결과.
 
 가드는 **오늘(KST) 세션**에만 적용하고 5시간 상한(18,000초)으로 마무리되는 경우는 통과시킵니다 — 그래서 `reconcile_session`·`resume_session`·`cleanup_stale_study_sessions` 같은 기존 자동 마무리가 막히지 않습니다.
 
@@ -722,7 +722,33 @@ select public.cleanup_stale_study_sessions();
 - 6분 공부한 학원 세션 종료: 그대로 `finished`·6분·3문제로 기록(정상 흐름 유지)
 - 방금 시작한 학원 세션 종료: DB 가 거부하고 세션은 `running` 유지, 화면에 `방금 시작한 학원 공부예요. 1분이 지난 뒤에 마무리해 주세요.` 표시 — `downloads/sunogong-academy-guard-too-short-360.png`
 - anon 키로 `study_sessions` 를 직접 UPDATE 해 끝내려는 요청: `academy_too_short`/`session_managed_by_kiosk` 로 거부
-- 출훈이 연 세션(`attendance_id`): 타이머 아래 `하원하면 자동으로 마무리돼요`, 종료를 눌러도 확인 창 대신 `학원 공부는 출훈에서 하원하면 자동으로 마무리돼요` 안내 — `downloads/sunogong-academy-kiosk-hint-360.png`
+- 훈출이 연 세션(`attendance_id`): 타이머 아래 `하원하면 자동으로 마무리돼요`, 종료를 눌러도 확인 창 대신 `학원 공부는 훈출에서 하원하면 자동으로 마무리돼요` 안내 — `downloads/sunogong-academy-kiosk-hint-360.png`
 - 검증용 학생·세션·기록은 모두 지워 0건
 
 **피해 복구** — 신유안 학생 세션(`6dc31aa4…`)은 훈수학 측이 `running` 으로 되돌려 둔 상태였고, 0분 종료 때 남은 `minutes=0·problems=0` 만 `NULL` 로 되돌려 하원 때 문제 수를 묻게 했다(공부 시간은 하원할 때 정산).
+
+---
+
+## 14. 「지난번 푼 문제 수」 저장이 막히던 문제 수정 + 문구 「훈출」 (2026-11-27)
+
+**증상** — 2026-11-27 저녁 원장님이 지빈이(이지빈, 코드 3733) 계정으로 로그인하니 「지난번 푼 문제 수」 창(`11월 27일 (금) · 🏫 학원 공부 · 1분 공부`)이 떴고, `0` 을 누르고 `저장` 을 눌러도 창이 닫히지 않았다. 빨간 줄에는 아직 `학원 공부는 출훈(등·하원)에서 하원하면 자동으로 마무리돼요.` 가 떠 있었다.
+
+**원인** — 13번 가드의 `study_session_guard()` 가 "학생 폰이 표를 직접 고쳤는지" 를 `current_setting('role')` 로 판단한 것이 틀렸다. PostgREST 는 앱(anon 키)이 부르는 **RPC 도 `SET LOCAL ROLE anon`** 으로 실행하므로, security definer 함수가 표를 고칠 때도 `role='anon'` 이 보여 정상 경로까지 `session_managed_by_kiosk` 로 막혔다. 그래서 모달의 `저장`(`set_session_problems`)이 거부되고 창이 그대로 남았다.
+
+- 실DB 확인: 지빈이 11/27 세션 `f84fb01e-18fe-44f9-b6a3-afd1c74857e8`(15:31~15:32, 1분, `problems=null`, `problems_pending=true`, `attendance_id=ccd9f213…`)가 그 창의 대상이었다.
+- 재현: `attendance_id` 가 있는 세션에 `set_session_problems(0)` → `session_managed_by_kiosk`, `attendance_id` 가 없는 세션은 같은 호출이 정상 통과.
+- 같은 원인으로 **앱 RPC 가 훈출 세션에 쓰는 다른 길도 함께 막혀 있었다** — 수동 일시정지·재개(`pause_session`·`resume_session`), 관리자 「수업 종료」(`admin_end_study_session`).
+
+**수정** — `supabase/migrate-2026-11-27-pending-problems-save-fix.sql`
+
+- `study_session_guard()` 를 **security invoker** 로 바꾸고 `current_user` 로 판단한다.
+  - 학생 폰이 표를 직접 고칠 때 → `current_user = anon/authenticated` → 가드 적용(그대로)
+  - 앱 RPC(security definer) 안에서 → `current_user = postgres`(함수 주인) → 통과
+  - 훈출 서버(service_role) → 통과
+- 가드 내용(훈출 세션이면 하트비트만 · 60초 미만 종료 금지)과 `finish_session` 의 `academy_managed_by_kiosk` 거부는 그대로다.
+- 문구 통일: UI·오류 문구·주석의 `출훈` 을 모두 **`훈출`** 로 바꿨다(`src/lib/api.ts`, `src/student/TimerScreen.tsx` 등 28곳 + README).
+
+**검증**
+- `supabase/verify-2026-11-27-pending-problems.sql` — 운영 DB에서 **9건 전부 통과**: 트리거가 invoker 인지 · 훈출 세션 0문제 저장(앱 경로) · 5문제 저장과 기록 합산 · anon 직접 수정 차단 · anon 0분 종료 차단 · anon 하트비트 허용 · 앱 RPC 일시정지·재개 · 하원 전 종료 거부(함수 가드) · 관리자 수업 종료.
+- PostgREST(anon 키) 실호출: 대기 목록 1건 → `set_session_problems(0)` 성공 → 세션 `problems=0·problems_pending=false` → 대기 목록 0건, 표 직접 UPDATE 는 여전히 `session_managed_by_kiosk` 로 거부. 검증용 학생·세션·기록은 모두 지웠다.
+- 단위 **512건** · 스모크 **189건** 통과(추가 4건: `훈출(등·하원)` 안내 2건·옛 표기 없음·문제 수 안내), `node tools/check-wording.mjs` 로 `src`·빌드 번들에 `출훈` 이 없고 `훈출` 안내가 있는지 확인, `npm run build` 통과.

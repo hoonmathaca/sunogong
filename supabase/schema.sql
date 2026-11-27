@@ -5649,42 +5649,26 @@ $$;
 
 -- ---------------------------------------------------------------------
 -- 5. study_sessions 직접 수정 가드 (학생 폰이 표를 직접 고치는 경로 차단)
---    · 선오공 RPC 는 owner(postgres)로 실행되므로 이 가드에 걸리지 않는다.
+--    · 트리거 함수는 security invoker 여야 한다 — 그래야 current_user 가 '호출자'로 보인다.
+--      (definer 로 두면 함수 주인(postgres)으로 실행되어 앱 RPC 와 직접 쓰기를 구분하지 못한다.
+--       2026-11-27 에 current_setting('role') 로 판단했다가 PostgREST RPC 까지 막힌 것을 고침)
 --    · anon/authenticated(학생 폰·구버전 탭)가 표를 직접 고칠 때만 검사한다.
+--      앱 RPC(security definer) 안에서는 current_user = postgres 라서 통과한다.
 --      ① 출훈이 연 학원 세션(attendance_id 있음)은 하트비트 외에는 바꿀 수 없다
 --      ② 어떤 세션이든 60초 미만에서 'finished' 로 바꿀 수 없다
 -- ---------------------------------------------------------------------
 create or replace function public.study_session_guard()
 returns trigger
 language plpgsql
-security definer
+security invoker
 set search_path = public
 as $$
 declare
-  v_role   text;
-  v_claims text;
 begin
-  -- '학생 폰(anon/authenticated)이 직접 고쳤는지' 판단한다.
-  --   · security definer 함수 안에서는 current_user 가 함수 주인(postgres)으로 바뀌므로
-  --     SET ROLE 값(current_setting('role'))과 PostgREST 의 JWT role 을 함께 본다.
-  --   · 앱 RPC(security definer)는 role 이 비어 있거나 postgres 라서 이 가드를 지나간다.
-  v_role := coalesce(nullif(current_setting('role', true), ''), '');
-  if v_role = '' or v_role = 'none' then
-    v_role := current_user;
-  end if;
-
-  if v_role <> 'anon' and v_role <> 'authenticated' then
-    v_claims := nullif(current_setting('request.jwt.claims', true), '');
-    if v_claims is not null then
-      begin
-        v_role := coalesce(v_claims::jsonb ->> 'role', v_role);
-      exception when others then
-        null;  -- 형식이 다르면 무시 (가드 없이 진행하지 않도록 아래에서 다시 확인)
-      end;
-    end if;
-  end if;
-
-  if v_role <> 'anon' and v_role <> 'authenticated' then
+  -- '학생 폰(anon/authenticated)이 표를 직접 고쳤는지' 판단한다.
+  --   · 직접 REST 쓰기     : PostgREST 가 SET LOCAL ROLE anon → current_user = anon
+  --   · 앱 RPC(definer) 안 : 함수 주인으로 실행 → current_user = postgres
+  if current_user <> 'anon' and current_user <> 'authenticated' then
     return new;
   end if;
 

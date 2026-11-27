@@ -426,7 +426,7 @@ export function StudentHomeScreen({
         ) : null}
       </div>
 
-      {/* 학원 공부는 출훈(등·하원)이 자동으로 시작한다 — 2026-11-26 시작 버튼 제거 */}
+      {/* 학원 공부는 훈출(등·하원)이 자동으로 시작한다 — 2026-11-26 시작 버튼 제거 */}
       <div className="px-5 pb-1">
         <div className="flex flex-col gap-2">
           <button

@@ -730,7 +730,7 @@ const problemChecks: [string, boolean][] = [
   ['문제 수정: 기록 없는 결과 화면에는 버튼 없음', !plainResultHtml.includes('문제 수 수정')],
   ['문제 수정: 숙제 승인 대기 화면에는 버튼 없음', !homeworkResultHtml.includes('문제 수 수정')],
   ['문제 수정: 관리자 수업 종료 입력칸 max 999', endStudyHtml.includes('max="999"')],
-  ['학원: 결과 화면에 공부 더 하기 없음(학원은 출훈이 시작)', !academyResultHtml.includes('공부 더 하기')],
+  ['학원: 결과 화면에 공부 더 하기 없음(학원은 훈출이 시작)', !academyResultHtml.includes('공부 더 하기')],
   ['숙제: 결과 화면에 공부 더 하기는 그대로', homeworkResultHtml.includes('공부 더 하기')],
 ]
 for (const [name, ok] of problemChecks) {

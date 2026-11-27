@@ -80,7 +80,7 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
 
   const { session, status, elapsedSeconds, pausedSeconds, busy, error, notice, limitReached, wakeLockOk, kind } = timer
   const isHomework = kind === 'homework'
-  /* 출훈(키오스크) 등원으로 열린 학원 세션 — 하원이 곧 마무리다 (2026-11-27) */
+  /* 훈출(키오스크) 등원으로 열린 학원 세션 — 하원이 곧 마무리다 (2026-11-27) */
   const isKioskAcademy = !isHomework && Boolean(session?.attendance_id)
   const dim = isHomework && shield
   /* 숙제 공부 — 공부한 페이지 사진 초안 (고르는 즉시 올리고 초안에 저장한다) */
@@ -244,9 +244,9 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
 
   const openFinishFlow = () => {
     if (busy) return
-    // 출훈이 등원으로 연 학원 공부는 하원으로 마무리된다 (DB 도 이 종료를 막는다)
+    // 훈출이 등원으로 연 학원 공부는 하원으로 마무리된다 (DB 도 이 종료를 막는다)
     if (isKioskAcademy) {
-      showHint('학원 공부는 출훈에서 하원하면 자동으로 마무리돼요')
+      showHint('학원 공부는 훈출에서 하원하면 자동으로 마무리돼요')
       return
     }
     setConfirmOpen(true)
@@ -341,7 +341,7 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
       setProblems('')
       return
     }
-    /* 마무리되지 않았으면(방금 시작한 학원 공부·출훈 세션·연결 오류) 창을 닫아
+    /* 마무리되지 않았으면(방금 시작한 학원 공부·훈출 세션·연결 오류) 창을 닫아
        타이머 화면의 안내 문구를 보여 준다 (2026-11-27) */
     if (pendingReason !== 'limit') {
       setProblemOpen(false)
@@ -388,7 +388,7 @@ export function TimerScreen({ student, initialSession = null, onFinished, onDisc
         <p className="text-center text-navy/60">진행 중인 공부가 없어요.</p>
         {error ? <p className="mt-3 text-center text-sm text-red-500">{error}</p> : null}
         <div className="mt-6 flex flex-col gap-2">
-          {/* 학원 공부는 출훈이 시작한다 — 2026-11-26 부터 여기서 시작하는 것은 숙제 공부뿐 */}
+          {/* 학원 공부는 훈출이 시작한다 — 2026-11-26 부터 여기서 시작하는 것은 숙제 공부뿐 */}
           <button type="button" className="btn-navy" onClick={() => void timer.start('homework')}>
             🏠 숙제 공부 시작
           </button>

@@ -39,7 +39,7 @@ export function ResultScreen({ student, result, reason, onHome, onAgain, busy = 
   /* 오늘 학원 공부 기록이 있으면 결과 화면에서도 문제 수를 바로 고칠 수 있다 */
   const canEditProblems =
     kind === 'academy' && !pending && !nothing && !result.discarded && hasTodayAcademy(todaySplit)
-  /* 학원 공부는 출훈(등·하원)이 시작한다 — 2026-11-26 부터 여기서 학원 공부를 다시 시작하지 않는다 */
+  /* 학원 공부는 훈출(등·하원)이 시작한다 — 2026-11-26 부터 여기서 학원 공부를 다시 시작하지 않는다 */
   const canAgain = kind !== 'academy'
   const totalProblems = log?.problems ?? result.total_problems
 

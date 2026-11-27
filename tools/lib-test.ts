@@ -237,6 +237,7 @@ import {
   verdictLabel,
 } from '../src/lib/homeworkBoard'
 import { pickQuote, QUOTES } from '../src/lib/quotes'
+import { friendlyError } from '../src/lib/api'
 
 let failed = 0
 function eq(name: string, actual: unknown, expected: unknown) {
@@ -1499,5 +1500,11 @@ eq('수업 종료: 이미 끝난 세션 안내', endStudyAlreadyText('이지빈'
 eq('새 배포: 번들 이름 추출', bundleFromHtml('<script type="module" crossorigin src="/assets/index-B7tUziBA.js"></script>'), '/assets/index-B7tUziBA.js')
 eq('새 배포: 다른 자산·스타일은 상관없음', bundleFromHtml('/assets/index-CvKnG_PY.css /assets/html2canvas.esm-Dw6mdHwC.js'), '')
 eq('새 배포: 번들이 없으면 비움', [bundleFromHtml(''), bundleFromHtml('<div>선오공</div>')], ['', ''])
+
+/* 문구 — 통합 앱 이름은 「훈출」 (2026-11-27) */
+eq('문구: 훈출 세션 안내 — 훈출 표기', friendlyError('session_managed_by_kiosk'), '학원 공부는 훈출(등·하원)에서 하원하면 자동으로 마무리돼요.')
+eq('문구: 훈출 세션 안내(academy_) — 훈출 표기', friendlyError('academy_managed_by_kiosk').includes('훈출(등·하원)'), true)
+eq('문구: 옛 표기(출훈) 없음', [friendlyError('session_managed_by_kiosk').includes('출훈'), friendlyError('academy_managed_by_kiosk').includes('출훈')], [false, false])
+eq('문구: 문제 수 이미 입력 안내', friendlyError('problems_not_pending'), '이미 문제 수를 입력한 공부예요.')
 
 console.log(failed === 0 ? 'ALL LIB TESTS PASSED' : `${failed} FAILED`)
