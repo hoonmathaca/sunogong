@@ -37,6 +37,7 @@ import { buildDayViews } from '../src/lib/studentCalendar'
 import { TimerScreen } from '../src/student/TimerScreen'
 import { ErrorBoundary } from '../src/components/ErrorBoundary'
 import { PhotoPager } from '../src/components/PhotoPager'
+import { InAppCamera } from '../src/components/InAppCamera'
 import { HomeworkPanel } from '../src/admin/HomeworkPanel'
 import { PraiseEditor } from '../src/admin/PraiseEditor'
 import { HomeworkSubmissionRow } from '../src/student/HomeworkSubmissionRow'
@@ -430,6 +431,10 @@ const cases: [string, () => JSX.Element][] = [
         onRemove={() => {}}
       />
     ),
+  ],
+  [
+    'InAppCamera(여는 중)',
+    () => <InAppCamera onFiles={() => {}} onClose={() => {}} />,
   ],
   [
     'PhotoPager(사진 2장)',
@@ -1034,6 +1039,7 @@ const homeworkPickerHtml = rendered['HomeworkPhotoPicker(사진 없음)'] ?? ''
 const homeworkPickerStatesHtml = rendered['HomeworkPhotoPicker(올리는 중·올라감)'] ?? ''
 const homeworkPickerTwoHtml = rendered['HomeworkPhotoPicker(사진 두 장)'] ?? ''
 const photoPagerHtml = rendered['PhotoPager(사진 2장)'] ?? ''
+const inAppCameraHtml = rendered['InAppCamera(여는 중)'] ?? ''
 const homeworkPanelHtml = rendered['HomeworkPanel(관리자 숙제관리)'] ?? ''
 const homeworkResultHtml = rendered['ResultScreen(숙제 승인 대기)'] ?? ''
 const homeworkRowHtml = rendered['HomeworkSubmissionRow(선생님 한마디)'] ?? ''
@@ -1053,10 +1059,27 @@ const homeworkChecks: [string, boolean][] = [
   ['숙제: 사진 고르기 최대 5장 표시', homeworkPickerHtml.includes('0/5') && homeworkPickerHtml.includes('사진 없이도 제출할 수 있어요')],
   ['숙제: 사진이 없어도 막지 않는다는 안내', !homeworkPickerHtml.includes('1장 이상 올려주세요')],
   ['숙제: 바로 찍기·앨범에서 고르기 두 버튼', homeworkPickerHtml.includes('📷 바로 찍기') && homeworkPickerHtml.includes('🖼️ 앨범에서 고르기')],
-  ['숙제: 카메라는 capture=environment · 한 장', cameraInputTag.includes('capture="environment"') && !cameraInputTag.includes('multiple')],
+  [
+    '숙제: 바로 찍기는 앱 카메라(서버 렌더는 사진 선택기 input)',
+    cameraInputTag.includes('accept="image/*"') && !cameraInputTag.includes('capture') && cameraInputTag.includes('data-photo-input="camera"'),
+  ],
   ['숙제: 앨범은 여러 장(multiple)', albumInputTag.includes('multiple') && !albumInputTag.includes('capture')],
   ['숙제: 사진 input 은 숨기지 않고 투명 오버레이', cameraInputTag.includes('opacity-0') && !cameraInputTag.includes('hidden') && albumInputTag.includes('opacity-0')],
   ['숙제: 사진 크게 보기 좌우 넘기기', photoPagerHtml.includes('1 / 2') && photoPagerHtml.includes('이전 사진') && photoPagerHtml.includes('다음 사진')],
+  [
+    '카메라: 앱 안 카메라 창(제목·영상·셔터·안내)',
+    inAppCameraHtml.includes('사진 찍기') &&
+      inAppCameraHtml.includes('<video') &&
+      inAppCameraHtml.includes('data-inapp-camera-action="shutter"') &&
+      inAppCameraHtml.includes('📸 찍기') &&
+      inAppCameraHtml.includes('카메라를 여는 중…') &&
+      inAppCameraHtml.includes('화면에 맞게 줄여서 올라가요'),
+  ],
+  [
+    '카메라: 여는 중에는 셔터를 누를 수 없음',
+    /data-inapp-camera-action="shutter"[^>]*disabled/.test(inAppCameraHtml),
+  ],
+  ['카메라: 찍은 사진은 1200px 이하로 줄인다', homeworkPickerHtml.includes('긴 변 1200px')],
   ['숙제: 관리자 숙제관리 탭 내용', homeworkPanelHtml.includes('숙제 제출 확인') && homeworkPanelHtml.includes('승인 대기')],
   ['숙제: 관리자 필터 네 가지', ['승인 대기', '승인', '반려', '전체'].every((label) => homeworkPanelHtml.includes(label))],
   ['숙제: 관리자 설명에 승인한 항목만 반영', homeworkPanelHtml.includes('승인한 항목만') && homeworkPanelHtml.includes('드래곤볼과는')],

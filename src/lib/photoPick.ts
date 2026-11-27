@@ -1,8 +1,11 @@
 /**
  * 사진 고르기(카메라로 바로 찍기 · 앨범에서 고르기)에 쓰는 순수 함수와 문구.
  *
- * · 카메라: `<input type="file" accept="image/*" capture="environment">` (multiple 없음)
- *   — 안드로이드/iOS 브라우저에서 getUserMedia 권한 창 없이 폰 기본 카메라가 바로 열린다.
+ * · 카메라: 앱 안 카메라(`InAppCamera` — getUserMedia, 화면을 벗어나지 않는다).
+ *   `capture="environment"` 로 폰 기본 카메라 앱을 띄우면, 카메라 앱이 메모리를 크게 쓰는 동안
+ *   뒤의 크롬이 OS 에게 회수되어 돌아올 때 「메모리가 부족하여 이전 작업을 완료할 수 없습니다.」
+ *   가 뜨며 찍은 사진이 사라졌다(2026-11-28 제보). 그래서 카메라를 못 쓰는 기기에서만
+ *   `<input type="file" accept="image/*">`(사진 선택기)로 넘어간다.
  * · 앨범: `<input type="file" accept="image/*" multiple>`
  * · 두 버튼을 합쳐 최대 5장(HOMEWORK_PHOTO_MAX)까지 담는다.
  */

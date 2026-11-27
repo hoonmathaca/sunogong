@@ -111,17 +111,30 @@ try {
   await page.getByRole('button', { name: '선오공에게 질문하기' }).first().click()
   const askModal = page.getByRole('dialog', { name: '선오공에게 질문하기' })
   await askModal.waitFor({ state: 'visible', timeout: 8000 })
-  const askCamera = askModal.locator('input[data-photo-input="camera"]')
+  const askCamera = askModal.locator('[data-photo-capture="camera"]')
   const askAlbum = askModal.locator('input[data-photo-input="album"]')
-  const askAttrs = await askCamera.evaluate((el) => ({ capture: el.getAttribute('capture'), multiple: el.hasAttribute('multiple'), display: getComputedStyle(el).display }))
-  check('질문: 사진 찍기는 capture=environment · 숨김 아님', askAttrs.capture === 'environment' && !askAttrs.multiple && askAttrs.display !== 'none', JSON.stringify(askAttrs))
+  check(
+    '질문: 사진 찍기는 앱 카메라 버튼(폰 카메라 앱 input 없음)',
+    (await askCamera.count()) === 1 && (await askModal.locator('input[data-photo-input="camera"]').count()) === 0,
+  )
+  await askCamera.click()
+  const askCameraDialog = page.getByRole('dialog', { name: '사진 찍기' })
+  await askCameraDialog.waitFor({ state: 'visible', timeout: 8000 })
+  await page.waitForSelector('[data-inapp-camera="error"]', { timeout: 12000 })
+  check(
+    '질문: 카메라를 못 열면 이유·사진 선택기 안내',
+    ((await askCameraDialog.innerText()).replace(/\s+/g, ' ')).includes('사진 선택기로 고르기'),
+  )
   const [askChooser] = await Promise.all([
-    page.waitForEvent('filechooser', { timeout: 4000 }).catch(() => null),
-    askCamera.click({ position: { x: 10, y: 10 } }),
+    page.waitForEvent('filechooser', { timeout: 5000 }).catch(() => null),
+    askCameraDialog.locator('input[data-photo-input="camera-fallback"]').click({ position: { x: 10, y: 10 } }),
   ])
-  check('질문: 사진 찍기 버튼으로 파일 선택기가 열림', Boolean(askChooser))
+  check('질문: 카메라가 없으면 사진 선택기로 이어짐', Boolean(askChooser))
   if (askChooser) await askChooser.setFiles([]).catch(() => {})
   check('질문: 앨범은 여러 장(multiple)', await askAlbum.evaluate((el) => el.hasAttribute('multiple') && el.getAttribute('capture') === null))
+  /* 카메라 창만 닫고(제출·질문 창은 그대로) 질문 창을 닫는다 */
+  await askCameraDialog.getByRole('button', { name: '닫기' }).last().click()
+  await askCameraDialog.waitFor({ state: 'detached', timeout: 5000 }).catch(() => {})
   await page.keyboard.press('Escape')
   await page.waitForTimeout(500)
 
@@ -139,21 +152,15 @@ try {
   await submitModal.screenshot({ path: `${shotDir}/sunogong-homework-picker-empty-360.png` })
 
   /* 📷 바로 찍기 / 🖼️ 앨범에서 고르기 — 두 버튼과 input 속성, 몇 번을 다시 눌러도 열리는지 */
-  const cameraInput = submitModal.locator('input[data-photo-input="camera"]')
+  const cameraButton = submitModal.locator('[data-photo-capture="camera"]')
   const albumInput = submitModal.locator('input[data-photo-input="album"]')
   check('학생: 바로 찍기 버튼', modalText.includes('📷 바로 찍기'))
   check('학생: 앨범에서 고르기 버튼', modalText.includes('🖼️ 앨범에서 고르기'))
-  const cameraAttrs = await cameraInput.evaluate((el) => ({
-    type: el.type,
-    accept: el.accept,
-    capture: el.getAttribute('capture'),
-    multiple: el.hasAttribute('multiple'),
-    hidden: el.hidden,
-    display: getComputedStyle(el).display,
-    opacity: getComputedStyle(el).opacity,
-  }))
-  check('학생: 카메라 input 은 capture=environment · 한 장', cameraAttrs.capture === 'environment' && !cameraAttrs.multiple, JSON.stringify(cameraAttrs))
-  check('학생: 카메라 input 은 화면에 겹쳐 있음(숨김 아님)', !cameraAttrs.hidden && cameraAttrs.display !== 'none', JSON.stringify(cameraAttrs))
+  check(
+    '학생: 바로 찍기는 앱 카메라 버튼(폰 카메라 앱 input 없음)',
+    (await cameraButton.count()) === 1 && (await submitModal.locator('input[data-photo-input="camera"]').count()) === 0,
+  )
+  check('학생: 바로 찍기 버튼이 보임', await cameraButton.isVisible())
   const albumAttrs = await albumInput.evaluate((el) => ({
     accept: el.accept,
     capture: el.getAttribute('capture'),
@@ -162,8 +169,11 @@ try {
   }))
   check('학생: 앨범 input 은 여러 장(multiple)', albumAttrs.multiple && albumAttrs.capture === null, JSON.stringify(albumAttrs))
   const boxes = await Promise.all(
-    ['camera', 'album'].map(async (name) => {
-      const box = await submitModal.locator(`input[data-photo-input="${name}"]`).boundingBox()
+    [
+      ['camera', '[data-photo-capture="camera"]'],
+      ['album', 'input[data-photo-input="album"]'],
+    ].map(async ([name, selector]) => {
+      const box = await submitModal.locator(selector).boundingBox()
       return box ? { name, left: Math.round(box.x), right: Math.round(box.x + box.width), height: Math.round(box.height) } : { name }
     }),
   )
@@ -188,16 +198,18 @@ try {
   check('학생: 앨범 버튼을 세 번 다시 눌러도 매번 열림', reopen === 3, `${reopen}/3`)
   let cameraOpen = 0
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const [chooser] = await Promise.all([
-      page.waitForEvent('filechooser', { timeout: 4000 }).catch(() => null),
-      cameraInput.click({ position: { x: 10, y: 10 } }),
-    ])
-    if (chooser) {
-      cameraOpen += 1
-      await chooser.setFiles([]).catch(() => {})
-    }
+    await cameraButton.click()
+    const opened = await page
+      .getByRole('dialog', { name: '사진 찍기' })
+      .waitFor({ state: 'visible', timeout: 6000 })
+      .then(() => true)
+      .catch(() => false)
+    if (opened) cameraOpen += 1
+    await page.waitForSelector('[data-inapp-camera="error"]', { timeout: 12000 }).catch(() => {})
+    await page.getByRole('dialog', { name: '사진 찍기' }).getByRole('button', { name: '닫기' }).last().click().catch(() => {})
+    await page.waitForTimeout(500)
   }
-  check('학생: 바로 찍기 버튼도 다시 눌러 열림', cameraOpen === 2, `${cameraOpen}/2`)
+  check('학생: 바로 찍기 버튼도 다시 눌러 열림(앱 카메라 창)', cameraOpen === 2, `${cameraOpen}/2`)
 
   await albumInput.setInputFiles([{ name: 'homework.png', mimeType: 'image/png', buffer: PNG_1PX }])
   await page.waitForTimeout(600)
@@ -217,7 +229,7 @@ try {
   await page.waitForTimeout(500)
   const fullText = (await submitModal.innerText()).replace(/\s+/g, ' ')
   check('학생: 다섯 장이면 5/5', fullText.includes('5/5'))
-  check('학생: 다섯 장이면 두 버튼 잠김', (await cameraInput.isDisabled()) && (await albumInput.isDisabled()))
+  check('학생: 다섯 장이면 두 버튼 잠김', (await cameraButton.isDisabled()) && (await albumInput.isDisabled()))
   check('학생: 다섯 장이면 바꾸는 방법 안내', fullText.includes('5장을 다 담았어요'))
   check('학생: 합쳐서 다섯 장만 담김', (await submitModal.locator('img').count()) === 5)
   await submitModal.screenshot({ path: `${shotDir}/sunogong-homework-picker-full-360.png` })

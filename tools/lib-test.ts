@@ -56,6 +56,17 @@ import {
   photoRoom,
 } from '../src/lib/photoPick'
 import {
+  CAMERA_FRAME_HEIGHT,
+  CAMERA_FRAME_WIDTH,
+  CAMERA_SHOT_MAX_SIZE,
+  CAMERA_USE_LABEL,
+  cameraConstraints,
+  cameraErrorMessage,
+  cameraFrameSize,
+  cameraShotFileName,
+  inAppCameraSupported,
+} from '../src/lib/camera'
+import {
   ANSWER_MEDIA_MAX_BYTES,
   answerMediaPath,
   answerStateLabel,
@@ -1351,6 +1362,55 @@ eq('사진: 가득 차면 담지 않고 알려 줌', mergePhotoFiles([photo(), p
 })
 eq('사진: 사진이 아닌 파일은 빼고 담음', mergePhotoFiles([], [photo(), photo('application/pdf')]).files, [photo()])
 eq('사진: 아무것도 안 고르면 그대로', mergePhotoFiles([photo()], []).files.length, 1)
+
+/* 앱 안 카메라 — 「📷 바로 찍기」가 크롬을 벗어나지 않고 찍는다 (2026-11-28) */
+const gum = () => Promise.resolve(null)
+eq(
+  '카메라: https·PWA 에서 getUserMedia 가 있으면 앱 카메라',
+  inAppCameraSupported({ mediaDevices: { getUserMedia: gum }, isSecureContext: true }),
+  true,
+)
+eq('카메라: getUserMedia 가 없으면 사진 선택기', inAppCameraSupported({ mediaDevices: {}, isSecureContext: true }), false)
+eq('카메라: mediaDevices 자체가 없으면 사진 선택기', inAppCameraSupported({}), false)
+eq('카메라: 보안 환경이 아니면 사진 선택기', inAppCameraSupported({ mediaDevices: { getUserMedia: gum }, isSecureContext: false }), false)
+eq('카메라: 서버(환경 없음)면 사진 선택기', inAppCameraSupported(null), false)
+eq(
+  '카메라: 뒤쪽 카메라 · 1280×960 · 소리 없음',
+  cameraConstraints(),
+  { audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 960 } } },
+)
+eq('카메라: 요청 크기 상수', [CAMERA_FRAME_WIDTH, CAMERA_FRAME_HEIGHT], [1280, 960])
+eq('카메라: 찍은 사진은 1200px 이하', CAMERA_SHOT_MAX_SIZE, 1200)
+eq('카메라: 숙제 사진 크기와 같음', CAMERA_SHOT_MAX_SIZE, HOMEWORK_PHOTO_MAX_SIZE)
+eq('카메라: 확인 뒤 올리기 문구', CAMERA_USE_LABEL, '이대로 올리기')
+eq(
+  '카메라: 찍은 화면 크기(가로 사진)',
+  cameraFrameSize(4000, 3000),
+  { width: 1200, height: 900 },
+)
+eq('카메라: 찍은 화면 크기(작으면 그대로)', cameraFrameSize(640, 480), { width: 640, height: 480 })
+eq('카메라: 찍은 화면 크기(세로 사진)', cameraFrameSize(960, 1280), { width: 900, height: 1200 })
+eq('카메라: 파일 이름', cameraShotFileName(new Date(2026, 10, 28, 8, 34, 12)), 'camera-20261128-083412.jpg')
+eq(
+  '카메라: 권한을 거부하면 권한 안내',
+  cameraErrorMessage(Object.assign(new Error('denied'), { name: 'NotAllowedError' })),
+  '카메라 권한이 꺼져 있어요. 브라우저에서 카메라를 허용하거나 사진 선택기로 골라 주세요.',
+)
+eq(
+  '카메라: 카메라가 없으면 찾지 못했다는 안내',
+  cameraErrorMessage({ name: 'NotFoundError' }),
+  '카메라를 찾지 못했어요. 사진 선택기로 골라 주세요.',
+)
+eq(
+  '카메라: 다른 앱이 쓰고 있으면 안내',
+  cameraErrorMessage({ name: 'NotReadableError' }),
+  '카메라를 열지 못했어요(다른 앱이 쓰고 있을 수 있어요). 사진 선택기로 골라 주세요.',
+)
+eq(
+  '카메라: 알 수 없는 오류도 사진 선택기로',
+  cameraErrorMessage(new Error('boom')),
+  '카메라를 열지 못했어요. 사진 선택기로 골라 주세요.',
+)
 
 const hw = (patch: Partial<HomeworkSubmission> = {}): HomeworkSubmission => ({
   id: 'h1',

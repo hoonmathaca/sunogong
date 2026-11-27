@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { PhotoCaptureButton } from '../components/PhotoCaptureButton'
 import { PhotoInputButton } from '../components/PhotoInputButton'
 import { HOMEWORK_PHOTO_MAX, HOMEWORK_PHOTO_MAX_SIZE, canAddPhotos } from '../lib/homeworkBoard'
 import type { HomeworkPhotoItem } from '../lib/homeworkPhotos'
@@ -22,7 +23,9 @@ const STATE_BADGE: Record<HomeworkPhotoItem['state'], string> = {
 
 /**
  * 숙제 공부 사진 고르기 (학생).
- * · 📷 바로 찍기 — 폰 기본 카메라가 바로 열린다(capture=environment, 한 장).
+ * · 📷 바로 찍기 — 앱 안 카메라가 열린다(크롬을 벗어나지 않는다). 셔터 → 미리 보기 → 올리기.
+ *   카메라를 못 쓰는 기기에서만 사진 선택기(`accept="image/*"`)로 넘어간다.
+ *   (폰 기본 카메라 앱을 띄우면 크롬이 메모리 부족으로 회수되어 찍은 사진이 사라졌다 — 2026-11-28)
  * · 🖼️ 앨범에서 고르기 — 이미 찍어 둔 사진을 여러 장 고른다(multiple).
  * 두 버튼을 합쳐 최대 5장까지 담고, 미리 보기를 보여 준다.
  * 고른 사진은 화면에 맞게 줄여(긴 변 1200px · JPEG 0.72) 그 자리에서 바로 올라간다.
@@ -35,16 +38,15 @@ export function HomeworkPhotoPicker({
   disabled = false,
   compact = false,
 }: HomeworkPhotoPickerProps): JSX.Element {
-  const cameraRef = useRef<HTMLInputElement | null>(null)
   const albumRef = useRef<HTMLInputElement | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   /* 안드로이드에서 뒤로가기·앱 전환으로 돌아왔을 때, 남아 있던 선택기 상태를 끊기 위해
      input 을 새로 만든다(사진 목록은 부모가 들고 있어 그대로 남는다). */
   const [generation, setGeneration] = useState(0)
 
   useEffect(() => {
     const clearValues = () => {
-      if (cameraRef.current) cameraRef.current.value = ''
       if (albumRef.current) albumRef.current.value = ''
     }
     const onVisibility = () => {
@@ -95,16 +97,16 @@ export function HomeworkPhotoPicker({
       </div>
 
       <div className="mt-1.5 grid grid-cols-2 gap-1.5">
-        <PhotoInputButton
-          key={`camera-${generation}`}
+        <PhotoCaptureButton
           name="camera"
           label={PHOTO_CAMERA_LABEL}
-          capture
           tone="primary"
           accent="homework"
+          multiple
+          maxSize={HOMEWORK_PHOTO_MAX_SIZE}
           disabled={blocked}
-          inputRef={cameraRef}
           onFiles={addFiles}
+          onNotice={setNotice}
           className="h-[44px]"
         />
         <PhotoInputButton
@@ -116,6 +118,7 @@ export function HomeworkPhotoPicker({
           disabled={blocked}
           inputRef={albumRef}
           onFiles={addFiles}
+          onPickClick={() => setNotice(null)}
           className="h-[44px]"
         />
       </div>
@@ -165,6 +168,7 @@ export function HomeworkPhotoPicker({
             ? '올리지 못한 사진이 있어요. 사진 위 ✕로 빼고 다시 찍어 주세요.'
             : `찍거나 고르면 화면에 맞게 줄여서 바로 올라가요(긴 변 ${HOMEWORK_PHOTO_MAX_SIZE}px). 사진 없이도 제출할 수 있어요.`}
       </p>
+      {notice ? <p className="mt-1 text-[11px] font-semibold leading-snug text-navy/55">{notice}</p> : null}
       {error ? <p className="mt-1 text-[11px] font-semibold text-red-500">{error}</p> : null}
     </div>
   )

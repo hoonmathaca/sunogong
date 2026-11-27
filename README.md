@@ -183,7 +183,7 @@ python3 tools/make_color_dragons.py
 숙제 공부는 **학생이 낸 시간·문제 수를 그대로 믿지 않고**, 공부한 페이지 사진과 함께 내서 **원장님이 확인한 뒤** 기록에 들어간다. 학원 공부(🏫)는 예전과 100% 똑같이 끝낼 때 바로 반영한다.
 
 **학생**
-- 숙제 타이머 종료 → `숙제 공부 제출` 창: 확정 안내 문구 `오늘 공부한 페이지를 찍어올리고 푼 문제수를 적어주세요`, `📷 바로 찍기`(폰 카메라)·`🖼️ 앨범에서 고르기`(최대 5장), 문제 수 키패드.
+- 숙제 타이머 종료 → `숙제 공부 제출` 창: 확정 안내 문구 `오늘 공부한 페이지를 찍어올리고 푼 문제수를 적어주세요`, `📷 바로 찍기`(앱 안 카메라 — 2026-11-28부터, 크롬을 벗어나지 않는다)·`🖼️ 앨범에서 고르기`(최대 5장), 문제 수 키패드.
 - 사진은 올리기 전에 브라우저에서 **긴 변 1200px · JPEG 품질 0.72** 로 줄여 올린다(장당 100~150KB, `src/lib/imageCompress.ts` 에 옵션만 넘겨서 재사용). 앨범·카메라 어느 쪽으로 찍어도 된다.
 - 사진은 필수가 아니다 — **0장으로도 제출**되고, 5장을 넘겨 담을 수 없다. 사진 0장으로 `제출`을 누르면 바로 내지 않고 `사진 없이 공부를 마치면 반려될 수 있습니다. 그래도 제출하시겠습니까?` 확인 창이 뜨며, `취소` 면 제출 창으로 돌아가고 `그래도 제출` 이면 사진 0장 그대로 승인 대기에 들어간다(2026-11-23).
 - 낸 뒤에는 결과 화면과 홈에 **`승인 대기`** 로 보이고, 원장님이 확인하면 **`승인`**(승인된 값) 또는 **`반려`**(사유 표시) 로 바뀐다. 홈 `숙제 제출` 카드에 최근 5건이 보인다.
@@ -407,16 +407,19 @@ sunogong/
    │                          # quotes.ts(학생 코드 입력 화면의 「오늘의 한줄」 124개 · 무작위로 하나 고르는 pickQuote),
    │                          # homework.ts(숙제 제출 DB·Storage), homeworkBoard.ts(숙제 제출 순수 함수 — 사진 수·상태·승인 결과·대기 합치기),
    │                          # photoPick.ts(사진 고르기 순수 함수 — 바로 찍기/앨범 버튼 이름·5장 합치기·사진 여부),
+   │                          # camera.ts(앱 안 카메라 순수 함수 — 지원 판정·카메라 조건·오류 안내·찍은 사진 크기/이름),
    │                          # homeworkPhotos.ts(숙제 사진 초안 순수 함수 — 항목·경로·문제 수 변환·다시 열기 판단),
    │                          # calendar.ts(관리자 공부기록 달력 — 격자·날짜별 학원/숙제 합계·하루 상세·칸 시간 표기),
    │                          # dragonballSend.ts(달력·오늘 공부 이력의 일괄/개별 드래곤볼 쏘기 문구·지급 이력 메모)
    ├─ components/             # ErrorBoundary, Brand(마스코트·로고·푸터), Keypad, Modal, ImageViewer(사진 확대), PhotoPager(사진 좌우 넘기기), InstallBanner, DesktopBlockScreen(PC 안내), KintounCloud(구름·드래곤볼),   │                          # QuoteCard(오늘의 한줄 카드 — 화면을 열 때 무작위 한 개, 누를 수 없음),
-   │                          # PhotoInputButton(사진 고르기 버튼 — 누를 수 있는 투명 input 을 버튼 위에 겹쳐 안드로이드에서 몇 번을 다시 눌러도 카메라·앨범이 열린다)
+   │                          # PhotoInputButton(사진 고르기 버튼 — 누를 수 있는 투명 input 을 버튼 위에 겹쳐 안드로이드에서 몇 번을 다시 눌러도 카메라·앨범이 열린다),
+   │                          # PhotoCaptureButton(「📷 바로 찍기」 — 앱 안 카메라 우선, 못 쓰는 기기만 사진 선택기로 폴백),
+   │                          # InAppCamera(앱 안 카메라 창 — getUserMedia·셔터·다시 찍기·이대로 올리기·오류/폴백)
    ├─ student/                # StudentApp, CodeEntry, ChooseStudent, Home, Timer, Result, useStudyTimer,
    │                          # HomeworkSubmissionRow(숙제 제출 한 줄 — 반려 사유·👏 선생님 한마디 민트 박스),
    │                          # QuestionBoardScreen(질문 화면), QuestionAskForm(질문 올리기 폼), LiveKintounCard(근두운·내 드래곤볼·일반용·교환권), CandyPickModal(사탕교환권 성구 고르기),
    │                          # PendingProblemsModal(지난번 푼 문제 수·지난 숙제 제출)·usePendingProblems(대기 목록),
-   │                          # HomeworkPhotoPicker(숙제 사진 고르기 — 📷 바로 찍기(capture=environment·한 장) + 🖼️ 앨범에서 고르기(multiple), 합쳐서 5장·미리 보기),
+   │                          # HomeworkPhotoPicker(숙제 사진 고르기 — 📷 바로 찍기(앱 안 카메라) + 🖼️ 앨범에서 고르기(multiple), 합쳐서 5장·미리 보기),
    │                          # useHomeworkPhotos(사진을 고르는 즉시 1장씩 줄여 업로드 + DB 초안 저장·되살리기)
    └─ admin/                  # AdminApp, AdminLogin, Dashboard(공부기록 달력), RankingPanel, QuestionsPanel(질문함), PushNotifyPanel(알림 설정),
                               # KintounPanel(실시간 탭·드래곤볼 쏘기·오늘 공부 이력·수업 종료), LiveSessionRow(지금 공부 중 한 줄 — 쏘기·수업 종료 버튼),

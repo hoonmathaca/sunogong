@@ -5,7 +5,12 @@ interface PhotoInputButtonProps {
   label: string
   /** 화면 읽기용 이름 — 보이는 이름과 같게 두면 된다 */
   inputLabel?: string
-  /** 폰 기본 카메라를 바로 연다 (multiple 과 함께 쓰지 않는다) */
+  /**
+   * 폰 기본 카메라를 바로 연다 (multiple 과 함께 쓰지 않는다).
+   * 안드로이드 크롬에서 카메라 앱이 크롬을 밀어내 메모리 부족으로 죽는 원인이라,
+   * 숙제·질문 사진의 「📷 바로 찍기」는 `PhotoCaptureButton`(앱 안 카메라)을 쓰고,
+   * 여기 capture 는 사진 선택기로 넘어갔을 때만 쓴다.
+   */
   capture?: boolean
   /** 여러 장 고르기 (앨범) */
   multiple?: boolean
@@ -17,9 +22,40 @@ interface PhotoInputButtonProps {
   /** 자동 점검용 표시 — camera / album / retake */
   name: string
   onFiles: (files: File[]) => void
+  /** 사진 선택기를 여는 순간 (카메라가 켜져 있으면 끄는 등) */
+  onPickClick?: () => void
   inputRef?: Ref<HTMLInputElement>
   /** 버튼 모양 덧붙이기 (높이·글자 크기 등) */
   className?: string
+}
+
+export interface PhotoButtonLook {
+  accent?: 'purple' | 'homework'
+  tone?: 'primary' | 'ghost' | 'plain'
+  disabled?: boolean
+  className?: string
+}
+
+const PALETTE = {
+  homework: {
+    primary: 'bg-[#E0453E] text-white shadow-sm',
+    ghost: 'border border-[#E0453E]/30 bg-[#FFF7F6] text-[#C4332B]',
+    ring: 'focus-within:ring-2 focus-within:ring-[#E0453E]/40',
+  },
+  purple: {
+    primary: 'bg-[#6D3BD6] text-white shadow-sm',
+    ghost: 'border border-[#6D3BD6]/30 bg-[#F5F0FF] text-[#4A28A0]',
+    ring: 'focus-within:ring-2 focus-within:ring-[#6D3BD6]/40',
+  },
+} as const
+
+/** 사진 고르기 버튼 겉모양 — input(사진 선택기)과 앱 카메라 버튼이 똑같이 보이게 함께 쓴다 */
+export function photoButtonClasses({ accent = 'purple', tone = 'ghost', disabled = false, className = '' }: PhotoButtonLook): string {
+  const palette = PALETTE[accent] ?? PALETTE.purple
+  const look = tone === 'primary' ? palette.primary : tone === 'plain' ? '' : palette.ghost
+  return `relative flex items-center justify-center overflow-hidden rounded-xl transition ${palette.ring} ${
+    disabled ? 'opacity-40' : 'active:scale-[0.98]'
+  } ${look} ${className || 'h-[42px]'}`
 }
 
 /**
@@ -44,12 +80,14 @@ export function PhotoInputButton({
   accent = 'purple',
   name,
   onFiles,
+  onPickClick,
   inputRef,
   className = '',
 }: PhotoInputButtonProps): JSX.Element {
   const handleClick = (event: MouseEvent<HTMLInputElement>) => {
     // 앞서 고른 값이 남아 있으면 같은 사진을 다시 골라도 change 가 오지 않는다 — 누를 때마다 비운다
     event.currentTarget.value = ''
+    onPickClick?.()
   }
 
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -60,26 +98,8 @@ export function PhotoInputButton({
     if (picked.length > 0) onFiles(picked)
   }
 
-  const palette =
-    accent === 'homework'
-      ? {
-          primary: 'bg-[#E0453E] text-white shadow-sm',
-          ghost: 'border border-[#E0453E]/30 bg-[#FFF7F6] text-[#C4332B]',
-          ring: 'focus-within:ring-2 focus-within:ring-[#E0453E]/40',
-        }
-      : {
-          primary: 'bg-[#6D3BD6] text-white shadow-sm',
-          ghost: 'border border-[#6D3BD6]/30 bg-[#F5F0FF] text-[#4A28A0]',
-          ring: 'focus-within:ring-2 focus-within:ring-[#6D3BD6]/40',
-        }
-  const look = tone === 'primary' ? palette.primary : tone === 'plain' ? '' : palette.ghost
-
   return (
-    <div
-      className={`relative flex items-center justify-center overflow-hidden rounded-xl transition ${palette.ring} ${
-        disabled ? 'opacity-40' : 'active:scale-[0.98]'
-      } ${look} ${className || 'h-[42px]'}`}
-    >
+    <div className={photoButtonClasses({ accent, tone, disabled, className })}>
       <span aria-hidden="true" className="pointer-events-none select-none whitespace-nowrap px-1 text-[12.5px] font-bold">
         {label}
       </span>

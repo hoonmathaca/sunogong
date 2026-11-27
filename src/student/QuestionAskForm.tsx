@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Spinner } from '../components/Keypad'
+import { PhotoCaptureButton } from '../components/PhotoCaptureButton'
 import { PhotoInputButton } from '../components/PhotoInputButton'
+import { prepareQuestionImage } from '../lib/imageCompress'
 import * as questionsApi from '../lib/questions'
 import { QUESTION_MEMO_MAX } from '../lib/questionBoard'
 import type { StudyQuestion } from '../lib/types'
@@ -16,7 +18,10 @@ interface QuestionAskFormProps {
 
 /**
  * 문제 사진 + 한 줄 메모를 받아 질문을 올리는 폼.
- * 사진은 올리기 전에 브라우저에서 줄여(JPEG) 용량을 아낀다.
+ *
+ * 사진은 고르는 그 자리에서 브라우저에서 줄여(JPEG) 들고 있는다 — 미리 보기도 원본(수 MB)이 아니라
+ * 줄인 사진으로 그려서, 고화소 사진을 화면에 다시 열며 메모리가 늘어나는 일을 막는다.
+ * 「📷 사진 찍기」는 앱 안 카메라로 열려 크롬을 벗어나지 않는다(메모리 부족으로 탭이 죽는 문제).
  */
 export function QuestionAskForm({
   studentId,
@@ -24,51 +29,86 @@ export function QuestionAskForm({
   onBusyChange,
   compact = false,
 }: QuestionAskFormProps): JSX.Element {
-  const cameraRef = useRef<HTMLInputElement | null>(null)
   const albumRef = useRef<HTMLInputElement | null>(null)
+  const previewUrlRef = useRef<string | null>(null)
+  const pickTokenRef = useRef(0)
   const [file, setFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [preparing, setPreparing] = useState(false)
   const [memo, setMemo] = useState('')
   const [busy, setBusy] = useState(false)
   const [stage, setStage] = useState<'idle' | 'preparing' | 'uploading'>('idle')
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [done, setDone] = useState(false)
 
   useEffect(() => {
-    onBusyChange?.(busy)
-  }, [busy, onBusyChange])
+    onBusyChange?.(busy || preparing)
+  }, [busy, preparing, onBusyChange])
 
-  useEffect(() => {
-    if (!file) {
-      setPreviewUrl(null)
-      return undefined
+  useEffect(
+    () => () => {
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
+    },
+    [],
+  )
+
+  /** 고른 사진을 화면 상태로 (지난 미리 보기 주소는 돌려준다) */
+  const applyFile = (next: File | null) => {
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current)
+      previewUrlRef.current = null
     }
-    const url = URL.createObjectURL(file)
+    setFile(next)
+    if (!next) {
+      setPreviewUrl(null)
+      return
+    }
+    const url = URL.createObjectURL(next)
+    previewUrlRef.current = url
     setPreviewUrl(url)
-    return () => URL.revokeObjectURL(url)
-  }, [file])
+  }
 
   const pickFile = useCallback((next: File | null) => {
     setError(null)
     setDone(false)
+    setNotice(null)
     if (!next) return
-    if (!next.type.startsWith('image/')) {
+    if (next.type && !next.type.startsWith('image/')) {
       setError('문제 사진을 골라 주세요.')
       return
     }
-    setFile(next)
+    const token = pickTokenRef.current + 1
+    pickTokenRef.current = token
+    setPreparing(true)
+    void (async () => {
+      let picked = next
+      try {
+        const prepared = await prepareQuestionImage(next)
+        if (pickTokenRef.current !== token) return
+        const base = (next.name || 'question').replace(/\.[^./\\]*$/, '') || 'question'
+        picked = new File([prepared.blob], `${base}.jpg`, { type: prepared.type || 'image/jpeg' })
+      } catch {
+        /* 읽지 못하는 사진은 원본 그대로 — 올릴 때 다시 시도한다 */
+      }
+      if (pickTokenRef.current !== token) return
+      setPreparing(false)
+      applyFile(picked)
+    })()
   }, [])
 
   const reset = () => {
-    setFile(null)
+    pickTokenRef.current += 1
+    setPreparing(false)
+    applyFile(null)
     setMemo('')
     setError(null)
-    if (cameraRef.current) cameraRef.current.value = ''
+    setNotice(null)
     if (albumRef.current) albumRef.current.value = ''
   }
 
   const submit = async () => {
-    if (busy) return
+    if (busy || preparing) return
     if (!file) {
       // 방금 올린 뒤 '하나 더 질문하기'를 누른 경우 — 새 질문을 받을 준비만 한다
       if (done) {
@@ -134,14 +174,13 @@ export function QuestionAskForm({
           <p className="text-[13px] font-bold text-[#4A28A0]">문제 사진을 찍거나 골라 주세요</p>
           <p className="mt-1 text-[11px] font-semibold text-[#5B2FC0]/60">사진은 자동으로 줄여서 올라가요</p>
           <div className="mt-3 flex gap-2">
-            <PhotoInputButton
+            <PhotoCaptureButton
               name="camera"
               label="📷 사진 찍기"
-              capture
               tone="primary"
               disabled={busy}
-              inputRef={cameraRef}
               onFiles={(picked) => pickFile(picked[0] ?? null)}
+              onNotice={setNotice}
               className="h-11 flex-1 rounded-xl text-[14px]"
             />
             <PhotoInputButton
@@ -152,9 +191,18 @@ export function QuestionAskForm({
               disabled={busy}
               inputRef={albumRef}
               onFiles={(picked) => pickFile(picked[0] ?? null)}
+              onPickClick={() => setNotice(null)}
               className="h-11 flex-1 rounded-xl border border-[#6D3BD6]/25 bg-white text-[14px] text-[#4A28A0]"
             />
           </div>
+          {preparing ? (
+            <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#5B2FC0]/70">
+              <Spinner className="h-3.5 w-3.5 border-[#6D3BD6]/30 border-t-[#6D3BD6]" />
+              사진 준비 중…
+            </p>
+          ) : notice ? (
+            <p className="mt-2 text-[11px] font-semibold leading-snug text-navy/55">{notice}</p>
+          ) : null}
         </div>
       )}
 
@@ -186,7 +234,7 @@ export function QuestionAskForm({
       <button
         type="button"
         onClick={() => void submit()}
-        disabled={busy || !file}
+        disabled={busy || preparing || !file}
         className={`h-[50px] w-full rounded-2xl text-[16px] font-bold text-white shadow-soft transition active:scale-[0.99] disabled:opacity-50 ${
           done ? 'bg-[#4A28A0]' : 'bg-[#6D3BD6]'
         }`}
