@@ -1164,7 +1164,7 @@ eq(
 eq('알림: 제목·본문 상수', [PUSH_TITLE, PUSH_TEST_BODY.length > 0], ['선오공 새 질문', true])
 
 /* 관리자 모바일 좌우 스와이프 탭 이동 */
-eq('스와이프: 탭 순서', ADMIN_TAB_ORDER.join(','), 'dashboard,kintoun,homework,questions,students,ranking')
+eq('스와이프: 탭 순서', ADMIN_TAB_ORDER.join(','), 'dashboard,kintoun,homework,questions,ranking')
 eq('스와이프: 기준값', [SWIPE_MIN_DISTANCE, SWIPE_SLOPE_RATIO, SWIPE_SCROLL_SLACK], [60, 1.5, 4])
 eq('스와이프: 손가락 하나만', [isSingleTouch(1), isSingleTouch(0), isSingleTouch(2)], [true, false, false])
 eq('스와이프: 이동 거리', gestureFrom({ x: 200, y: 100 }, { x: 120, y: 108 }), { dx: -80, dy: 8 })
@@ -1181,13 +1181,13 @@ eq('스와이프 방향: 값이 없으면 그대로', [swipeDirection({ dx: Numb
 eq('스와이프 방향: 기준값을 바꿀 수 있음', [swipeDirection({ dx: -30, dy: 0 }, 25), swipeDirection({ dx: -30, dy: 40 }, 25, 1)], ['next', null])
 
 eq('스와이프 탭 위치: 첫 탭에서 이전은 없음', tabAfterSwipe(0, 'prev'), null)
-eq('스와이프 탭 위치: 다음', [tabAfterSwipe(0, 'next'), tabAfterSwipe(4, 'next'), tabAfterSwipe(5, 'prev')], [1, 5, 4])
-eq('스와이프 탭 위치: 끝 탭에서 다음은 없음', tabAfterSwipe(5, 'next'), null)
+eq('스와이프 탭 위치: 다음', [tabAfterSwipe(0, 'next'), tabAfterSwipe(3, 'next'), tabAfterSwipe(4, 'prev')], [1, 4, 3])
+eq('스와이프 탭 위치: 끝 탭에서 다음은 없음', tabAfterSwipe(4, 'next'), null)
 eq('스와이프 탭 위치: 탭 개수를 넘는 위치는 없음', [tabAfterSwipe(9, 'next'), tabAfterSwipe(-1, 'next'), tabAfterSwipe(2, 'next', 2)], [null, null, null])
 
 eq('스와이프 결과: 왼쪽으로 밀면 다음 탭', resolveTabSwipe({ dx: -100, dy: 5, index: 1 }), 2)
 eq('스와이프 결과: 오른쪽으로 밀면 이전 탭', resolveTabSwipe({ dx: 100, dy: 5, index: 1 }), 0)
-eq('스와이프 결과: 끝 탭에서는 그대로', [resolveTabSwipe({ dx: -100, dy: 0, index: 5 }), resolveTabSwipe({ dx: 100, dy: 0, index: 0 })], [null, null])
+eq('스와이프 결과: 끝 탭에서는 그대로', [resolveTabSwipe({ dx: -100, dy: 0, index: 4 }), resolveTabSwipe({ dx: 100, dy: 0, index: 0 })], [null, null])
 eq('스와이프 결과: 막힌 곳에서 시작하면 그대로', resolveTabSwipe({ dx: -300, dy: 0, index: 2, blocked: true }), null)
 eq('스와이프 결과: 이동이 모자라면 그대로', resolveTabSwipe({ dx: -20, dy: 0, index: 2 }), null)
 eq('스와이프 결과: 탭 개수를 줄여 쓸 수 있음', resolveTabSwipe({ dx: -100, dy: 0, index: 1, count: 2 }), null)
@@ -1243,8 +1243,8 @@ eq('스와이프 예외: 손가락 위치를 못 읽으면 통과', [swipeBlockR
 const swipeOnTable = swipeBlockReason(tableCell, wrapper)
 eq('스와이프 흐름: 표 안에서 밀면 탭 그대로', resolveTabSwipe({ dx: -140, dy: 6, index: 3, blocked: swipeOnTable !== null }), null)
 eq('스와이프 흐름: 빈 곳에서 왼쪽으로 밀면 다음 탭', resolveTabSwipe({ dx: -140, dy: 6, index: 3, blocked: swipeBlockReason(background, wrapper) !== null }), 4)
-eq('스와이프 흐름: 랭킹에서 더 밀어도 그대로', resolveTabSwipe({ dx: -140, dy: 6, index: 5, blocked: false }), null)
-eq('스와이프 흐름: 학생 관리 표에서 오른쪽으로 밀면 질문함으로', resolveTabSwipe({ dx: 140, dy: -6, index: 4, blocked: false }), 3)
+eq('스와이프 흐름: 랭킹에서 더 밀어도 그대로', resolveTabSwipe({ dx: -140, dy: 6, index: 4, blocked: false }), null)
+eq('스와이프 흐름: 질문함에서 오른쪽으로 밀면 숙제관리로', resolveTabSwipe({ dx: 140, dy: -6, index: 3, blocked: false }), 2)
 eq('스와이프 흐름: 실시간에서 왼쪽으로 밀면 숙제관리', resolveTabSwipe({ dx: -140, dy: 6, index: 1, blocked: false }), 2)
 eq('스와이프 예외 목록에 입력·모달·표시 항목이 모두 있음', ['input', 'textarea', 'select', '[role="dialog"]', '[data-swipe-ignore]'].every((part) => SWIPE_BLOCKING_SELECTOR.split(',').includes(part)), true)
 

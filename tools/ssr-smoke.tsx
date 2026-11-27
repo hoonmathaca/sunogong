@@ -15,7 +15,7 @@ import type { AdminLiveSession } from '../src/lib/kintoun'
 import { QuestionsPanel } from '../src/admin/QuestionsPanel'
 import { PushNotifyPanel } from '../src/admin/PushNotifyPanel'
 import { RankingPanel } from '../src/admin/RankingPanel'
-import { StudentsPanel } from '../src/admin/StudentsPanel'
+import { ADMIN_TAB_ORDER } from '../src/lib/adminSwipe'
 import { CodeEntryScreen } from '../src/student/CodeEntryScreen'
 import { ChooseStudentScreen } from '../src/student/ChooseStudentScreen'
 import { HomeworkPhotoPicker } from '../src/student/HomeworkPhotoPicker'
@@ -443,7 +443,6 @@ const cases: [string, () => JSX.Element][] = [
   ['AdminLogin', () => <AdminLogin onSuccess={() => {}} onBack={() => {}} />],
   ['AdminApp', () => <AdminApp onBack={() => {}} />],
   ['Dashboard', () => <Dashboard students={[student]} studentsLoading={false} studentsError={null} reloadStudents={() => {}} />],
-  ['StudentsPanel', () => <StudentsPanel students={[student]} loading={false} error={null} reload={() => {}} />],
   ['RankingPanel', () => <RankingPanel students={[student]} studentsLoading={false} studentsError={null} reloadStudents={() => {}} />],
   ['ErrorBoundary(자식)', () => <ErrorBoundary><CodeEntryScreen onSubmit={async () => ({ ok: true })} onAdmin={() => {}} /></ErrorBoundary>],
   [
@@ -509,7 +508,8 @@ const questionChecks: [string, boolean][] = [
   ['질문: 관리자 7일 보관 안내', questionsPanelHtml.includes('7일')],
   ['질문: 관리자 질문함 탭', adminHtml.includes('질문함')],
   ['스와이프: 관리자 화면에 좌우 스와이프 탭 이동', adminHtml.includes('data-admin-swipe="tab"')],
-  ['스와이프: 관리자 탭 여섯 개', ['대시보드', '실시간', '숙제관리', '질문함', '학생 관리', '랭킹'].every((label) => adminHtml.includes(`>${label}<`) || adminHtml.includes(label))],
+  ['스와이프: 관리자 탭 다섯 개', ['대시보드', '실시간', '숙제관리', '질문함', '랭킹'].every((label) => adminHtml.includes(`>${label}<`) || adminHtml.includes(label))],
+  ['스와이프: 관리자 탭에 「학생 관리」 없음', !adminHtml.includes('학생 관리')],
   ['알림: 관리자 질문함에 알림 설정', questionsPanelHtml.includes('새 질문 알림')],
   ['알림: 알림 켜기 버튼', (rendered['PushNotifyPanel(새 질문 알림)'] ?? '').includes('알림 켜기')],
   ['알림: 테스트 알림 버튼', (rendered['PushNotifyPanel(새 질문 알림)'] ?? '').includes('테스트 알림 보내기')],
@@ -586,15 +586,12 @@ const kintounChecks: [string, boolean][] = [
   ['근두운: 세션 id 넘기면 바로 읽을 준비', (rendered['LiveKintounStrip(세션 있음)'] ?? '').includes('불러오는 중')],
 ]
 
-/* 학생 관리 — 닉네임 표시·수정 */
-const studentsPanelHtml = rendered['StudentsPanel'] ?? ''
-const nicknameChecks: [string, boolean][] = [
-  ['닉네임: 학생 관리에 닉네임 열', studentsPanelHtml.includes('닉네임')],
-  ['닉네임: 학생 관리에 닉네임 표시', studentsPanelHtml.includes('달토끼')],
-  ['닉네임: 학생 관리에 바꾸기 버튼', studentsPanelHtml.includes('바꾸기')],
-  ['닉네임: 학생 관리에 비우기 안내', studentsPanelHtml.includes('비우면 수련생') || studentsPanelHtml.includes('닉네임은 근두운')],
+/* 관리자 탭 — 「학생 관리」 탭은 2026-11-27 에 뺐다(원생 정보·닉네임 관리는 「훈출」의 원생·포인트에서) */
+const adminTabChecks: [string, boolean][] = [
+  ['관리자 탭: 학생 관리 없음', !(ADMIN_TAB_ORDER as readonly string[]).includes('students')],
+  ['관리자 탭: 대시보드·실시간·숙제관리·질문함·랭킹 5개', ADMIN_TAB_ORDER.join(',') === 'dashboard,kintoun,homework,questions,ranking'],
 ]
-for (const [name, ok] of nicknameChecks) {
+for (const [name, ok] of adminTabChecks) {
   if (!ok) failed += 1
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)
 }

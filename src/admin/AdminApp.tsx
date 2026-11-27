@@ -19,7 +19,6 @@ import { HomeworkPanel } from './HomeworkPanel'
 import { KintounPanel } from './KintounPanel'
 import { QuestionsPanel } from './QuestionsPanel'
 import { RankingPanel } from './RankingPanel'
-import { StudentsPanel } from './StudentsPanel'
 import { useStudents } from './useStudents'
 
 const STORAGE_KEY = 'sunogong.admin-signed-in'
@@ -53,7 +52,12 @@ export interface AdminAppProps {
   onBack: () => void
 }
 
-/** 관리자 화면: 대시보드 · 실시간 · 숙제관리 · 질문함 · 학생 관리 · 랭킹 (모바일에서는 좌우로 밀어 탭 이동) */
+/**
+ * 관리자 화면: 대시보드 · 실시간 · 숙제관리 · 질문함 · 랭킹 (모바일에서는 좌우로 밀어 탭 이동)
+ *
+ * 「학생 관리」 탭은 2026-11-27 에 뺐다 — 원생 정보·닉네임 관리는 통합 앱 「훈출」(`원생·포인트`)에서 한곳으로 맡는다.
+ * 학생 이름·닉네임은 대시보드·실시간·랭킹 화면에 그대로 보인다.
+ */
 export function AdminApp({ onBack }: AdminAppProps): JSX.Element {
   const [signedIn, setSignedIn] = useState(readSignedIn)
   const [tab, setTab] = useState<Tab>(readInitialTab)
@@ -188,7 +192,6 @@ export function AdminApp({ onBack }: AdminAppProps): JSX.Element {
               { key: 'kintoun', label: '실시간' },
               { key: 'homework', label: '숙제관리' },
               { key: 'questions', label: '질문함' },
-              { key: 'students', label: '학생 관리' },
               { key: 'ranking', label: '랭킹' },
             ] as { key: Tab; label: string }[]
           ).map((item) => (
@@ -250,9 +253,6 @@ export function AdminApp({ onBack }: AdminAppProps): JSX.Element {
               studentsError={error}
               reloadStudents={() => void reload()}
             />
-          ) : null}
-          {tab === 'students' ? (
-            <StudentsPanel students={students} loading={loading} error={error} reload={() => void reload()} />
           ) : null}
           {tab === 'ranking' ? (
             <RankingPanel
