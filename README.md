@@ -953,3 +953,29 @@ select public.cleanup_stale_study_sessions();
 - 회귀(실서비스): `check-homework-ui` **70건**(+1 — 「바로 찍기」 앱 카메라 버튼·창·닫기) · `check-homework-no-photo` **18건**(사진 0장 확인 창·자동 종료 뒤 지난 숙제 제출) 모두 통과, 검증 데이터 잔여 0건.
 - 스크린샷(`downloads/`): `sunogong-inapp-camera-live-360.png`(카메라 창) · `sunogong-inapp-camera-shot-360.png`(찍은 뒤 확인) · `sunogong-inapp-camera-uploaded-360.png`(1/5) · `sunogong-inapp-camera-album-360.png`(3/5) · `sunogong-inapp-camera-denied-360.png`(권한 거부 안내·폴백) · `sunogong-inapp-camera-fallback-360.png`(폴백으로 담김) · `sunogong-inapp-camera-question-360.png`(질문 사진) · `sunogong-inapp-camera-full-360.png`(5/5 잠금)
 - 남은 것: 실제 안드로이드 폰에서 **카메라 권한 허용 창 → 촬영 → 업로드**를 한 번 눌러 보는 확인(가짜 카메라로는 같은 경로를 확인했고, 실기기 권한 창만 남았다). 카메라를 한 번 허용하면 그 뒤로는 창이 뜨지 않는다.
+
+## 20. 숙제 사진 제출 뒤 화면이 멈추던 문제 — 창 스크롤 잠금 (2026-11-28)
+
+원장님 제보(이지빈 학생 · 인앱 카메라로 숙제 사진 촬영): **"사진제출 잘되고 마친다음에 화면이 멈춤. 물론 나가기 눌러짐. 앱을 아예 종료 후에 다시 됨. 뒤로가기로는 안 됨."**
+
+**1) 원인 — 창(모달)마다 body 스크롤 잠금을 따로 저장·복원한 것**
+- `Modal`·`ImageViewer`·`PhotoPager` 는 각자 `document.body.style.overflow` 를 읽어 두고 닫을 때 그 값으로 되돌렸다.
+- 숙제 제출 창 위에 사진 찍기 창이 **두 겹**으로 뜨면 나중 창이 "원래 값 = `hidden`" 을 저장한다. 그런데 그 효과의 의존성에 `onClose`(화면이 그려질 때마다 새로 만들어지는 함수)가 있어 **매 렌더마다 다시 잠그고 풀었다** — 타이머 화면은 1초마다, 사진 업로드 중에는 더 자주 그린다.
+- 그 재실행에서 먼저 뜬 창의 "원래 값" 이 이미 `hidden` 인 값으로 다시 읽혀 굳고, 창이 모두 닫힌 뒤에도 `body { overflow: hidden }` 이 남았다 → **홈이 스크롤되지 않아 화면이 멈춘 것처럼 보이고**(나가기 같은 고정 버튼만 눌림), 앱을 완전히 종료해 페이지를 새로 열어야 풀렸다(뒤로가기로는 풀리지 않음). 고치기 전 배포본에서 같은 점검이 **5건 실패**(결과 화면·홈 `overflow: hidden`, 홈 스크롤 0→0)로 그대로 재현됐다.
+
+**2) 고침 — 잠금을 하나로 모으고 마지막 창이 닫힐 때만 풀기 (`src/lib/bodyScrollLock.ts` 신규)**
+- `createScrollLock()` 이 **잠금 횟수**를 센다. 처음 잠글 때의 값만 기억하고, 마지막 창이 닫혀 횟수가 0이 될 때 **한 번만** 되돌린다. 창이 몇 겹이든, 어떤 순서로 닫히든 원래대로 돌아온다(남는 `unlock` 은 무시, `reset()` 은 한 번에).
+- `Modal`·`ImageViewer`·`PhotoPager` 가 이 하나를 나눠 쓰고, Esc 처리는 **ref 로 최신 `onClose` 만** 보게 바꿔 효과가 `open`/`src` 가 바뀔 때만 돌게 했다(매 렌더 재잠금 제거). 관리자 화면의 모든 창도 같은 `Modal` 을 쓰므로 함께 고쳐졌다.
+- 창이 떠 있는 동안 스크롤을 잠그는 동작 자체는 그대로다(겹친 창 1겹·2겹 모두 `overflow: hidden` 유지 확인).
+
+**검증**
+- 단위 **617건**(+8 — 창 하나/두 겹/닫는 순서 뒤집기/처음 값 복원/남는 unlock 무시/reset) · 스모크 **256건** · `npm run build` · `node tools/check-wording.mjs dist` 통과.
+- 실서비스 360px **새 점검** `node tools/check-homework-freeze.mjs https://sunogong.vercel.app /workspace/downloads` — **25건 전부 통과**(새 번들 `index-CS3b_zT6.js`). 인앱 카메라로 **찍기 → 다시 찍기 → 이대로 올리기 → 14문제 제출 → 승인 대기** 뒤
+  - 결과 화면·홈의 `body` 잠금 없음(`bodyStyle: ""`, 덮인 창 0, dialog 0), 홈 **스크롤 0 → 800**, 화면 위를 덮은 투명 상자 없음(`elementFromPoint`)
+  - **달력 날짜 클릭**(11월 1일 선택됨) · **근두운 「바꾸기」** 창이 떠 있는 동안은 잠기고 닫으면 풀림 · **「숙제 공부 시작」** 으로 타이머 진입 · **「나가기」** → 코드 화면 → 다시 들어와도 그대로
+  - **사진 없이 제출**(확인 창 경로) · **제출 창 취소 뒤 다시 열어 제출** 경로도 홈에 잠금이 남지 않고 스크롤됨
+  - 저장은 승인 대기 1줄(`pending` · 14문제 · 사진 1장), 검증용 학생·세션·제출·사진은 지워 **잔여 0건**
+- 회귀(실서비스, 모두 통과·검증 데이터 0건): `check-inapp-camera` **37건** · `check-homework-ui` **70건** · `check-homework-no-photo` **18건** · `check-student-calendar` **22건** · `check-admin-end-study` **29건**
+- 스크린샷(`downloads/`): `sunogong-freeze-1-home-360.png`(제출 뒤 홈 — 스크롤됨) · `sunogong-freeze-사진제출-calendar-360.png`(달력 날짜 선택) · `sunogong-freeze-3-home-360.png`
+- 이미 열려 있던 탭·홈화면 앱은 새 빌드를 스스로 확인해 새로고침한다(`src/lib/appUpdate.ts`) — 다음에 화면을 켜면 새 코드로 돈다.
+- 남은 것: 실제 폰에서 제출을 한 번 더 눌러 보는 확인(가짜 카메라로 같은 경로를 확인했고, 실기기에서는 새 버전을 받은 뒤 한 번만 해 보면 된다).
