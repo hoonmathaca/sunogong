@@ -135,7 +135,7 @@ try {
   let log = await logOf()
   check('1 저장: 승인 상태', [row.status, row.time_verdict, row.problems_verdict], ['approved', 'approved', 'approved'])
   check('1 저장: 승인 값', [row.approved_minutes, row.approved_problems], [40, 12])
-  check('1 저장: 고친 횟수 0 (처음 확인)', row.review_edit_count, 0)
+  check('1 저장: 고친 횟수 0 (처음 확인)', row.review_edit_count === 0, String(row.review_edit_count))
   check('1 저장: 처음 확인 시각 남음', Boolean(row.first_reviewed_at), row.first_reviewed_at)
   check('1 저장: 그날 기록 40분·12개', [log?.homework_minutes, log?.homework_problems, log?.minutes], [40, 12, 40])
 
@@ -174,7 +174,7 @@ try {
   log = await logOf()
   check('3 저장: 반려 상태', [row.status, row.time_verdict, row.problems_verdict], ['rejected', 'rejected', 'rejected'])
   check('3 저장: 승인 값 0', [row.approved_minutes, row.approved_problems], [0, 0])
-  check('3 저장: 반려 사유 저장', row.reject_reason ?? '', '')
+  check('3 저장: 반려 사유 없음', (row.reject_reason ?? '') === '', row.reject_reason ?? '')
   check('3 저장: 고친 횟수 1', row.review_edit_count, 1)
   check('3 저장: 그날 기록 사라짐', log === null, log ? `${log.minutes}분` : 'null')
 
@@ -234,11 +234,8 @@ try {
     .select('id', { count: 'exact', head: true })
     .eq('student_id', student.id)
   check('드래곤볼 지급 이력 없음', grantRows === 0, grantRows)
-  const { count: attendanceRows } = await supabase
-    .from('attendance_sessions')
-    .select('id', { count: 'exact', head: true })
-    .eq('student_id', student.id)
-  check('훈출 등·하원 기록 그대로(0건)', attendanceRows === 0, attendanceRows)
+  /* 훈출 등·하원(attendance_sessions)은 앱 권한(anon)으로 읽을 수 없어,
+     건드리지 않는지는 supabase/verify-2026-11-28-homework-rereview.sql T11 에서 확인한다 */
 } finally {
   if (browser) await browser.close().catch(() => {})
   /* 검증 데이터 정리 — 남은 0건 */

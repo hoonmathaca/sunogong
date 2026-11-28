@@ -238,6 +238,13 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
     })
   }, [unreadAnswerList])
 
+  /* 질문 화면이 답변을 모두 열었을 때 — 배지·배너를 비운다 (함수가 매번 새로 생기면
+   * 질문 화면의 목록 읽기가 끝없이 다시 도는 일이 있어 useCallback 으로 고정한다) */
+  const handleUnreadChange = useCallback((count: number) => {
+    setUnreadAnswers(count)
+    if (count === 0) setUnreadAnswerList([])
+  }, [])
+
   /* 홈에 머무는 동안에도 학원 등원 여부를 확인한다 —
    * 앱을 홈에 띄워 둔 사이 훈출이 등원시키면, 예전에는 그대로 「숙제 공부」가 눌려
    * 학원 타이머가 켜졌다. 30초마다·화면이 다시 보일 때 진행 중 세션을 읽는다. */
@@ -309,10 +316,7 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
             setFocusQuestionId(null)
             setPhase('home')
           }}
-          onUnreadChange={(count) => {
-            setUnreadAnswers(count)
-            if (count === 0) setUnreadAnswerList([])
-          }}
+          onUnreadChange={handleUnreadChange}
         />
       ) : null}
 
