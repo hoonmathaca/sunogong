@@ -1,4 +1,5 @@
 import { useEffect, useRef, type TouchEvent } from 'react'
+import { bodyScrollLock } from '../lib/bodyScrollLock'
 
 interface PhotoPagerProps {
   /** 사진 주소 (서명 URL). 비어 있는 항목은 '불러오는 중'으로 보인다 */
@@ -23,21 +24,26 @@ export function PhotoPager({ urls, index, onIndexChange, onClose, altPrefix = '�
     onIndexChange((index + step + total) % total)
   }
 
+  /* onClose·go 는 그릴 때마다 새 함수 — 아래 효과는 화면이 떠 있는 동안 한 번만 건다 */
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+  const goRef = useRef(go)
+  goRef.current = go
+
   useEffect(() => {
     if (typeof document === 'undefined') return undefined
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-      if (event.key === 'ArrowLeft') go(-1)
-      if (event.key === 'ArrowRight') go(1)
+      if (event.key === 'Escape') onCloseRef.current()
+      if (event.key === 'ArrowLeft') goRef.current(-1)
+      if (event.key === 'ArrowRight') goRef.current(1)
     }
     window.addEventListener('keydown', onKey)
-    const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    bodyScrollLock.lock()
     return () => {
       window.removeEventListener('keydown', onKey)
-      document.body.style.overflow = previous
+      bodyScrollLock.unlock()
     }
-  })
+  }, [])
 
   if (total === 0) return null
   const src = urls[Math.min(Math.max(0, index), total - 1)]

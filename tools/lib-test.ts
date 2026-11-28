@@ -282,6 +282,7 @@ import {
   sendNote,
   uniqueIds,
 } from '../src/lib/dragonballSend'
+import { createScrollLock } from '../src/lib/bodyScrollLock'
 
 let failed = 0
 function eq(name: string, actual: unknown, expected: unknown) {
@@ -1765,5 +1766,56 @@ eq('학생달력: 지난 달 → 마지막 날', defaultSelectedDate('2026-10', 
 eq('학생달력: 지난 달 2월 → 28일', defaultSelectedDate('2026-02', '2026-11-28'), '2026-02-28')
 eq('학생달력: 다음 달 → 고를 날 없음', defaultSelectedDate('2026-12', '2026-11-28'), null)
 eq('학생달력: 다음 달은 열지 않는다', [canOpenMonth('2026-12', '2026-11-28'), canOpenMonth('2026-11', '2026-11-28'), canOpenMonth('2026-10', '2026-11-28')], [false, true, true])
+
+/* 창 겹겹이 — body 스크롤 잠금 (2026-11-28 숙제 제출 후 화면 멈춤)
+   예전에는 창마다 원래 값을 따로 저장해 두어, 창이 두 겹일 때 나중 값(hidden)이 먼저 창의
+   "원래 값" 으로 굳고 마지막에 hidden 이 남았다. 이제는 횟수를 세어 마지막에 한 번만 되돌린다. */
+const fakeBody = () => ({ style: { overflow: '' as string } })
+{
+  const body = fakeBody()
+  const lock = createScrollLock(() => body)
+  lock.lock()
+  eq('스크롤잠금: 창 하나 → 잠김', body.style.overflow, 'hidden')
+  lock.lock()
+  eq('스크롤잠금: 창 두 겹 → 그대로 잠김', [body.style.overflow, lock.count()], ['hidden', 2])
+  lock.unlock()
+  eq('스크롤잠금: 하나 닫으면 아직 잠김', [body.style.overflow, lock.count()], ['hidden', 1])
+  lock.unlock()
+  eq('스크롤잠금: 마지막 창이 닫히면 풀림', [body.style.overflow, lock.count()], ['', 0])
+
+  /* 닫는 순서가 뒤집혀도(보낸 창이 나중에 닫혀도) 원래대로 */
+  lock.lock()
+  lock.lock()
+  lock.unlock()
+  lock.unlock()
+  eq('스크롤잠금: 반대 순서로 닫아도 풀림', body.style.overflow, '')
+
+  /* 처음 값이 hidden 이 아니면 그 값 그대로 */
+  const other = { style: { overflow: 'auto' } }
+  const otherLock = createScrollLock(() => other)
+  otherLock.lock()
+  otherLock.lock()
+  otherLock.unlock()
+  otherLock.unlock()
+  eq('스크롤잠금: 처음 값(auto)으로 되돌린다', other.style.overflow, 'auto')
+
+  /* 같은 창을 두 번 풀어도 다른 창의 잠금을 풀지 않는다 */
+  const body2 = fakeBody()
+  const lock2 = createScrollLock(() => body2)
+  lock2.lock()
+  lock2.lock()
+  lock2.unlock()
+  lock2.unlock()
+  lock2.unlock()
+  eq('스크롤잠금: 남는 unlock 은 무시(음수 없음)', [body2.style.overflow, lock2.count()], ['', 0])
+
+  /* 화면이 통째로 바뀔 때의 안전장치 */
+  const body3 = fakeBody()
+  const lock3 = createScrollLock(() => body3)
+  lock3.lock()
+  lock3.lock()
+  lock3.reset()
+  eq('스크롤잠금: reset 은 한 번에 푼다', [body3.style.overflow, lock3.count()], ['', 0])
+}
 
 console.log(failed === 0 ? 'ALL LIB TESTS PASSED' : `${failed} FAILED`)

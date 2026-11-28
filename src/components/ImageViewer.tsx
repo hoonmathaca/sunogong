@@ -1,4 +1,5 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
+import { bodyScrollLock } from '../lib/bodyScrollLock'
 
 interface ImageViewerProps {
   src: string | null
@@ -8,19 +9,22 @@ interface ImageViewerProps {
 
 /** 사진을 화면 가득 크게 보는 창 (질문 사진·해설지 사진 확대) */
 export function ImageViewer({ src, alt = '사진', onClose }: ImageViewerProps): JSX.Element | null {
+  /* onClose 는 그릴 때마다 새 함수 — 의존성에 넣으면 잠금이 어긋난다 (ref 로 최신 값만 본다) */
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+
   useEffect(() => {
     if (!src || typeof document === 'undefined') return undefined
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') onCloseRef.current()
     }
     window.addEventListener('keydown', onKey)
-    const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    bodyScrollLock.lock()
     return () => {
       window.removeEventListener('keydown', onKey)
-      document.body.style.overflow = previous
+      bodyScrollLock.unlock()
     }
-  }, [src, onClose])
+  }, [src])
 
   if (!src) return null
 

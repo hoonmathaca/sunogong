@@ -1,4 +1,5 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
+import { bodyScrollLock } from '../lib/bodyScrollLock'
 
 interface ModalProps {
   open: boolean
@@ -12,19 +13,24 @@ interface ModalProps {
 }
 
 export function Modal({ open, title, description, onClose, children, footer, wide = false }: ModalProps): JSX.Element | null {
+  /* onClose 는 화면이 그려질 때마다 새 함수라, 그대로 의존성에 넣으면
+     매초(타이머) 다시 잠그고 풀어 body 스크롤 잠금이 어긋난다 — 최신 값만 ref 로 본다 */
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+
   useEffect(() => {
     if (!open) return undefined
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') onCloseRef.current()
     }
     window.addEventListener('keydown', onKey)
-    const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    /* 창이 겹겹이 떠도 마지막 창이 닫힐 때 한 번만 되돌린다 (2026-11-28 화면 멈춤 수정) */
+    bodyScrollLock.lock()
     return () => {
       window.removeEventListener('keydown', onKey)
-      document.body.style.overflow = previous
+      bodyScrollLock.unlock()
     }
-  }, [open, onClose])
+  }, [open])
 
   if (!open) return null
 
