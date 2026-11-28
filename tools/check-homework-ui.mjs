@@ -363,7 +363,13 @@ try {
   const doneDetail = admin.getByRole('dialog', { name: '숙제 제출 확인' })
   await doneDetail.waitFor({ state: 'visible', timeout: 8000 })
   const doneText = (await doneDetail.innerText()).replace(/\s+/g, ' ')
-  check('상세: 이미 승인한 건에도 한마디 보임', doneText.includes('선생님 한마디:') && doneText.includes('풀이가 꼼꼼해요 다음에도 이렇게 해봐요!'), doneText.slice(0, 200))
+  /* 2026-11-28 — 이미 확인한 건은 한마디가 읽기 전용 박스가 아니라 고칠 수 있는 입력칸에 그대로 들어 있다 */
+  const doneComment = await doneDetail.locator('textarea').first().inputValue()
+  check(
+    '상세: 이미 승인한 건에도 한마디 보임(고칠 수 있는 칸)',
+    doneText.includes('선생님 칭찬 한마디') && doneComment === '풀이가 꼼꼼해요 다음에도 이렇게 해봐요!',
+    doneComment,
+  )
   check('상세: 처리 완료 안내(다시 고칠 수 있음)', doneText.includes('이미 승인한 제출이에요') && doneText.includes('고쳐서 다시 저장할 수 있어요'), doneText.slice(0, 200))
   await doneDetail.screenshot({ path: `${shotDir}/sunogong-homework-praise-approved-detail-360.png` })
   await admin.getByRole('button', { name: '닫기' }).last().click()
