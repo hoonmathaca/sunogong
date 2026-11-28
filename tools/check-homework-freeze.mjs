@@ -75,10 +75,11 @@ const openHomeworkSession = async (minutesAgo) => {
 }
 
 const enterStudent = async (page) => {
-  await page.goto(`${base}/`, { waitUntil: 'networkidle' })
+  await page.goto(`${base}/`, { waitUntil: 'domcontentloaded' })
   await page.evaluate(() => localStorage.clear())
-  await page.goto(`${base}/`, { waitUntil: 'networkidle' })
-  await page.waitForTimeout(500)
+  await page.goto(`${base}/`, { waitUntil: 'domcontentloaded' })
+  await page.getByRole('button', { name: '확인', exact: true }).waitFor({ state: 'visible', timeout: 15_000 })
+  await page.waitForTimeout(400)
   for (const digit of code) await page.getByRole('button', { name: digit, exact: true }).click()
   await page.getByRole('button', { name: '확인', exact: true }).click()
   await page.waitForTimeout(1600)
@@ -199,8 +200,16 @@ try {
     userAgent:
       'Mozilla/5.0 (Linux; Android 14; SM-G991N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
   })
-  const page = await context.newPage()
+  let page = await context.newPage()
   page.on('pageerror', (error) => console.log('pageerror:', error.message))
+
+  /* 단계마다 새 탭을 쓴다 — 카메라·사진을 여러 번 열어 메모리가 모자라지 않게 */
+  const renewPage = async () => {
+    await page.close().catch(() => undefined)
+    page = await context.newPage()
+    page.on('pageerror', (error) => console.log('pageerror:', error.message))
+    return page
+  }
 
   /* ── 1) 인앱 카메라로 찍어 제출 (다시 찍기까지) ─────────────────── */
   await openHomeworkSession(24)
@@ -288,6 +297,7 @@ try {
   await checkHomeWorks(page, '사진제출')
 
   /* ── 2) 사진 없이 제출 (확인 창을 거치는 경로) ───────────────────── */
+  await renewPage()
   await openHomeworkSession(18)
   await enterStudent(page)
   const submit2 = await openSubmitModal(page)
@@ -307,6 +317,7 @@ try {
   check('사진 없이 제출: 홈이 스크롤된다', (await wheelScroll(page)) > 0)
 
   /* ── 3) 제출 창을 취소로 닫았다가 다시 열어서 제출 ──────────────── */
+  await renewPage()
   await openHomeworkSession(9)
   await enterStudent(page)
   const submit3 = await openSubmitModal(page)
