@@ -236,21 +236,72 @@ export function submissionStudent(
   return { name: row?.name ?? '학생', grade: row?.grade ?? '미지정' }
 }
 
-/** 확인 화면의 기본 선택 — 문제 수를 모르는 제출은 문항수를 승인할 수 없다 */
-export function reviewDefaults(submission: Pick<HomeworkSubmission, 'submitted_problems'>): {
+/** 확인 화면의 기본 선택 — 문제 수를 모르는 제출은 문항수를 승인할 수 없다.
+ *  이미 확인한 제출(승인·반려)은 지난 결정을 그대로 보여 주고, 원장님이 고쳐서 저장한다. */
+export function reviewDefaults(submission: {
+  submitted_problems: number | null
+  status?: HomeworkStatus | null
+  time_verdict?: HomeworkVerdict | null
+  problems_verdict?: HomeworkVerdict | null
+}): {
   timeApproved: boolean
   problemsApproved: boolean
 } {
+  if (submission.status === 'approved' || submission.status === 'rejected') {
+    return {
+      timeApproved: submission.time_verdict === 'approved',
+      problemsApproved: submission.problems_verdict === 'approved',
+    }
+  }
   return { timeApproved: true, problemsApproved: submission.submitted_problems !== null }
 }
 
-/** 확인(저장) 버튼이 막히는 경우의 안내 (없으면 null) */
+/** 이미 확인한 제출인지 (승인 또는 반려) — 2026-11-28 부터는 다시 열어 고칠 수 있다 */
+export function isReviewed(submission: Pick<HomeworkSubmission, 'status'>): boolean {
+  return submission.status !== 'pending'
+}
+
+/** 이미 확인한 제출을 다시 열었을 때 보여 줄 안내 (처음 확인이면 null) */
+export function rereviewNotice(submission: Pick<HomeworkSubmission, 'status'>): string | null {
+  if (!isReviewed(submission)) return null
+  return `이미 ${submissionStatusLabel(submission)}한 제출이에요 — 고쳐서 다시 저장할 수 있어요.`
+}
+
+/** 다시 고쳐 저장할 때의 안내 — 이전 승인분과 새 결정을 함께 보여 준다 */
+export function reviewEditResultText(input: {
+  previousStatus: HomeworkStatus
+  previousMinutes: number
+  previousProblems: number
+  status: HomeworkStatus
+  minutes: number
+  problems: number
+}): string {
+  const beforeMinutes = Math.max(0, Math.round(input.previousMinutes ?? 0))
+  const beforeProblems = Math.max(0, Math.round(input.previousProblems ?? 0))
+  const afterMinutes = Math.max(0, Math.round(input.minutes ?? 0))
+  const afterProblems = Math.max(0, Math.round(input.problems ?? 0))
+  const before = `${formatMinutes(beforeMinutes)} · ${beforeProblems}개`
+  const after = `${formatMinutes(afterMinutes)} · ${afterProblems}개`
+
+  if (input.status === 'rejected') {
+    if (beforeMinutes > 0 || beforeProblems > 0) {
+      return `반려로 고쳤어요. 이전 승인 ${before}를 그날 기록에서 뺐어요.`
+    }
+    return '반려로 고쳤어요. 그날 기록은 그대로예요.'
+  }
+  if (beforeMinutes === afterMinutes && beforeProblems === afterProblems && input.previousStatus === input.status) {
+    return '고쳐서 저장했어요. 그날 기록은 그대로예요.'
+  }
+  return `승인으로 고쳤어요. 그날 기록: ${before} → ${after}`
+}
+
+/** 확인(저장) 버튼이 막히는 경우의 안내 (없으면 null).
+ *  이미 확인한 제출도 고칠 수 있으므로 상태로는 막지 않는다. */
 export function reviewBlockReason(
-  submission: Pick<HomeworkSubmission, 'status'>,
+  _submission: Pick<HomeworkSubmission, 'status'>,
   timeApproved: boolean,
   problemsApproved: boolean,
 ): string | null {
-  if (submission.status !== 'pending') return '이미 확인한 제출이에요.'
   if (!timeApproved && !problemsApproved) return '모두 반려예요. 저장하면 이 제출은 0분·0문제로 확정돼요.'
   return null
 }

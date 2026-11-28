@@ -67,7 +67,12 @@ import {
   inAppCameraSupported,
 } from '../src/lib/camera'
 import {
+  ANSWER_BANNER_ACTION,
+  ANSWER_BANNER_CONFIRM,
+  ANSWER_BANNER_TITLE,
   ANSWER_MEDIA_MAX_BYTES,
+  answerBannerCountText,
+  answerBannerQuestionLine,
   answerMediaPath,
   answerStateLabel,
   cleanupCutoffIso,
@@ -79,6 +84,7 @@ import {
   isAnswered,
   isCleanupTarget,
   isUnreadAnswer,
+  latestUnreadAnswer,
   mediaExtension,
   mediaKindFromPath,
   mediaKindOfFile,
@@ -239,6 +245,7 @@ import {
   hasRejectedPart,
   homeworkPhotoPath,
   homeworkSubmitProblem,
+  isReviewed,
   mergePendingItems,
   needsNoPhotoConfirm,
   needsProblemCount,
@@ -248,8 +255,10 @@ import {
   pendingHomeworkQueue,
   photoCount,
   rejectReasonText,
+  rereviewNotice,
   reviewBlockReason,
   reviewDefaults,
+  reviewEditResultText,
   reviewResultText,
   showsTeacherComment,
   sortSubmissionsForAdmin,
@@ -1078,6 +1087,15 @@ eq('질문: 상태 문구(대기)', answerStateLabel(questionBase), '답변 대�
 eq('질문: 상태 문구(완료)', answerStateLabel(answeredQuestion), '답변 완료')
 eq('질문: 답변 대기 수', countUnanswered(questionList), 1)
 eq('질문: 새 답변 수', countUnreadAnswers(questionList), 1)
+
+/* 로그인 직후 홈 알림 배너 — 안 읽은 답변 중 가장 최근 것 */
+const newerUnread: StudyQuestion = { ...answeredQuestion, id: 'q4', memo: null, answered_at: '2026-11-21T09:00:00Z' }
+eq('답변 배너: 제목·버튼 문구', [ANSWER_BANNER_TITLE, ANSWER_BANNER_ACTION, ANSWER_BANNER_CONFIRM], ['선생님 답변이 도착했어요!', '답변 보기', '확인했어요'])
+eq('답변 배너: 가장 최근 안 읽은 답변', [latestUnreadAnswer(questionList)?.id ?? null, latestUnreadAnswer([readQuestion])?.id ?? null, latestUnreadAnswer([questionBase])?.id ?? null, latestUnreadAnswer([])?.id ?? null], ['q2', null, null, null])
+eq('답변 배너: 최신순으로 고름', latestUnreadAnswer([answeredQuestion, newerUnread])?.id, 'q4')
+eq('답변 배너: 메모가 있으면 메모로 안내', answerBannerQuestionLine(answeredQuestion), '‘3번에서 막혔어요’ 질문에 답변이 달렸어요')
+eq('답변 배너: 메모가 없으면 올린 날짜로 안내', answerBannerQuestionLine(newerUnread), '11월 20일 (금) 14:00 질문에 답변이 달렸어요')
+eq('답변 배너: 개수 표시', [answerBannerCountText(1), answerBannerCountText(2), answerBannerCountText(0), answerBannerCountText(Number.NaN)], ['', '새 답변 2개', '', ''])
 eq('질문: 필터(대기)', filterQuestions(questionList, 'waiting').map((q) => q.id), ['q1'])
 eq('질문: 필터(완료)', filterQuestions(questionList, 'answered').map((q) => q.id), ['q3', 'q2'])
 eq('질문: 필터(전체)', filterQuestions(questionList, 'all').length, 3)
@@ -1468,8 +1486,29 @@ eq('숙제: 부분 반려 판별', [hasRejectedPart(hw()), hasRejectedPart(hw({ 
 eq('숙제: 반려 사유 다듬기', rejectReasonText({ reject_reason: '  답만 작성됨 ' }), '답만 작성됨')
 eq('숙제: 기본 선택은 시간·문항 모두 승인', reviewDefaults({ submitted_problems: 30 }), { timeApproved: true, problemsApproved: true })
 eq('숙제: 문제 수가 없으면 문항수는 승인 못 함', reviewDefaults({ submitted_problems: null }), { timeApproved: true, problemsApproved: false })
-eq('숙제: 이미 확인한 제출은 다시 저장 못 함', reviewBlockReason({ status: 'approved' }, true, true), '이미 확인한 제출이에요.')
+/* 2026-11-28 — 이미 승인/반려한 제출도 다시 열어 고친다 */
+eq('숙제: 승인한 제출을 다시 열면 지난 결정 그대로', reviewDefaults({ submitted_problems: 30, status: 'approved', time_verdict: 'approved', problems_verdict: 'rejected' }), { timeApproved: true, problemsApproved: false })
+eq('숙제: 반려한 제출을 다시 열면 지난 결정 그대로', reviewDefaults({ submitted_problems: null, status: 'rejected', time_verdict: 'rejected', problems_verdict: 'rejected' }), { timeApproved: false, problemsApproved: false })
+eq('숙제: 확인 여부', [isReviewed(hw()), isReviewed(hw({ status: 'approved' })), isReviewed(hw({ status: 'rejected' }))], [false, true, true])
+eq('숙제: 다시 고치기 안내', [rereviewNotice(hw()), rereviewNotice(hw({ status: 'approved' })), rereviewNotice(hw({ status: 'rejected' }))], [null, '이미 승인한 제출이에요 — 고쳐서 다시 저장할 수 있어요.', '이미 반려한 제출이에요 — 고쳐서 다시 저장할 수 있어요.'])
+eq('숙제: 이미 확인한 제출도 저장 가능', [reviewBlockReason({ status: 'approved' }, true, true), reviewBlockReason({ status: 'rejected' }, true, true), reviewBlockReason({ status: 'approved' }, false, false)], [null, null, '모두 반려예요. 저장하면 이 제출은 0분·0문제로 확정돼요.'])
 eq('숙제: 모두 반려는 저장 가능(0으로 확정)', reviewBlockReason({ status: 'pending' }, false, false), '모두 반려예요. 저장하면 이 제출은 0분·0문제로 확정돼요.')
+eq(
+  '숙제: 고쳐서 저장한 결과 문구',
+  [
+    reviewEditResultText({ previousStatus: 'approved', previousMinutes: 40, previousProblems: 12, status: 'rejected', minutes: 0, problems: 0 }),
+    reviewEditResultText({ previousStatus: 'approved', previousMinutes: 40, previousProblems: 12, status: 'approved', minutes: 0, problems: 12 }),
+    reviewEditResultText({ previousStatus: 'rejected', previousMinutes: 0, previousProblems: 0, status: 'approved', minutes: 40, problems: 12 }),
+    reviewEditResultText({ previousStatus: 'approved', previousMinutes: 40, previousProblems: 12, status: 'approved', minutes: 40, problems: 12 }),
+  ],
+  [
+    '반려로 고쳤어요. 이전 승인 40분 · 12개를 그날 기록에서 뺐어요.',
+    '승인으로 고쳤어요. 그날 기록: 40분 · 12개 → 0분 · 12개',
+    '승인으로 고쳤어요. 그날 기록: 0분 · 0개 → 40분 · 12개',
+    '고쳐서 저장했어요. 그날 기록은 그대로예요.',
+  ],
+)
+eq('숙제: 고쳐서 저장 문구에 드래곤볼 없음(별개)', [reviewEditResultText({ previousStatus: 'approved', previousMinutes: 40, previousProblems: 12, status: 'rejected', minutes: 0, problems: 0 }), reviewEditResultText({ previousStatus: 'rejected', previousMinutes: 0, previousProblems: 0, status: 'approved', minutes: 40, problems: 12 })].some((text) => text.includes('드래곤볼')), false)
 eq('숙제: 저장 결과 문구', [reviewResultText('approved', 40, 30), reviewResultText('approved', 40, 0), reviewResultText('rejected', 0, 0)], ['시간 40분 · 문항 30개 승인했어요.', '시간 40분 · 문항 0개 승인했어요.', '모두 반려했어요. 기록에는 0으로 남고 다시 제출하지 않아요.'])
 eq('숙제: 승인 결과에 드래곤볼 문구 없음(별개)', [reviewResultText('approved', 40, 30), reviewResultText('rejected', 0, 0)].some((text) => text.includes('드래곤볼')), false)
 eq('숙제: 반려 사유는 한 줄·300자까지', [normalizeReason('  풀이   흔적\n부족 '), normalizeReason('가'.repeat(HOMEWORK_REASON_MAX + 20)).length], ['풀이 흔적 부족', HOMEWORK_REASON_MAX])

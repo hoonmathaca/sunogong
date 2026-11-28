@@ -7,11 +7,18 @@ import {
   countPending,
 } from '../lib/homeworkBoard'
 import * as homeworkApi from '../lib/homework'
+import {
+  ANSWER_BANNER_ACTION,
+  ANSWER_BANNER_CONFIRM,
+  ANSWER_BANNER_TITLE,
+  answerBannerCountText,
+  answerBannerQuestionLine,
+} from '../lib/questionBoard'
 import { splitLog, splitPercents } from '../lib/stats'
 import { hasTodayAcademy } from '../lib/problemsEdit'
 import { buildDayViews, defaultSelectedDate } from '../lib/studentCalendar'
 import { addDays, currentMonthKst, formatDateKo, formatMinutes, formatMinutesCompact, monthRange, todayKst } from '../lib/time'
-import type { HomeworkSubmission, Student, StudyLog, StudentDayRecord } from '../lib/types'
+import type { HomeworkSubmission, Student, StudyLog, StudentDayRecord, StudyQuestion } from '../lib/types'
 import { EditAcademyProblemsModal } from './EditAcademyProblemsModal'
 import { HomeworkSubmissionRow } from './HomeworkSubmissionRow'
 import { LiveKintounCard } from './LiveKintounCard'
@@ -25,6 +32,12 @@ interface StudentHomeScreenProps {
   onQuestions: () => void
   /** 아직 열지 않은 답변 수 (배지) */
   unreadAnswers?: number
+  /** 가장 최근에 달린 안 읽은 답변 — 있으면 홈 맨 위에 알림 배너를 띄운다 (2026-11-28) */
+  unreadAnswer?: StudyQuestion | null
+  /** 배너 '답변 보기' — 그 질문을 펼쳐 보여 준다 */
+  onOpenAnswer?: (questionId: string) => void
+  /** 배너 '확인했어요' — 알림만 닫고 읽음으로 남긴다 */
+  onConfirmAnswer?: () => void
   /** 자동 종료된 공부 중 문제 수를 아직 넣지 않은 건수 */
   pendingProblems?: number
   /** 그중 숙제 공부가 있는지 (카드 문구) */
@@ -48,6 +61,9 @@ export function StudentHomeScreen({
   onExit,
   onQuestions,
   unreadAnswers = 0,
+  unreadAnswer = null,
+  onOpenAnswer,
+  onConfirmAnswer,
   pendingProblems = 0,
   pendingHomework = false,
   onPendingProblems,
@@ -178,6 +194,52 @@ export function StudentHomeScreen({
             나가기
           </button>
         </header>
+
+        {/* 선생님 답변이 도착하면 로그인 직후 맨 위에서 바로 알린다 (2026-11-28) */}
+        {unreadAnswer ? (
+          <section
+            aria-label="선생님 답변 알림"
+            className="mt-4 overflow-hidden rounded-3xl border-2 border-[#6D3BD6]/30 bg-gradient-to-br from-[#F5F0FF] to-[#EADDFF] px-4 py-3.5 shadow-card"
+          >
+            <div className="flex items-start gap-2.5">
+              <span
+                className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-[20px] shadow-sm"
+                aria-hidden="true"
+              >
+                💬
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="flex flex-wrap items-center gap-1.5 font-round text-[15px] font-extrabold leading-snug text-[#4A28A0]">
+                  {ANSWER_BANNER_TITLE}
+                  {unreadAnswers > 1 ? (
+                    <span className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white tabular">
+                      {answerBannerCountText(unreadAnswers)}
+                    </span>
+                  ) : null}
+                </p>
+                <p className="mt-1 line-clamp-2 break-keep text-[12px] font-semibold leading-snug text-[#5B2FC0]/75">
+                  {answerBannerQuestionLine(unreadAnswer)}
+                </p>
+                <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => onOpenAnswer?.(unreadAnswer.id)}
+                    className="rounded-full bg-[#4A28A0] px-4 py-1.5 text-[12px] font-bold text-white shadow-sm transition active:scale-[0.98]"
+                  >
+                    {ANSWER_BANNER_ACTION}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onConfirmAnswer?.()}
+                    className="rounded-full border border-[#4A28A0]/25 bg-white/70 px-3 py-1.5 text-[11.5px] font-bold text-[#4A28A0]/80 transition active:scale-[0.98]"
+                  >
+                    {ANSWER_BANNER_CONFIRM}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         <section className="mt-5 rounded-3xl bg-navy p-5 text-white shadow-soft">
           <p className="text-sm font-semibold text-white/70">

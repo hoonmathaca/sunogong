@@ -194,6 +194,10 @@ export interface HomeworkSubmission {
   submitted_at: string
   reviewed_at: string | null
   reviewed_by: string | null
+  /** 처음 승인/반려한 시각 — 이후 고쳐도 그대로 (reviewed_at 은 마지막 저장 시각) */
+  first_reviewed_at?: string | null
+  /** 이미 확인한 제출을 다시 고쳐 저장한 횟수 (처음 확인은 0) */
+  review_edit_count?: number
   created_at: string
   updated_at: string
   /** 아직 제출 전인 초안 줄 (사진·문제 수만 저장 — 목록에는 안 보인다) */

@@ -110,6 +110,22 @@ export const countUnreadAnswers = (studentId: string) =>
       .then((res) => ({ data: res.count ?? 0, error: res.error })),
   )
 
+/**
+ * 학생이 아직 열지 않은 답변 (최근에 달린 답변부터).
+ * 로그인 직후 홈 위쪽 알림 배너에 "어떤 질문에 답이 왔는지" 보여 주는 데 쓴다 (2026-11-28).
+ */
+export const listUnreadAnswers = (studentId: string, limit = 5) =>
+  run<StudyQuestion[]>(() =>
+    supabase
+      .from('study_questions')
+      .select('*')
+      .eq('student_id', studentId)
+      .not('answered_at', 'is', null)
+      .is('student_read_at', null)
+      .order('answered_at', { ascending: false })
+      .limit(limit),
+  )
+
 /** 답변 대기 질문 수 (관리자 '질문함' 탭 배지) */
 export const countUnansweredQuestions = () =>
   run<number>(() =>

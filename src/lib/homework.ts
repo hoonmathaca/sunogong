@@ -330,10 +330,17 @@ export interface ReviewResult {
   minutes: number
   problems: number
   status: HomeworkSubmission['status']
+  /** 이미 확인한 제출을 다시 고쳐 저장했는지 (2026-11-28) */
+  edited?: boolean
+  /** 고치기 전 결정 */
+  previous_status?: HomeworkSubmission['status']
+  previous_minutes?: number
+  previous_problems?: number
 }
 
 /**
  * 시간·문항수를 따로 승인/반려 — 승인한 항목만 그 날 기록에 더해진다 (드래곤볼과는 무관).
+ * 이미 승인/반려한 제출도 다시 불러 고칠 수 있다: 그날 기록에서 이전 승인분을 빼고 새 결정을 반영한다.
  * comment 는 학생에게 보일 「선생님 칭찬 한마디」(선택) — 비우면 저장하지 않는다.
  */
 export const reviewHomeworkSubmission = (

@@ -71,6 +71,39 @@ export function countUnreadAnswers(list: StudyQuestion[]): number {
   return list.reduce((sum, question) => sum + (isUnreadAnswer(question) ? 1 : 0), 0)
 }
 
+/**
+ * 로그인 직후 홈 위쪽에 띄우는 알림 배너 (2026-11-28)
+ *   💬 선생님 답변이 도착했어요!  +  [답변 보기]
+ * 학생이 답변을 열거나 '확인'을 누르면 읽음으로 남겨 다음 접속 때 같은 답변으로 뜨지 않는다.
+ */
+export const ANSWER_BANNER_TITLE = '선생님 답변이 도착했어요!'
+export const ANSWER_BANNER_ACTION = '답변 보기'
+export const ANSWER_BANNER_CONFIRM = '확인했어요'
+
+/** 가장 최근에 달린, 아직 읽지 않은 답변 (없으면 null) */
+export function latestUnreadAnswer(list: StudyQuestion[] | null | undefined): StudyQuestion | null {
+  const unread = (list ?? []).filter(isUnreadAnswer)
+  if (unread.length === 0) return null
+  return [...unread].sort((a, b) => answeredTime(b) - answeredTime(a))[0] ?? null
+}
+
+function answeredTime(question: StudyQuestion): number {
+  return Date.parse(question.answered_at ?? question.updated_at ?? question.created_at ?? '') || 0
+}
+
+/** 배너에 한 줄로 보여 줄 내용 — 학생이 올린 메모가 있으면 그 말, 없으면 올린 날짜 */
+export function answerBannerQuestionLine(question: StudyQuestion): string {
+  const memo = (question.memo ?? '').replace(/\s+/g, ' ').trim()
+  if (memo) return `‘${memo}’ 질문에 답변이 달렸어요`
+  return `${formatQuestionTime(question.created_at)} 질문에 답변이 달렸어요`
+}
+
+/** 배너의 개수 표시 — 하나면 빈 문자열, 둘 이상이면 '새 답변 3개' */
+export function answerBannerCountText(count: number): string {
+  const total = Math.max(0, Math.floor(Number.isFinite(count) ? count : 0))
+  return total > 1 ? `새 답변 ${total}개` : ''
+}
+
 /** 한 줄 메모 정리 — 줄바꿈·연속 공백을 한 칸으로, 앞뒤 공백 제거, 최대 길이 자르기 */
 export function normalizeMemo(value: string | null | undefined, max = QUESTION_MEMO_MAX): string {
   const text = (value ?? '').replace(/\s+/g, ' ').trim()

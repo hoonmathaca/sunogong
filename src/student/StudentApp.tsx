@@ -4,7 +4,7 @@ import * as questionsApi from '../lib/questions'
 import { normalizeKind, type SessionKind } from '../lib/kinds'
 import { autoEndNotice } from '../lib/pauseWatch'
 import { isAcademySessionActive } from '../lib/session'
-import type { AutoEndResult, FinishResult, Student, StudySession } from '../lib/types'
+import type { AutoEndResult, FinishResult, Student, StudyQuestion, StudySession } from '../lib/types'
 import { ChooseStudentScreen } from './ChooseStudentScreen'
 import { CodeEntryScreen } from './CodeEntryScreen'
 import { PendingProblemsModal } from './PendingProblemsModal'
@@ -74,8 +74,11 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
   const [lastKind, setLastKind] = useState<SessionKind>('academy')
   /* 학원 등원 중(훈출이 연 학원 세션) — 이때는 홈의 「숙제 공부 시작」을 잠근다 (2026-11-28) */
   const [academyActive, setAcademyActive] = useState(false)
-  /* 새로 온 선오공이 답변 수 (홈 배지) */
+  /* 새로 온 선오공이 답변 (홈 배지·맨 위 알림 배너) */
+  const [unreadAnswerList, setUnreadAnswerList] = useState<StudyQuestion[]>([])
   const [unreadAnswers, setUnreadAnswers] = useState(0)
+  /* 홈 알림 배너에서 '답변 보기'를 누른 질문 — 질문 화면에서 그 답변을 펼쳐 보여 준다 */
+  const [focusQuestionId, setFocusQuestionId] = useState<string | null>(null)
   /* 지난 공부를 마저 내면 홈의 숙제 제출 목록을 다시 읽게 하는 값 */
   const [homeRefresh, setHomeRefresh] = useState(0)
   /* 자동 종료된 지난 공부의 문제 수 입력 (다음 접속 때) */
@@ -113,16 +116,22 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
     }
   }, [])
 
+  /* 아직 열지 않은 답변을 읽어 둔다 (질문 기능이 아직 없어도 홈은 그대로) */
+  const loadUnreadAnswers = useCallback(async (studentId: string) => {
+    const res = await questionsApi.listUnreadAnswers(studentId)
+    if (!res.ok) return
+    const list = res.data ?? []
+    setUnreadAnswerList(list)
+    setUnreadAnswers(list.length)
+  }, [])
+
   const enterWithStudent = useCallback(async (target: Student) => {
     setBusy(true)
     setStartError(null)
     try {
       saveStudent(target)
       setStudent(target)
-      // 새 답변 배지는 조용히 읽어 둔다 (질문 기능이 아직 없어도 홈은 그대로)
-      void questionsApi.countUnreadAnswers(target.id).then((res) => {
-        if (res.ok) setUnreadAnswers(res.data)
-      })
+      void loadUnreadAnswers(target.id)
       const active = await api.getActiveSession(target.id)
       if (active.ok && active.data.discarded) setFlash(discardMessage('stale'))
       const found = active.ok ? active.data.session : null
@@ -139,7 +148,7 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
     } finally {
       setBusy(false)
     }
-  }, [])
+  }, [loadUnreadAnswers])
 
   const handleCode = useCallback(
     async (code: string): Promise<{ ok: boolean; error?: string }> => {
@@ -207,17 +216,27 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
     void reloadPendingRef.current()
   }, [])
 
-  /* 홈으로 돌아올 때마다 새 답변 배지를 새로 읽는다 */
+  /* 홈으로 돌아올 때마다 새 답변 배지·알림 배너를 새로 읽는다 */
   useEffect(() => {
     if (!student || (phase !== 'home' && phase !== 'result')) return
-    let alive = true
-    void questionsApi.countUnreadAnswers(student.id).then((res) => {
-      if (alive && res.ok) setUnreadAnswers(res.data)
+    void loadUnreadAnswers(student.id)
+  }, [phase, student?.id, loadUnreadAnswers])
+
+  /* 홈 알림 배너 — '답변 보기'는 그 질문을 펼쳐 열고, '확인했어요'는 알림만 닫는다(읽음으로 남김) */
+  const openAnswer = useCallback((questionId: string) => {
+    setFocusQuestionId(questionId)
+    setPhase('questions')
+  }, [])
+
+  const confirmAnswers = useCallback(() => {
+    const ids = unreadAnswerList.map((question) => question.id)
+    setUnreadAnswerList([])
+    setUnreadAnswers(0)
+    if (ids.length === 0) return
+    void questionsApi.markAnswersRead(ids).then((res) => {
+      if (!res.ok) console.warn('[sunogong] 답변 읽음 표시 실패:', res.error)
     })
-    return () => {
-      alive = false
-    }
-  }, [phase, student?.id])
+  }, [unreadAnswerList])
 
   /* 홈에 머무는 동안에도 학원 등원 여부를 확인한다 —
    * 앱을 홈에 띄워 둔 사이 훈출이 등원시키면, 예전에는 그대로 「숙제 공부」가 눌려
@@ -265,8 +284,14 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
           student={student}
           onStart={(kind) => void startStudy(kind)}
           onExit={exitToCode}
-          onQuestions={() => setPhase('questions')}
+          onQuestions={() => {
+            setFocusQuestionId(null)
+            setPhase('questions')
+          }}
           unreadAnswers={unreadAnswers}
+          unreadAnswer={unreadAnswerList[0] ?? null}
+          onOpenAnswer={openAnswer}
+          onConfirmAnswer={confirmAnswers}
           pendingProblems={pendingProblems.count}
           pendingHomework={pendingProblems.hasHomework}
           onPendingProblems={pendingProblems.reopen}
@@ -279,8 +304,15 @@ export function StudentApp({ onAdmin }: StudentAppProps): JSX.Element {
       {phase === 'questions' && student ? (
         <QuestionBoardScreen
           student={student}
-          onBack={() => setPhase('home')}
-          onUnreadChange={setUnreadAnswers}
+          focusId={focusQuestionId}
+          onBack={() => {
+            setFocusQuestionId(null)
+            setPhase('home')
+          }}
+          onUnreadChange={(count) => {
+            setUnreadAnswers(count)
+            if (count === 0) setUnreadAnswerList([])
+          }}
         />
       ) : null}
 

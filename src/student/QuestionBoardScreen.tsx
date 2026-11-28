@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { BrandFooter, Mascot } from '../components/Brand'
 import { ImageViewer } from '../components/ImageViewer'
 import { Spinner } from '../components/Keypad'
@@ -16,6 +16,8 @@ import { QuestionAskForm } from './QuestionAskForm'
 interface QuestionBoardScreenProps {
   student: Student
   onBack: () => void
+  /** 홈 알림 배너에서 «답변 보기» 를 누른 질문 — 이 질문으로 바로 내려가 펼쳐 보여 준다 (2026-11-28) */
+  focusId?: string | null
   /** 새 답변 배지 숫자가 바뀌면 알려 준다 (홈 화면 배지) */
   onUnreadChange?: (count: number) => void
 }
@@ -24,7 +26,7 @@ interface QuestionBoardScreenProps {
  * 학생용 '선오공에게 질문하기' 화면.
  * 문제 사진을 올리고, 내가 올린 질문 카드와 선오공이의 답변(사진·영상 포함)을 본다.
  */
-export function QuestionBoardScreen({ student, onBack, onUnreadChange }: QuestionBoardScreenProps): JSX.Element {
+export function QuestionBoardScreen({ student, onBack, focusId = null, onUnreadChange }: QuestionBoardScreenProps): JSX.Element {
   const [questions, setQuestions] = useState<StudyQuestion[]>([])
   const [urls, setUrls] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
@@ -32,6 +34,8 @@ export function QuestionBoardScreen({ student, onBack, onUnreadChange }: Questio
   const [lightbox, setLightbox] = useState<string | null>(null)
   /** 이번에 처음 열린 '새 답변' — 답변 완료 배지 옆에 잠깐 표시한다 */
   const [newlyRead, setNewlyRead] = useState<string[]>([])
+  /** 알림 배너로 들어온 질문 카드 (여기로 스크롤) */
+  const focusRef = useRef<HTMLLIElement | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -61,6 +65,17 @@ export function QuestionBoardScreen({ student, onBack, onUnreadChange }: Questio
   useEffect(() => {
     void load()
   }, [load])
+
+  /* 알림 배너로 들어왔으면 그 질문 카드가 화면 가운데 오도록 내려간다 */
+  useEffect(() => {
+    if (loading || !focusId) return undefined
+    const node = focusRef.current
+    if (!node) return undefined
+    const timer = window.setTimeout(() => {
+      node.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    }, 200)
+    return () => window.clearTimeout(timer)
+  }, [loading, focusId, questions.length])
 
   const handleSubmitted = (question: StudyQuestion) => {
     setQuestions((prev) => [question, ...prev])
@@ -136,11 +151,18 @@ export function QuestionBoardScreen({ student, onBack, onUnreadChange }: Questio
             <ul className="mt-3 space-y-3">
               {questions.map((question) => {
                 const answered = isAnswered(question)
+                const focused = focusId === question.id
                 const photoUrl = urls[question.image_path]
                 const answerMediaUrl = question.answer_media_path ? urls[question.answer_media_path] : undefined
                 const answerMediaKind = mediaKindFromPath(question.answer_media_path)
                 return (
-                  <li key={question.id} className="overflow-hidden rounded-3xl border border-blue-line bg-white shadow-card">
+                  <li
+                    key={question.id}
+                    ref={focused ? focusRef : undefined}
+                    className={`overflow-hidden rounded-3xl border bg-white shadow-card ${
+                      focused ? 'border-[#6D3BD6]/60 ring-2 ring-[#6D3BD6]/25' : 'border-blue-line'
+                    }`}
+                  >
                     <div className="flex items-center justify-between gap-2 px-4 pt-3">
                       <div className="flex items-center gap-1.5">
                         <span

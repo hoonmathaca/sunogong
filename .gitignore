@@ -11,3 +11,4 @@ tsconfig.tsbuildinfo
 .tmp
 .smoke2
 __pycache__/
+.smoke3

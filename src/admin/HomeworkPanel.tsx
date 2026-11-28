@@ -12,11 +12,14 @@ import {
   filterSubmissions,
   formatSubmissionTime,
   hasRejectedPart,
+  isReviewed,
   nextPendingSubmission,
   normalizeComment,
   normalizeReason,
   photoCount,
+  rereviewNotice,
   reviewDefaults,
+  reviewEditResultText,
   reviewResultText,
   sortSubmissionsForAdmin,
   studyWindowText,
@@ -123,6 +126,12 @@ export function HomeworkPanel({ onPendingChange }: HomeworkPanelProps): JSX.Elem
   const save = async () => {
     if (!review || saving) return
     const { submission, timeApproved, problemsApproved } = review
+    /* 이미 확인한 제출을 고치는 경우 — 이전 승인분을 안내 문구에 쓴다 */
+    const previous = {
+      status: submission.status,
+      minutes: submission.approved_minutes ?? 0,
+      problems: submission.approved_problems ?? 0,
+    }
     setSaving(true)
     setReviewError(null)
     const res = await homeworkApi.reviewHomeworkSubmission(
@@ -142,7 +151,18 @@ export function HomeworkPanel({ onPendingChange }: HomeworkPanelProps): JSX.Elem
     const nextList = submissions.map((item) => (item.id === saved.id ? { ...item, ...saved } : item))
     setSubmissions(nextList)
     onPendingChange?.(countPending(nextList))
-    showToast(reviewResultText(saved.status, res.data.minutes, res.data.problems))
+    showToast(
+      previous.status === 'pending'
+        ? reviewResultText(saved.status, res.data.minutes, res.data.problems)
+        : reviewEditResultText({
+            previousStatus: previous.status,
+            previousMinutes: previous.minutes,
+            previousProblems: previous.problems,
+            status: saved.status,
+            minutes: res.data.minutes,
+            problems: res.data.problems,
+          }),
+    )
 
     /* 처리한 뒤에는 다음 대기 학생으로 바로 넘어간다 */
     const next = nextPendingSubmission(nextList, saved.id)
@@ -174,7 +194,7 @@ export function HomeworkPanel({ onPendingChange }: HomeworkPanelProps): JSX.Elem
     <div className="space-y-3">
       <AdminSection
         title="숙제 제출 확인"
-        description="학생이 공부한 페이지 사진과 함께 낸 숙제 공부예요. 시간과 문항수를 따로 승인/반려하면 승인한 항목만 그 날 기록·랭킹에 들어갑니다. (드래곤볼과는 별개예요)"
+        description="학생이 공부한 페이지 사진과 함께 낸 숙제 공부예요. 시간과 문항수를 따로 승인/반려하면 승인한 항목만 그 날 기록·랭킹에 들어갑니다. 이미 확인한 제출도 다시 열어 고칠 수 있어요. (드래곤볼과는 별개예요)"
         actions={
           <button type="button" className="btn-ghost border border-blue-line text-[12px]" onClick={() => void load()}>
             새로고침
@@ -306,9 +326,15 @@ export function HomeworkPanel({ onPendingChange }: HomeworkPanelProps): JSX.Elem
               type="button"
               className="btn-navy"
               onClick={() => void save()}
-              disabled={saving || review?.submission.status !== 'pending'}
+              disabled={saving}
             >
-              {saving ? <Spinner className="h-4 w-4 border-white/40 border-t-white" /> : '확인(저장)'}
+              {saving ? (
+                <Spinner className="h-4 w-4 border-white/40 border-t-white" />
+              ) : isReviewed(review?.submission ?? { status: 'pending' }) ? (
+                '고쳐서 저장'
+              ) : (
+                '확인(저장)'
+              )}
             </button>
           </>
         }
@@ -339,6 +365,23 @@ export function HomeworkPanel({ onPendingChange }: HomeworkPanelProps): JSX.Elem
                 </span>
               </div>
             </div>
+
+            {/* 이미 확인한 제출 — 상태·칭찬·반려 사유를 고쳐 다시 저장할 수 있다 (2026-11-28) */}
+            {isReviewed(review.submission) ? (
+              <div className="rounded-2xl border border-[#E9A400]/40 bg-[#FFF6DA] px-3.5 py-2.5">
+                <p className="text-[12px] font-bold text-[#7A5B00]">{rereviewNotice(review.submission)}</p>
+                <p className="mt-1 text-[11px] font-semibold leading-snug text-[#8A6A00]/85">
+                  지금 기록: {approvedLine(review.submission) || '0분 · 숙제 0개'} · 고친 적{' '}
+                  {review.submission.review_edit_count ?? 0}번
+                  {review.submission.reviewed_at
+                    ? ` · 마지막 저장 ${formatSubmissionTime(review.submission.reviewed_at)}`
+                    : ''}
+                </p>
+                <p className="mt-1 text-[11px] font-semibold leading-snug text-[#8A6A00]/85">
+                  저장하면 그날 기록에서 이전 승인분을 빼고 새 결정을 반영해요. 훈출 등·하원과 드래곤볼은 그대로예요.
+                </p>
+              </div>
+            ) : null}
 
             {/* 숙제 사진 — 눌러서 크게, 좌우로 넘기기 */}
             <div>
@@ -460,24 +503,13 @@ export function HomeworkPanel({ onPendingChange }: HomeworkPanelProps): JSX.Elem
               />
             </div>
 
-            {review.submission.status !== 'pending' ? (
-              <div className="space-y-1.5">
-                <p className="rounded-2xl bg-blue-soft px-3 py-2 text-center text-[12px] font-semibold text-navy/60">
-                  이미 확인한 제출이에요 ({submissionStatusLabel(review.submission)} · {approvedLine(review.submission) || '0분 · 숙제 0개'})
-                </p>
-                {review.submission.status === 'approved' && teacherCommentText(review.submission) ? (
-                  <p className="break-keep rounded-2xl border border-[#B9E8CE] bg-[#E9FAF0] px-3 py-2 text-[12px] font-semibold text-[#177A4A]">
-                    👏 선생님 한마디: {teacherCommentText(review.submission)}
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-
             {reviewError ? <ErrorBlock message={reviewError} /> : null}
 
-            {review.submission.status === 'pending' && !review.timeApproved && !review.problemsApproved ? (
+            {!review.timeApproved && !review.problemsApproved ? (
               <p className="rounded-2xl bg-[#FDECEC] px-3 py-2 text-center text-[11.5px] font-semibold text-[#B32B2B]">
-                모두 반려예요. 저장하면 이 제출은 0분·숙제 0개로 확정돼요.
+                {isReviewed(review.submission)
+                  ? '모두 반려로 고쳐 저장하면 이 제출의 승인분이 그날 기록에서 빠져요.'
+                  : '모두 반려예요. 저장하면 이 제출은 0분·숙제 0개로 확정돼요.'}
               </p>
             ) : null}
           </div>

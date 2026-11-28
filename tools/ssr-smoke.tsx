@@ -493,6 +493,33 @@ const cases: [string, () => JSX.Element][] = [
   ],
   ['StudentHomeScreen', () => <StudentHomeScreen student={student} onStart={() => {}} onExit={() => {}} onQuestions={() => {}} unreadAnswers={2} />],
   [
+    'StudentHomeScreen(선생님 답변 배너)',
+    () => (
+      <StudentHomeScreen
+        student={student}
+        onStart={() => {}}
+        onExit={() => {}}
+        onQuestions={() => {}}
+        unreadAnswers={2}
+        unreadAnswer={{
+          id: 'q-banner',
+          student_id: student.id,
+          memo: '3번에서 막혔어요',
+          image_path: 'a/1700000000000-token.jpg',
+          answer: '통분하면 돼요',
+          answer_media_path: null,
+          answered_at: '2026-11-28T00:10:00Z',
+          answered_by: '선오공이',
+          student_read_at: null,
+          created_at: '2026-11-27T05:00:00Z',
+          updated_at: '2026-11-28T00:10:00Z',
+        }}
+        onOpenAnswer={() => {}}
+        onConfirmAnswer={() => {}}
+      />
+    ),
+  ],
+  [
     'StudentHomeScreen(학원 등원 중)',
     () => (
       <StudentHomeScreen
@@ -599,6 +626,7 @@ const cases: [string, () => JSX.Element][] = [
     ),
   ],
   ['QuestionBoardScreen', () => <QuestionBoardScreen student={student} onBack={() => {}} />],
+  ['QuestionBoardScreen(답변 배너로 들어옴)', () => <QuestionBoardScreen student={student} focusId="q-banner" onBack={() => {}} />],
   ['QuestionAskForm', () => <QuestionAskForm studentId={student.id} />],
   [
     'LiveKintounStrip(세션 있음)',
@@ -1099,6 +1127,25 @@ const homeworkChecks: [string, boolean][] = [
   ['숙제: 모두 반려면 칭찬칸 잠금·안내', praiseLockedHtml.includes('모두 반려하면 칭찬 한마디는 저장되지 않아요') && praiseLockedHtml.includes('disabled')],
 ]
 for (const [name, ok] of homeworkChecks) {
+  if (!ok) failed += 1
+  console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)
+}
+
+/* 선생님 답변 알림 배너(2026-11-28) · 이미 확인한 숙제 다시 고치기(2026-11-28) */
+const bannerHomeHtml = rendered['StudentHomeScreen(선생님 답변 배너)'] ?? ''
+const plainHomeHtml = rendered['StudentHomeScreen(학원 등원 중)'] ?? ''
+const focusBoardHtml = rendered['QuestionBoardScreen(답변 배너로 들어옴)'] ?? ''
+const rereviewChecks: [string, boolean][] = [
+  ['답변 배너: 홈 위쪽에 제목', bannerHomeHtml.includes('선생님 답변이 도착했어요!')],
+  ['답변 배너: 답변 보기·확인했어요 버튼', bannerHomeHtml.includes('답변 보기') && bannerHomeHtml.includes('확인했어요')],
+  ['답변 배너: 개수 표시(2개)', bannerHomeHtml.includes('새 답변 2개')],
+  ['답변 배너: 어떤 질문인지 한 줄', bannerHomeHtml.includes('3번에서 막혔어요') && bannerHomeHtml.includes('질문에 답변이 달렸어요')],
+  ['답변 배너: 오늘 공부 카드보다 위', bannerHomeHtml.indexOf('선생님 답변이 도착했어요!') < bannerHomeHtml.indexOf('오늘 공부한 시간')],
+  ['답변 배너: 답이 없으면 안 보임', !plainHomeHtml.includes('선생님 답변이 도착했어요!')],
+  ['답변 배너: 열기 전 질문 화면은 그대로', focusBoardHtml.includes('선오공에게 질문하기') && focusBoardHtml.includes('새 질문 올리기')],
+  ['숙제: 확인 화면에 다시 고치기 안내', homeworkPanelHtml.includes('이미 확인한 제출도 다시 열어 고칠 수 있어요')],
+]
+for (const [name, ok] of rereviewChecks) {
   if (!ok) failed += 1
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)
 }
