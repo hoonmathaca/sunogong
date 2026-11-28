@@ -1011,7 +1011,7 @@ select public.cleanup_stale_study_sessions();
 **검증**
 - 단위 **629건**(+12 — 다시 열기 기본 선택·확인 여부·고치기 안내·고친 결과 문구·답변 배너 문구/최신/개수) · 스모크 **266건**(+10 — 답변 배너가 오늘 공부 카드보다 위·답이 없으면 없음·다시 고치기 안내) · `npm run build` · `node tools/check-wording.mjs dist` 모두 통과.
 - 실서비스 360px **새 점검 2개** (검증 데이터 잔여 **0건**):
-  - `node tools/check-homework-rereview.mjs https://sunogong.vercel.app /workspace/downloads` — **26건 전부 통과**. 승인 대기 확인(저장)=승인(기록 40분·12개·고친 횟수 0) → 승인 목록에서 다시 열기(안내·지난 결정 승인 선택·`고쳐서 저장`) → 모두 반려로 고침(안내 `반려로 고쳤어요…`·기록 줄 사라짐·고친 횟수 1) → 반려 목록에서 다시 열어 모두 승인(기록 복구·고친 횟수 2) → 시간만 반려(0분·12개·고친 횟수 3). 드래곤볼·지급 이력 그대로.
+  - `node tools/check-homework-rereview.mjs https://sunogong.vercel.app /workspace/downloads` — **33건 전부 통과**. 승인 대기 확인(저장)=승인(기록 40분·12개·고친 횟수 0) → 승인 목록에서 다시 열기(안내·지난 결정 승인 선택·`고쳐서 저장`) → 모두 반려로 고침(안내 `반려로 고쳤어요…`·기록 줄 사라짐·고친 횟수 1) → 반려 목록에서 다시 열어 모두 승인(기록 복구·고친 횟수 2) → 시간만 반려(0분·12개·고친 횟수 3). 드래곤볼·지급 이력 그대로.
   - `node tools/check-answer-banner.mjs https://sunogong.vercel.app /workspace/downloads` — **22건 전부 통과**. 답변 대기만 있으면 배너 없음 → 답변 등록 뒤 로그인 직후 배너(오늘 카드 y=268 보다 위 y=82, 360px 안) → `답변 보기` 로 질문 화면 이동·그 카드 강조·스크롤 303px·답변 글 표시·`student_read_at` 기록 → 홈/다시 로그인에도 배너 없음 → 두 개 쌓이면 `새 답변 2개` → `확인했어요` 로 닫히고 두 답변 모두 읽음.
 - 회귀(실서비스, 모두 통과·검증 데이터 0건): `check-homework-ui` **70건**(이미 승인한 건의 한마디는 이제 고칠 수 있는 칸에 들어 있음) · `check-homework-no-photo` **18건** · `check-inapp-camera` **37건** · `check-student-calendar` **22건** · `check-pending-problems` **12건**.
 - 스크린샷(`downloads/`): `sunogong-answer-banner-360.png`(홈 맨 위 배너) · `sunogong-answer-banner-question-360.png`(답변 보기 → 그 질문 강조) · `sunogong-answer-banner-two-360.png`(새 답변 2개) · `sunogong-rereview-1-open-360.png`(승인한 제출 다시 열기 — 고치기 안내) · `sunogong-rereview-2-approved-list-360.png`(고친 건이 승인 목록에 그대로).
