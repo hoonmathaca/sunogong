@@ -159,6 +159,7 @@ export function QuestionBoardScreen({ student, onBack, focusId = null, onUnreadC
                   <li
                     key={question.id}
                     ref={focused ? focusRef : undefined}
+                    data-focus-question={focused ? 'true' : undefined}
                     className={`overflow-hidden rounded-3xl border bg-white shadow-card ${
                       focused ? 'border-[#6D3BD6]/60 ring-2 ring-[#6D3BD6]/25' : 'border-blue-line'
                     }`}

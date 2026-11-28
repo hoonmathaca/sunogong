@@ -199,6 +199,7 @@ export function StudentHomeScreen({
         {unreadAnswer ? (
           <section
             aria-label="선생님 답변 알림"
+            data-answer-banner="true"
             className="mt-4 overflow-hidden rounded-3xl border-2 border-[#6D3BD6]/30 bg-gradient-to-br from-[#F5F0FF] to-[#EADDFF] px-4 py-3.5 shadow-card"
           >
             <div className="flex items-start gap-2.5">

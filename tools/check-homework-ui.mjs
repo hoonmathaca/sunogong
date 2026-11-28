@@ -364,7 +364,7 @@ try {
   await doneDetail.waitFor({ state: 'visible', timeout: 8000 })
   const doneText = (await doneDetail.innerText()).replace(/\s+/g, ' ')
   check('상세: 이미 승인한 건에도 한마디 보임', doneText.includes('선생님 한마디:') && doneText.includes('풀이가 꼼꼼해요 다음에도 이렇게 해봐요!'), doneText.slice(0, 200))
-  check('상세: 처리 완료 안내', doneText.includes('이미 확인한 제출이에요'))
+  check('상세: 처리 완료 안내(다시 고칠 수 있음)', doneText.includes('이미 승인한 제출이에요') && doneText.includes('고쳐서 다시 저장할 수 있어요'), doneText.slice(0, 200))
   await doneDetail.screenshot({ path: `${shotDir}/sunogong-homework-praise-approved-detail-360.png` })
   await admin.getByRole('button', { name: '닫기' }).last().click()
   await admin.waitForTimeout(400)
